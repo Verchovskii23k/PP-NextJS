@@ -1,0 +1,6 @@
+import { lookupRouter } from "./routers/lookup";
+// ...
+export const appRouter = router({
+  // ...
+  lookup: lookupRouter,
+});
