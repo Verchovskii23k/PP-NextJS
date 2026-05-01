@@ -1,99 +1,494 @@
 "use client";
+
 import { trpc } from "@/trpc/client";
-import { useState } from "react";
+import { useState, useCallback } from "react";
+import {
+  DndContext,
+  useDraggable,
+  useDroppable,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragStartEvent,
+  DragEndEvent,
+  DragOverlay,
+} from "@dnd-kit/core";
 
-export default function SchedulePage() {
-  const [week, setWeek] = useState<number | undefined>();
-  const [day, setDay] = useState<number | undefined>();
-  const [group, setGroup] = useState<number | undefined>();
-  const [teacher, setTeacher] = useState<number | undefined>();
-  const [classroom, setClassroom] = useState<number | undefined>();
+type Day = { id: number; name: string };
+type Pair = { id: number; number: number };
 
-  const { data: filters } = trpc.schedule.filters.useQuery();
-  const { data: scheduleData, isLoading } = trpc.schedule.getSchedule.useQuery({
-    weekNumber: week,
-    dayOfWeekId: day,
-    groupId: group,
-    teacherId: teacher,
-    classroomId: classroom,
+type ScheduleRow = {
+  id: number;
+  weekNumber: number;
+  dayOfWeekId: number;
+  pairNumberId: number;
+  unitCode: string;
+  displayText: string;
+  mergeNumber: number;
+  positionFlag: boolean;
+  classroomFlag: boolean;
+  lessonId: number | null;
+};
+
+function DraggableLesson({ entry, isEditMode }: { entry: ScheduleRow; isEditMode: boolean }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: `lesson-${entry.id}`,
+    data: { entry },
+    disabled: !isEditMode,
+  });
+  const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined;
+  return (
+    <div
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
+      className={`text-xs p-1 rounded leading-tight cursor-default ${isDragging ? "opacity-50" : ""} ${isEditMode ? "hover:ring-2 hover:ring-blue-300 cursor-grab" : ""}`}
+      style={style}
+    >
+      {entry.displayText}
+    </div>
+  );
+}
+
+function DroppableArea({
+  week,
+  dayId,
+  pairId,
+  unitCode,
+  entry,
+  isEditMode,
+  status,
+  onCellClick,
+}: {
+  week: number;
+  dayId: number;
+  pairId: number;
+  unitCode: string;
+  entry: ScheduleRow | undefined;
+  isEditMode: boolean;
+  status: "free" | "conflict" | "swap" | null;
+  onCellClick: (e: ScheduleRow) => void;
+}) {
+  const droppableId = `week-${week}-${dayId}-${pairId}-${unitCode}`;
+  const { isOver, setNodeRef } = useDroppable({
+    id: droppableId,
+    data: { week, dayId, pairId, unitCode },
+    disabled: !isEditMode,
   });
 
+  let bg = "";
+  if (isEditMode) {
+    if (status === "free") bg = "bg-green-100";
+    else if (status === "conflict") bg = "bg-red-100";
+    else if (status === "swap") bg = "bg-blue-100";
+    if (isOver) bg += " ring-2 ring-blue-500";
+  } else {
+    if (entry) {
+      bg = week % 2 === 1 ? "bg-green-50" : "bg-amber-50";
+    }
+  }
+
+  const entryBg = entry
+    ? week % 2 === 1
+      ? "bg-green-100 border border-green-200"
+      : "bg-amber-100 border border-amber-200"
+    : "";
+
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold mb-4">Расписание</h1>
+    <div
+      ref={setNodeRef}
+      className={`text-xs p-1 rounded leading-tight border ${bg} ${isEditMode ? "min-h-[1.5rem]" : ""}`}
+      onClick={() => entry && isEditMode && onCellClick(entry)}
+    >
+      {entry ? (
+        <div className={`flex items-center gap-1 p-1 rounded ${entryBg}`}>
+          <span className="text-gray-500 font-mono text-[10px]">
+            {week % 2 === 1 ? "н." : "ч."}
+          </span>
+          <DraggableLesson entry={entry} isEditMode={isEditMode} />
+        </div>
+      ) : (
+        <span className="text-gray-300 text-xs">—</span>
+      )}
+    </div>
+  );
+}
 
-      {/* Фильтры */}
-      <div className="flex flex-wrap gap-3 mb-6">
-        <select className="border p-2 rounded" value={week || ""} onChange={e => setWeek(e.target.value ? +e.target.value : undefined)}>
-          <option value="">Все недели</option>
-          {filters?.weeks.map(w => (
-            <option key={w.weekNumber} value={w.weekNumber}>{w.weekNumber}</option>
-          ))}
-        </select>
+export default function AdminSchedulePage() {
+  const [weekBase, setWeekBase] = useState(1);
+  const [viewMode, setViewMode] = useState<"units" | "groups">("units");
+  const [editMode, setEditMode] = useState(false);
+  const [selectedEntry, setSelectedEntry] = useState<ScheduleRow | null>(null);
+  const [flagForm, setFlagForm] = useState({ mergeNumber: 0, positionFlag: false, classroomFlag: false });
+  const [activeDragEntry, setActiveDragEntry] = useState<ScheduleRow | null>(null);
+  const [slotStatuses, setSlotStatuses] = useState<Record<string, "free" | "conflict" | "swap">>({});
+  const [slotSwapIds, setSlotSwapIds] = useState<Record<string, number>>({});
 
-        <select className="border p-2 rounded" value={day || ""} onChange={e => setDay(e.target.value ? +e.target.value : undefined)}>
-          <option value="">Все дни</option>
-          {filters?.days.map(d => (
-            <option key={d.id} value={d.id}>{d.name}</option>
-          ))}
-        </select>
+  const utils = trpc.useUtils();
 
-        <select className="border p-2 rounded" value={group || ""} onChange={e => setGroup(e.target.value ? +e.target.value : undefined)}>
-          <option value="">Все группы</option>
-          {filters?.groups.map(g => (
-            <option key={g.id} value={g.id}>{g.code}</option>
-          ))}
-        </select>
+  const { data: unitsData } = trpc.scheduleDisplay.getForWeekPair.useQuery(
+    { weekBase },
+    { enabled: !!weekBase && viewMode === "units" }
+  );
+  const { data: groupsData } = trpc.scheduleDisplay.getByStudyGroups.useQuery(
+    { weekBase },
+    { enabled: !!weekBase && viewMode === "groups" }
+  );
 
-        <select className="border p-2 rounded" value={teacher || ""} onChange={e => setTeacher(e.target.value ? +e.target.value : undefined)}>
-          <option value="">Все преподаватели</option>
-          {filters?.teachers.map(t => (
-            <option key={t.id} value={t.id}>{t.surname} {t.name}</option>
-          ))}
-        </select>
+  const checkSlots = trpc.scheduleDisplay.checkSlots.useMutation();
+  const moveMutation = trpc.scheduleDisplay.move.useMutation();
+  const swapMutation = trpc.scheduleDisplay.swap.useMutation();
+  const updateFlags = trpc.scheduleDisplay.updateFlags.useMutation();
 
-        <select className="border p-2 rounded" value={classroom || ""} onChange={e => setClassroom(e.target.value ? +e.target.value : undefined)}>
-          <option value="">Все аудитории</option>
-          {filters?.classrooms.map(c => (
-            <option key={c.id} value={c.id}>{c.roomNumber}</option>
-          ))}
-        </select>
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+
+  const refreshSlotStatuses = useCallback(
+    async (entry: ScheduleRow) => {
+      if (!unitsData) return;
+      const days = unitsData.days;
+      const pairs = unitsData.pairs;
+      const unitCodes = Array.from(new Set(unitsData.rows.map((r) => r.unitCode))).sort();
+      const slots: { week: number; dayId: number; pairId: number; unitCode: string }[] = [];
+      for (const week of [weekBase, weekBase + 1]) {
+        for (const day of days) {
+          for (const pair of pairs) {
+            for (const unitCode of unitCodes) {
+              slots.push({ week, dayId: day.id, pairId: pair.id, unitCode });
+            }
+          }
+        }
+      }
+      const result = await checkSlots.mutateAsync({ movingId: entry.id, slots });
+      const newStatuses: Record<string, "free" | "conflict" | "swap"> = {};
+      const newSwapIds: Record<string, number> = {};
+      for (const [key, val] of Object.entries(result)) {
+        newStatuses[key] = val.status as any;
+        if (val.status === 'swap' && val.swapId) newSwapIds[key] = val.swapId;
+      }
+      setSlotStatuses(newStatuses);
+      setSlotSwapIds(newSwapIds);
+    },
+    [unitsData, weekBase, checkSlots]
+  );
+
+  const handleDragStart = (event: DragStartEvent) => {
+    const entry = event.active.data.current?.entry as ScheduleRow;
+    if (entry) {
+      setActiveDragEntry(entry);
+      refreshSlotStatuses(entry);
+    }
+  };
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveDragEntry(null);
+    setSlotStatuses({});
+    setSlotSwapIds({});
+    if (!over || !active.data.current?.entry) return;
+    const entry = active.data.current.entry as ScheduleRow;
+    const targetId = over.id as string;
+    const parts = targetId.split("-");
+    if (parts.length < 5 || parts[0] !== "week") return;
+    const targetWeek = parseInt(parts[1], 10);
+    const targetDayId = parseInt(parts[2], 10);
+    const targetPairId = parseInt(parts[3], 10);
+    const targetUnitCode = parts.slice(4).join("-");
+    const status = slotStatuses[targetId];
+    if (!status) return;
+    try {
+      if (status === "free") {
+        await moveMutation.mutateAsync({ id: entry.id, targetWeek, targetDayId, targetPairId, targetUnitCode });
+      } else if (status === "swap") {
+        const swapId = slotSwapIds[targetId];
+        if (!swapId) { alert("Занятие для обмена не найдено"); return; }
+        await swapMutation.mutateAsync({ id1: entry.id, id2: swapId });
+      }
+      utils.scheduleDisplay.getForWeekPair.invalidate({ weekBase });
+    } catch (e: any) { alert(e.message); }
+  };
+
+  const openFlagEditor = (entry: ScheduleRow) => {
+    setSelectedEntry(entry);
+    setFlagForm({ mergeNumber: entry.mergeNumber, positionFlag: entry.positionFlag, classroomFlag: entry.classroomFlag });
+  };
+
+  const saveFlags = async () => {
+    if (!selectedEntry) return;
+    await updateFlags.mutateAsync({ id: selectedEntry.id, ...flagForm });
+    setSelectedEntry(null);
+    utils.scheduleDisplay.getForWeekPair.invalidate({ weekBase });
+  };
+
+  // Печать (открытие в новом окне)
+  const handlePrint = () => {
+    const tableElement = document.getElementById("schedule-table");
+    if (!tableElement) return;
+    const styles = document.querySelectorAll("style, link[rel=stylesheet]");
+    let stylesHtml = "";
+    styles.forEach(s => stylesHtml += s.outerHTML);
+    const printWindow = window.open("", "_blank", "width=1200,height=800");
+    if (!printWindow) return;
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Расписание (нед. ${weekBase}–${weekBase + 1})</title>
+          ${stylesHtml}
+        </head>
+        <body class="p-4">
+          <h1 class="text-xl font-bold mb-4">Расписание (нед. ${weekBase}–${weekBase + 1})</h1>
+          ${tableElement.outerHTML}
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+    printWindow.close();
+  };
+
+  // CSV
+  const handleCSV = () => {
+    const rows: any[] = [];
+    const header = ["День", "Пара"];
+
+    if (viewMode === "units" && unitsData) {
+      const unitCodes = Array.from(new Set(unitsData.rows.map(r => r.unitCode))).sort();
+      unitCodes.forEach(code => header.push(`${code} (неч)`, `${code} (чёт)`));
+      rows.push(header);
+      const days = unitsData.days;
+      const pairs = unitsData.pairs;
+      for (const day of days) {
+        for (const pair of pairs) {
+          const row: string[] = [day.name, String(pair.number)];
+          for (const code of unitCodes) {
+            const odd = unitsData.rows.find(r => r.unitCode === code && r.dayOfWeekId === day.id && r.pairNumberId === pair.id && r.weekNumber === weekBase);
+            const even = unitsData.rows.find(r => r.unitCode === code && r.dayOfWeekId === day.id && r.pairNumberId === pair.id && r.weekNumber === weekBase + 1);
+            row.push(odd?.displayText ?? "", even?.displayText ?? "");
+          }
+          rows.push(row);
+        }
+      }
+    } else if (viewMode === "groups" && groupsData) {
+      const groupCodes = Array.from(new Set(groupsData.rows.map(r => r.studyGroupCode))).sort();
+      groupCodes.forEach(code => header.push(`${code} (неч)`, `${code} (чёт)`));
+      rows.push(header);
+      const days = groupsData.days;
+      const pairs = groupsData.pairs;
+      for (const day of days) {
+        for (const pair of pairs) {
+          const row: string[] = [day.name, String(pair.number)];
+          for (const code of groupCodes) {
+            const odd = groupsData.rows.find(r => r.studyGroupCode === code && r.dayOfWeekId === day.id && r.pairNumberId === pair.id && r.weekNumber === weekBase);
+            const even = groupsData.rows.find(r => r.studyGroupCode === code && r.dayOfWeekId === day.id && r.pairNumberId === pair.id && r.weekNumber === weekBase + 1);
+            row.push(odd?.displayText ?? "", even?.displayText ?? "");
+          }
+          rows.push(row);
+        }
+      }
+    }
+
+    const BOM = "\uFEFF";
+    const csvContent = "data:text/csv;charset=utf-8," + BOM + rows.map(r => r.join(";")).join("\n");
+    const link = document.createElement("a");
+    link.setAttribute("href", encodeURI(csvContent));
+    link.setAttribute("download", `schedule_week${weekBase}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  };
+
+  if (viewMode === "units" && !unitsData) return <div className="p-6">Загрузка...</div>;
+  if (viewMode === "groups" && !groupsData) return <div className="p-6">Загрузка...</div>;
+
+  return (
+    <div className="p-4">
+      <h1 className="text-xl font-bold mb-4">Расписание</h1>
+
+      <div className="flex flex-wrap gap-4 mb-4 p-3 bg-gray-50 rounded border text-sm">
+        <div className="flex items-center gap-2"><span className="inline-block w-4 h-4 rounded bg-green-100 border border-green-200"></span> Нечётная неделя</div>
+        <div className="flex items-center gap-2"><span className="inline-block w-4 h-4 rounded bg-amber-100 border border-amber-200"></span> Чётная неделя</div>
+        {editMode && (
+          <>
+            <div className="flex items-center gap-2"><span className="inline-block w-4 h-4 rounded bg-green-300 border border-green-400"></span> Свободно</div>
+            <div className="flex items-center gap-2"><span className="inline-block w-4 h-4 rounded bg-red-300 border border-red-400"></span> Конфликт</div>
+            <div className="flex items-center gap-2"><span className="inline-block w-4 h-4 rounded bg-blue-300 border border-blue-400"></span> Обмен</div>
+          </>
+        )}
       </div>
 
-      {/* Таблица расписания */}
-      {isLoading ? (
-        <p>Загрузка...</p>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="min-w-full border-collapse border">
-            <thead>
-              <tr className="bg-gray-100">
-                <th className="border p-2">Неделя</th>
-                <th className="border p-2">День</th>
-                <th className="border p-2">Пара</th>
-                <th className="border p-2">Дисциплина</th>
-                <th className="border p-2">Тип</th>
-                <th className="border p-2">Преподаватель</th>
-                <th className="border p-2">Аудитория</th>
-                <th className="border p-2">Группа/Юнит</th>
-              </tr>
-            </thead>
-            <tbody>
-              {scheduleData?.map(row => (
-                <tr key={row.scheduleId} className="hover:bg-gray-50">
-                  <td className="border p-2">{row.weekNumber}</td>
-                  <td className="border p-2">{row.dayOfWeek}</td>
-                  <td className="border p-2">{row.pairNumber}</td>
-                  <td className="border p-2">{row.disciplineName}</td>
-                  <td className="border p-2">{row.lessonTypeName}</td>
-                  <td className="border p-2">{row.teacherSurname} {row.teacherName}</td>
-                  <td className="border p-2">{row.buildingNumber ? `${row.buildingNumber}-${row.classroomNumber}` : "—"}</td>
-                  <td className="border p-2">{row.unitCode}</td>
+      <div className="flex gap-4 mb-4">
+        <button onClick={() => setViewMode("units")} className={viewMode === "units" ? "font-bold border-b-2 border-blue-500" : ""}>По юнитам</button>
+        <button onClick={() => setViewMode("groups")} className={viewMode === "groups" ? "font-bold border-b-2 border-blue-500" : ""}>По группам</button>
+        <button onClick={handlePrint} className="bg-blue-600 text-white px-3 py-1 rounded ml-2">🖨️ Печать</button>
+        <button onClick={handleCSV} className="bg-green-600 text-white px-3 py-1 rounded ml-2">📥 CSV</button>
+        {viewMode === "units" && (
+          <button onClick={() => setEditMode(!editMode)} className="ml-auto bg-blue-500 text-white px-3 py-1 rounded">
+            {editMode ? "Завершить редактирование" : "Редактировать"}
+          </button>
+        )}
+      </div>
+
+      <div className="flex items-center gap-2 mb-4">
+        <label className="font-medium">Нечётная неделя:</label>
+        <input type="number" value={weekBase} onChange={(e) => setWeekBase(Number(e.target.value))} className="border rounded px-2 py-1 w-20" min={1} step={2} />
+        <span className="text-sm text-gray-500">(показаны нечётная {weekBase} и чётная {weekBase + 1})</span>
+      </div>
+
+      <div id="schedule-table">
+        {viewMode === "units" && unitsData && (
+          <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+            <div className="overflow-x-auto border border-gray-300 rounded-md">
+              <table className="border-collapse text-sm w-full">
+                <thead>
+                  <tr className="bg-gray-100">
+                    <th className="sticky left-0 z-20 bg-gray-100 border border-gray-400 p-2 w-[70px] min-w-[70px]">День</th>
+                    <th className="sticky left-[70px] z-20 bg-gray-100 border border-gray-400 p-2 w-[50px] min-w-[50px]">Пара</th>
+                    {Array.from(new Set(unitsData.rows.map((r) => r.unitCode))).sort().map((code) => (
+                      <th key={code} className="border border-gray-400 p-2 bg-blue-50 whitespace-nowrap min-w-[180px]">{code}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {unitsData.days.map((day) =>
+                    unitsData.pairs.map((pair, pairIdx) => {
+                      const isFirstPairOfDay = pairIdx === 0;
+                      return (
+                        <tr key={`${day.id}-${pair.id}`}>
+                          {isFirstPairOfDay && (
+                            <td rowSpan={unitsData.pairs.length} className="sticky left-0 z-10 bg-white border border-gray-400 p-2 font-medium text-center align-top" style={{ backgroundColor: "#fff" }}>
+                              {day.name}
+                            </td>
+                          )}
+                          <td className="sticky left-[70px] z-10 bg-white border border-gray-400 p-2 text-center align-top">{pair.number}</td>
+                          {Array.from(new Set(unitsData.rows.map((r) => r.unitCode))).sort().map((code) => {
+                            const oddEntry = unitsData.rows.find(
+                              (r) => r.unitCode === code && r.dayOfWeekId === day.id && r.pairNumberId === pair.id && r.weekNumber === weekBase
+                            );
+                            const evenEntry = unitsData.rows.find(
+                              (r) => r.unitCode === code && r.dayOfWeekId === day.id && r.pairNumberId === pair.id && r.weekNumber === weekBase + 1
+                            );
+                            return (
+                              <td key={`${day.id}-${pair.id}-${code}`} className="border border-gray-300 p-1 min-w-[180px] align-top">
+                                <div className="flex flex-col gap-1">
+                                  <DroppableArea
+                                    week={weekBase}
+                                    dayId={day.id}
+                                    pairId={pair.id}
+                                    unitCode={code}
+                                    entry={oddEntry}
+                                    isEditMode={editMode}
+                                    status={slotStatuses[`week-${weekBase}-${day.id}-${pair.id}-${code}`] ?? null}
+                                    onCellClick={openFlagEditor}
+                                  />
+                                  <DroppableArea
+                                    week={weekBase + 1}
+                                    dayId={day.id}
+                                    pairId={pair.id}
+                                    unitCode={code}
+                                    entry={evenEntry}
+                                    isEditMode={editMode}
+                                    status={slotStatuses[`week-${weekBase + 1}-${day.id}-${pair.id}-${code}`] ?? null}
+                                    onCellClick={openFlagEditor}
+                                  />
+                                </div>
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <DragOverlay>
+              {activeDragEntry ? (
+                <div className="bg-white border shadow p-2 rounded text-xs">{activeDragEntry.displayText}</div>
+              ) : null}
+            </DragOverlay>
+          </DndContext>
+        )}
+
+        {viewMode === "groups" && groupsData && (
+          <div className="overflow-x-auto border border-gray-300 rounded-md">
+            <table className="border-collapse text-sm w-full">
+              <thead>
+                <tr className="bg-gray-100">
+                  <th className="sticky left-0 z-20 bg-gray-100 border border-gray-400 p-2 w-[70px] min-w-[70px]">День</th>
+                  <th className="sticky left-[70px] z-20 bg-gray-100 border border-gray-400 p-2 w-[50px] min-w-[50px]">Пара</th>
+                  {Array.from(new Set(groupsData.rows.map((r: any) => r.studyGroupCode))).sort().map((code) => (
+                    <th key={code} className="border border-gray-400 p-2 bg-blue-50 whitespace-nowrap min-w-[180px]">{code}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          {scheduleData?.length === 0 && <p className="mt-4">Нет данных по выбранным фильтрам</p>}
+              </thead>
+              <tbody>
+                {groupsData.days.map((day: Day) =>
+                  groupsData.pairs.map((pair: Pair, pairIdx: number) => {
+                    const isFirstPairOfDay = pairIdx === 0;
+                    return (
+                      <tr key={`${day.id}-${pair.id}`}>
+                        {isFirstPairOfDay && (
+                          <td rowSpan={groupsData.pairs.length} className="sticky left-0 z-10 bg-white border border-gray-400 p-2 font-medium text-center align-top" style={{ backgroundColor: "#fff" }}>
+                            {day.name}
+                          </td>
+                        )}
+                        <td className="sticky left-[70px] z-10 bg-white border border-gray-400 p-2 text-center align-top">{pair.number}</td>
+                        {Array.from(new Set(groupsData.rows.map((r: any) => r.studyGroupCode))).sort().map((code) => {
+                          const entries = groupsData.rows.filter(
+                            (r: any) => r.studyGroupCode === code && r.dayOfWeekId === day.id && r.pairNumberId === pair.id
+                          );
+                          entries.sort((a: any, b: any) => a.weekNumber - b.weekNumber);
+                          return (
+                            <td key={code} className="border border-gray-300 p-1 min-w-[180px] align-top">
+                              {entries.length === 0 ? (
+                                <div className="text-gray-300 text-xs text-center">—</div>
+                              ) : (
+                                <div className="flex flex-col gap-1">
+                                  {entries.map((entry: any) => (
+                                    <div key={entry.id} className={`text-xs p-1 rounded leading-tight ${entry.weekNumber === weekBase ? "bg-green-50 border border-green-200" : "bg-amber-50 border border-amber-200"}`}>
+                                      <div className="flex items-center gap-1">
+                                        <span className="text-gray-500 font-mono text-[10px]">{entry.weekNumber === weekBase ? "н." : "ч."}</span>
+                                        <span className="truncate">{entry.displayText}</span>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {selectedEntry && (
+        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded shadow-lg w-80">
+            <h2 className="font-bold mb-4">Редактирование занятия</h2>
+            <div className="text-sm mb-2">{selectedEntry.displayText}</div>
+            <label className="block mb-2">
+              Номер слияния:
+              <input type="number" value={flagForm.mergeNumber} onChange={(e) => setFlagForm({ ...flagForm, mergeNumber: +e.target.value })} className="border rounded px-2 py-1 w-full" />
+            </label>
+            <label className="block mb-2">
+              <input type="checkbox" checked={flagForm.positionFlag} onChange={(e) => setFlagForm({ ...flagForm, positionFlag: e.target.checked })} />
+              <span className="ml-2">Position flag</span>
+            </label>
+            <label className="block mb-4">
+              <input type="checkbox" checked={flagForm.classroomFlag} onChange={(e) => setFlagForm({ ...flagForm, classroomFlag: e.target.checked })} />
+              <span className="ml-2">Classroom flag</span>
+            </label>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setSelectedEntry(null)} className="bg-gray-300 px-3 py-1 rounded">Отмена</button>
+              <button onClick={saveFlags} className="bg-blue-500 text-white px-3 py-1 rounded">Сохранить</button>
+            </div>
+          </div>
         </div>
       )}
     </div>

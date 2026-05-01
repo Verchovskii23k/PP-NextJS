@@ -12,11 +12,15 @@ import {
   classrooms,
   employeesDepartments,
   weeks, daysOfWeek, pairs,
-  roles,
+  roles, schedule, sheduleDisplay, lessonClassrooms, lessons,
 } from "@/db/schema";
 import { eq } from "drizzle-orm";
 async function main() {
   console.log("Заполнение справочников...");
+  await db.delete(scheduleDisplay);
+  await db.delete(schedule);
+  await db.delete(lessonClassrooms);
+  await db.delete(lessons);
   await db.delete(curriculumProfiles);
   await db.delete(curriculum);
   await db.delete(disciplineTeachers);
@@ -342,7 +346,11 @@ async function main() {
   if (!existingRoles.find(r => r.name === "student")) {
     await db.insert(roles).values({ name: "student", description: "Студент" });
   }
-
+// Настройки
+  const existingSettings = await db.select().from(settings).where(eq(settings.key, 'total_weeks'));
+  if (existingSettings.length === 0) {
+    await db.insert(settings).values({ key: 'total_weeks', value: '16' });
+  }
   console.log("Готово! Данные загружены.");
 }
 

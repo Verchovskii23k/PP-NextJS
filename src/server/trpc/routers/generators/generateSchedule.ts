@@ -1,10 +1,15 @@
 import { z } from "zod";
 import { router, adminProcedure } from "../../trpc";
+import { eq, and, inArray } from "drizzle-orm";
+
 import {
   schedule, lessons, lessonClassrooms,
-  daysOfWeek, pairs,
+  daysOfWeek, pairs, scheduleDisplay,
+  disciplines, lessonTypes,
+  employeesDepartments, employees,
+  units, classrooms, buildings,
+  unitRoots,
 } from "@/db/schema";
-import { eq, and, inArray } from "drizzle-orm";
 
 export const generateScheduleRouter = router({
   generateSchedule: adminProcedure
@@ -16,9 +21,11 @@ export const generateScheduleRouter = router({
       const { totalWeeks, cycleLength } = input;
       const step = Math.ceil(totalWeeks / cycleLength);
 
+      // 1. Все занятия
       const allLessons = await ctx.db.select().from(lessons);
       if (allLessons.length === 0) throw new Error("Нет занятий");
 
+      // 2. lessonId -> список classroomId
       const lessonClassroomMap = new Map<number, number[]>();
       const lcRows = await ctx.db.select().from(lessonClassrooms);
       for (const lc of lcRows) {
@@ -26,12 +33,36 @@ export const generateScheduleRouter = router({
         lessonClassroomMap.get(lc.lessonId)!.push(lc.classroomId);
       }
 
+      // 3. unitRoots: unit_code -> Set<studyGroupId>
+      const allUnitRoots = await ctx.db.select().from(unitRoots);
+      const unitToGroups = new Map<string, Set<number>>();
+      for (const ur of allUnitRoots) {
+        if (!unitToGroups.has(ur.unitCode)) unitToGroups.set(ur.unitCode, new Set());
+        unitToGroups.get(ur.unitCode)!.add(ur.studyGroupId);
+      }
+
+      // 4. lessonId -> unitCode (для быстрых проверок)
+      const lessonUnitMap = new Map<number, string>();
+      const allUnits = await ctx.db.select().from(units);
+      const unitCodeById = new Map<number, string>();
+      for (const u of allUnits) unitCodeById.set(u.id, u.code);
+      for (const l of allLessons) {
+        lessonUnitMap.set(l.id, unitCodeById.get(l.unitId) || "");
+      }
+
+      // 5. Дни и пары
       const days = await ctx.db.select().from(daysOfWeek).orderBy(daysOfWeek.id);
       const pairsList = await ctx.db.select().from(pairs).orderBy(pairs.number);
       if (days.length === 0 || pairsList.length === 0) throw new Error("Нет дней недели или пар");
 
+      // 6. Очистка старых расписаний
+      await ctx.db.delete(scheduleDisplay);
       await ctx.db.delete(schedule);
 
+      // 7. Массив будущих записей schedule
+      const scheduleRows: (typeof schedule.$inferInsert & { _unitCode?: string })[] = [];
+
+      // 8. Основной цикл
       for (const lesson of allLessons) {
         if (!lesson.countPerSemester || lesson.countPerSemester <= 0) continue;
 
@@ -42,6 +73,9 @@ export const generateScheduleRouter = router({
         for (let i = 0; i < remainder; i++) weekLoad[i]++;
 
         const classroomIds = lessonClassroomMap.get(lesson.id) || [];
+        const lessonUnitCode = lessonUnitMap.get(lesson.id) || "";
+        const lessonGroups = unitToGroups.get(lessonUnitCode) ?? new Set<number>();
+
         let placed = 0;
 
         for (let globalWeek = 0; globalWeek < totalWeeks; globalWeek++) {
@@ -55,50 +89,63 @@ export const generateScheduleRouter = router({
             let placedInSlot = false;
             for (const day of days) {
               for (const pair of pairsList) {
-                // Конфликт преподавателя
-                const conflict = await ctx.db
-                  .select()
-                  .from(schedule)
-                  .innerJoin(lessons, eq(schedule.lessonId, lessons.id))
-                  .where(and(
-                    eq(schedule.weekNumber, globalWeek + 1),
-                    eq(schedule.dayOfWeekId, day.id),
-                    eq(schedule.pairNumberId, pair.id),
-                    eq(lessons.teacherId, lesson.teacherId),
-                  ))
-                  .limit(1);
-                if (conflict.length > 0) continue;
+                const weekNum = globalWeek + 1;
 
-                // Аудитория
+                // Проверка конфликтов в уже накопленных scheduleRows
+                const conflict = scheduleRows.some(row => {
+                  if (row.weekNumber !== weekNum || row.dayOfWeekId !== day.id || row.pairNumberId !== pair.id) return false;
+
+                  // Находим урок строки
+                  const rowLesson = allLessons.find(l => l.id === row.lessonId);
+                  if (!rowLesson) return false;
+
+                  // Конфликт преподавателя
+                  if (rowLesson.teacherId === lesson.teacherId) return true;
+
+                  // Конфликт аудитории
+                  if (row.classroomId && classroomIds.includes(row.classroomId)) return true;
+
+                  // Конфликт студентов (пересечение study_group_id)
+                  const rowUnitCode = row._unitCode || lessonUnitMap.get(rowLesson.id) || "";
+                  const rowGroups = unitToGroups.get(rowUnitCode) ?? new Set<number>();
+                  for (const g of lessonGroups) {
+                    if (rowGroups.has(g)) return true;
+                  }
+                  return false;
+                });
+
+                if (conflict) continue;
+
+                // Ищем свободную аудиторию
                 let freeClassroomId: number | null = null;
                 if (classroomIds.length > 0) {
                   for (const cid of classroomIds) {
-                    const occ = await ctx.db
-                      .select()
-                      .from(schedule)
-                      .where(and(
-                        eq(schedule.weekNumber, globalWeek + 1),
-                        eq(schedule.dayOfWeekId, day.id),
-                        eq(schedule.pairNumberId, pair.id),
-                        eq(schedule.classroomId, cid),
-                      ))
-                      .limit(1);
-                    if (occ.length === 0) {
+                    const occupied = scheduleRows.some(r =>
+                      r.weekNumber === weekNum &&
+                      r.dayOfWeekId === day.id &&
+                      r.pairNumberId === pair.id &&
+                      r.classroomId === cid
+                    );
+                    if (!occupied) {
                       freeClassroomId = cid;
                       break;
                     }
                   }
-                  if (freeClassroomId === null) continue;
+                  if (freeClassroomId === null) continue; // все аудитории заняты
                 }
 
-                await ctx.db.insert(schedule).values({
-                  weekNumber: globalWeek + 1,
+                scheduleRows.push({
+                  weekNumber: weekNum,
                   dayOfWeekId: day.id,
                   pairNumberId: pair.id,
                   lessonId: lesson.id,
                   classroomId: freeClassroomId,
-                  classroomFlag: freeClassroomId !== null,
+                  classroomFlag: freeClassroomId !== null ? 1 : 0,
+                  mergeFlag: undefined,
+                  positionFlag: undefined,
+                  _unitCode: lessonUnitCode,
                 });
+
                 placed++;
                 placedInSlot = true;
                 break;
@@ -106,6 +153,73 @@ export const generateScheduleRouter = router({
               if (placedInSlot) break;
             }
           }
+        }
+      }
+
+      // 9. Вставка schedule пачкой
+      if (scheduleRows.length > 0) {
+        const cleanRows = scheduleRows.map(({ _unitCode, ...rest }) => rest);
+        await ctx.db.insert(schedule).values(cleanRows);
+      }
+
+      // 10. Заполнение schedule_display
+      const insertedSchedule = await ctx.db.select().from(schedule);
+      if (insertedSchedule.length > 0) {
+        const enriched = await ctx.db
+          .select({
+            weekNumber: schedule.weekNumber,
+            dayOfWeekId: schedule.dayOfWeekId,
+            pairNumberId: schedule.pairNumberId,
+            lessonId: schedule.lessonId,
+            classroomId: schedule.classroomId,
+            disciplineAbbr: disciplines.abbreviation,
+            lessonTypeName: lessonTypes.name,
+            teacherSurname: employees.surname,
+            teacherName: employees.name,
+            teacherPatronymic: employees.patronymic,
+            buildingNumber: buildings.number,
+            roomNumber: classrooms.roomNumber,
+            unitCode: units.code,
+          })
+          .from(schedule)
+          .innerJoin(lessons, eq(schedule.lessonId, lessons.id))
+          .innerJoin(disciplines, eq(lessons.disciplineId, disciplines.id))
+          .innerJoin(lessonTypes, eq(lessons.lessonTypeId, lessonTypes.id))
+          .innerJoin(employeesDepartments, eq(lessons.teacherId, employeesDepartments.id))
+          .innerJoin(employees, eq(employeesDepartments.employeeId, employees.id))
+          .innerJoin(units, eq(lessons.unitId, units.id))
+          .leftJoin(classrooms, eq(schedule.classroomId, classrooms.id))
+          .leftJoin(buildings, eq(classrooms.buildingId, buildings.id));
+
+        await ctx.db.delete(scheduleDisplay);
+
+        const displayRows = enriched.map(row => {
+          const typeMap: Record<string, string> = {
+            lecture: 'лек.',
+            lab: 'лаб.',
+            workshop: 'пр.',
+            guidedStudy: 'кср.'
+          };
+          const typeAbbr = typeMap[row.lessonTypeName] || row.lessonTypeName;
+          const disc = row.disciplineAbbr;
+          const teacher = `${row.teacherSurname} ${row.teacherName[0]}.${row.teacherPatronymic?.[0] ? row.teacherPatronymic[0] + '.' : ''}`;
+          const room = row.buildingNumber ? `${row.buildingNumber}-${row.roomNumber}` : 'б/а';
+          const text = `${typeAbbr}${disc} – ${teacher}, ${room}`;
+          return {
+            lessonId: row.lessonId,
+            weekNumber: row.weekNumber,
+            dayOfWeekId: row.dayOfWeekId,
+            pairNumberId: row.pairNumberId,
+            unitCode: row.unitCode,
+            displayText: text,
+            mergeNumber: 0,
+            positionFlag: false,
+            classroomFlag: row.classroomId !== null,
+          };
+        });
+
+        if (displayRows.length > 0) {
+          await ctx.db.insert(scheduleDisplay).values(displayRows);
         }
       }
 

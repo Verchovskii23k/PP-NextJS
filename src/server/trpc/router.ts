@@ -16,6 +16,8 @@ import { pairsRouter } from "./routers/pairs";
 import { weeksRouter } from "./routers/weeks";
 import { generationsRouter } from "./routers/generators";
 import { scheduleRouter } from "./routers/schedule";
+import { scheduleDisplayRouter } from "./routers/scheduleDisplay";
+import { studyGroupsRouter } from "./routers/studyGroups";  
 
 export const appRouter = router({
   auth: authRouter,
@@ -35,6 +37,8 @@ export const appRouter = router({
   weeks: weeksRouter,
   generations: generationsRouter,
   schedule: scheduleRouter,
+  scheduleDisplay: scheduleDisplayRouter,
+  studyGroups: studyGroupsRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -8,6 +8,13 @@
       "when": 1777313025952,
       "tag": "0000_rainy_pixie",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1777642842756,
+      "tag": "0001_volatile_wind_dancer",
+      "breakpoints": true
     }
   ]
 }
