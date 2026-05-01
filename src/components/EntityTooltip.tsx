@@ -1,7 +1,7 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
 import { trpc } from "@/lib/trpc/client";
-import { tablesMeta, type FieldMeta } from "@/lib/tableMeta";
+import { tablesMeta, type FieldMeta } from "@/lib/table-meta";
 
 export function EntityTooltip({
   tableName,

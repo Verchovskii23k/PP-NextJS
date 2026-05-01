@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { type FieldMeta } from "@/lib/tableMeta";
+import { type FieldMeta } from "@/lib/table-meta";
 
 interface ColumnFilterPopoverProps {
   field: FieldMeta;

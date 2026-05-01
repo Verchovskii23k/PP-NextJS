@@ -173,4 +173,9 @@ export const tablesMeta: Record<string, TableMeta> = {
       { dbName: "count_per_semester", displayName: "На семестр", isFK: false },
     ],
   },
+  
 };
+export const tableNames = Object.entries(tablesMeta).map(([key, value]) => ({
+  key,
+  label: value.nameRu,
+}));

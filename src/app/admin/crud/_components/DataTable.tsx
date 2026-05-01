@@ -15,7 +15,7 @@ import {
   type FilterFn,
 } from "@tanstack/react-table";
 import { trpc } from "@/trpc/client";
-import { tablesMeta } from "@/lib/tableMeta";
+import { tablesMeta } from "@/lib/table-meta";
 import { RecordForm } from "./RecordForm";
 import { ForeignKeyCell } from "./ForeignKeyCell";
 import { ColumnFilterPopover } from "./ColumnFilterPopover";

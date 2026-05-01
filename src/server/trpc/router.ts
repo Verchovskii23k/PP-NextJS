@@ -18,8 +18,10 @@ import { generationsRouter } from "./routers/generators";
 import { scheduleRouter } from "./routers/schedule";
 import { scheduleDisplayRouter } from "./routers/scheduleDisplay";
 import { studyGroupsRouter } from "./routers/studyGroups";  
-import { settingsRouter } from './routers/settings';
-import { lookupRouter } from "./routers/lookup";
+// import { settingsRouter } from './routers/settings';
+// import { lookupRouter } from "./routers/lookup";
+import { unitsRouter } from "./routers/units";
+import { lessonsRouter } from "./routers/lessons";
 
 export const appRouter = router({
   auth: authRouter,
@@ -41,8 +43,10 @@ export const appRouter = router({
   schedule: scheduleRouter,
   scheduleDisplay: scheduleDisplayRouter,
   studyGroups: studyGroupsRouter,
-  settings: settingsRouter,
-  lookup: lookupRouter,
+  // settings: settingsRouter,
+  // lookup: lookupRouter,
+  units: unitsRouter,
+  lessons: lessonsRouter,
 });
 
 export type AppRouter = typeof appRouter;

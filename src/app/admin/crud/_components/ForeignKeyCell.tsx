@@ -1,6 +1,6 @@
 "use client";
 import { trpc } from "@/trpc/client";
-import { tablesMeta } from "@/lib/tableMeta";
+import { tablesMeta } from "@/lib/table-meta";
 
 export function ForeignKeyCell({ table, id, displayField }: { table: string; id: number; displayField: string }) {
   if (id === undefined || id === null) return <>—</>;

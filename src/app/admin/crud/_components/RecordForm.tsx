@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { trpc } from "@/trpc/client";
-import { tablesMeta, type FieldMeta } from "@/lib/tableMeta";
+import { tablesMeta, type FieldMeta } from "@/lib/table-meta";
 
 interface RecordFormProps {
   tableName: string;

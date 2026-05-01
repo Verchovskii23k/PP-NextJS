@@ -1,15 +1,13 @@
 import { z } from 'zod';
-import { createTRPCRouter, protectedProcedure } from '../trpc';
+import { router, adminProcedure } from '../trpc';
 import { settings } from '@/db/schema';
 import { eq } from 'drizzle-orm';
-import { db } from '@/db';
 
-export const settingsRouter = createTRPCRouter({
-  // Получить значение одной настройки по ключу
-  get: protectedProcedure
+export const settingsRouter = router({
+  get: adminProcedure
     .input(z.object({ key: z.string() }))
-    .query(async ({ input }) => {
-      const result = await db
+    .query(async ({ ctx, input }) => {
+      const result = await ctx.db
         .select({ value: settings.value })
         .from(settings)
         .where(eq(settings.key, input.key))
@@ -17,11 +15,10 @@ export const settingsRouter = createTRPCRouter({
       return result[0] ?? null;
     }),
 
-  // Обновить значение настройки
-  update: protectedProcedure
+  update: adminProcedure
     .input(z.object({ key: z.string(), value: z.string() }))
-    .mutation(async ({ input }) => {
-      await db
+    .mutation(async ({ ctx, input }) => {
+      await ctx.db
         .update(settings)
         .set({ value: input.value, updatedAt: new Date() })
         .where(eq(settings.key, input.key));

@@ -3,27 +3,8 @@ import { trpc } from "@/trpc/client";
 import { useState, useEffect } from "react";
 
 export default function GenerationsPage() {
-  const [totalWeeks, setTotalWeeks] = useState(16);
-  const [cycleLength, setCycleLength] = useState(2);
   const [error, setError] = useState<string | null>(null);
   const utils = trpc.useUtils();
-
-  // ---------- Настройка "Всего недель" из БД ----------
-  const { data: totalWeeksSetting, isLoading: weeksLoading } =
-    trpc.settings.get.useQuery({ key: 'total_weeks' });
-  const updateSetting = trpc.settings.update.useMutation({
-    onSuccess: () => {
-      utils.settings.get.invalidate({ key: 'total_weeks' });
-    },
-    onError: (e) => setError(e.message),
-  });
-
-  // Синхронизируем локальное состояние с загруженным из БД
-  useEffect(() => {
-    if (totalWeeksSetting?.value !== undefined) {
-      setTotalWeeks(Number(totalWeeksSetting.value));
-    }
-  }, [totalWeeksSetting]);
 
   // ---------- Порог подгруппы из БД ----------
   const { data: subgroupType, isLoading: thresholdLoading } =
@@ -52,19 +33,41 @@ export default function GenerationsPage() {
     });
   };
 
-  const handleSaveTotalWeeks = () => {
-    if (!/^\d+$/.test(String(totalWeeks)) || totalWeeks < 1) {
-      setError("Введите целое положительное число недель");
-      return;
-    }
-    updateSetting.mutate({ key: 'total_weeks', value: String(totalWeeks) });
-  };
-
   // ---------- Мутации генераций ----------
-  const groups = trpc.generations.generateGroups.useMutation({ /* ... твой текущий код */ });
-  const units = trpc.generations.generateUnits.useMutation({ /* ... */ });
-  const lessons = trpc.generations.generateLessons.useMutation({ /* ... */ });
-  const classrooms = trpc.generations.assignClassroomsAuto.useMutation({ /* ... */ });
+  const groups = trpc.generations.generateGroups.useMutation({
+    onSuccess: (data) => {
+      setError(null);
+      utils.students.list.invalidate();
+      utils.studyGroups.list.invalidate();
+      alert(`Групп: ${data.createdGroups}, студентов: ${data.assignedStudents}`);
+    },
+    onError: (e) => setError(e.message),
+  });
+
+  const units = trpc.generations.generateUnits.useMutation({
+    onSuccess: (data) => {
+      setError(null);
+      alert(`Создано юнитов: ${data.createdUnits}`);
+    },
+    onError: (e) => setError(e.message),
+  });
+
+  const lessons = trpc.generations.generateLessons.useMutation({
+    onSuccess: (data) => {
+      setError(null);
+      alert(`Создано занятий: ${data.lessonsCreated}`);
+    },
+    onError: (e) => setError(e.message),
+  });
+
+  const classrooms = trpc.generations.assignClassroomsAuto.useMutation({
+    onSuccess: (data) => {
+      setError(null);
+      alert(`Назначено аудиторий: ${data.assignedClassrooms}`);
+    },
+    onError: (e) => setError(e.message),
+  });
+
   const schedule = trpc.generations.generateSchedule.useMutation({
     onSuccess: () => {
       setError(null);
@@ -73,7 +76,8 @@ export default function GenerationsPage() {
     onError: (e) => setError(e.message),
   });
 
-  if (thresholdLoading || weeksLoading) return <div>Загрузка данных...</div>;
+  // ---------- Рендер ----------
+  if (thresholdLoading) return <div>Загрузка данных о типах юнитов...</div>;
 
   return (
     <div className="p-6 space-y-6">
@@ -103,6 +107,7 @@ export default function GenerationsPage() {
           value={threshold ?? ""}
           onChange={(e) => setThreshold(Number(e.target.value))}
           className="border p-1 w-24"
+          placeholder="Загрузка..."
         />
         <button
           className="bg-green-500 text-white px-3 py-1 rounded text-sm ml-2"
@@ -113,7 +118,7 @@ export default function GenerationsPage() {
         </button>
         <button
           className="bg-blue-500 text-white px-4 py-2 rounded disabled:opacity-50 ml-2"
-          onClick={() => units.mutate()}
+          onClick={() => units.mutate({ maxSubgroupSize: threshold ?? 16 })}
           disabled={units.isPending}
         >
           {units.isPending ? "..." : "2. Сгенерировать юниты"}
@@ -144,26 +149,9 @@ export default function GenerationsPage() {
 
       {/* 5. Расписание */}
       <div className="space-y-2">
-        <label className="mr-2">Всего недель:</label>
-        <input
-          type="number"
-          value={totalWeeks}
-          onChange={(e) => setTotalWeeks(Number(e.target.value))}
-          className="border p-1 w-20"
-          min={1}
-        />
         <button
-          className="bg-green-500 text-white px-3 py-1 rounded text-sm ml-2"
-          onClick={handleSaveTotalWeeks}
-          disabled={updateSetting.isPending}
-        >
-          {updateSetting.isPending ? "Сохраняю..." : "Сохранить"}
-        </button>
-        <span className="ml-2 text-sm text-gray-600">Длина цикла (чёт/нечет=2): {cycleLength}</span>
-        <br />
-        <button
-          className="bg-blue-500 text-white px-4 py-2 rounded disabled:opacity-50 mt-2"
-          onClick={() => schedule.mutate({ totalWeeks, cycleLength })}
+          className="bg-blue-500 text-white px-4 py-2 rounded disabled:opacity-50"
+          onClick={() => schedule.mutate({ totalWeeks: 16, cycleLength: 2 })}
           disabled={schedule.isPending}
         >
           {schedule.isPending ? "..." : "5. Сгенерировать расписание"}
