@@ -95,17 +95,13 @@ export const generateScheduleRouter = router({
                 const conflict = scheduleRows.some(row => {
                   if (row.weekNumber !== weekNum || row.dayOfWeekId !== day.id || row.pairNumberId !== pair.id) return false;
 
-                  // Находим урок строки
                   const rowLesson = allLessons.find(l => l.id === row.lessonId);
                   if (!rowLesson) return false;
 
-                  // Конфликт преподавателя
                   if (rowLesson.teacherId === lesson.teacherId) return true;
 
-                  // Конфликт аудитории
                   if (row.classroomId && classroomIds.includes(row.classroomId)) return true;
 
-                  // Конфликт студентов (пересечение study_group_id)
                   const rowUnitCode = row._unitCode || lessonUnitMap.get(rowLesson.id) || "";
                   const rowGroups = unitToGroups.get(rowUnitCode) ?? new Set<number>();
                   for (const g of lessonGroups) {
@@ -116,7 +112,6 @@ export const generateScheduleRouter = router({
 
                 if (conflict) continue;
 
-                // Ищем свободную аудиторию
                 let freeClassroomId: number | null = null;
                 if (classroomIds.length > 0) {
                   for (const cid of classroomIds) {
@@ -131,7 +126,7 @@ export const generateScheduleRouter = router({
                       break;
                     }
                   }
-                  if (freeClassroomId === null) continue; // все аудитории заняты
+                  if (freeClassroomId === null) continue;
                 }
 
                 scheduleRows.push({

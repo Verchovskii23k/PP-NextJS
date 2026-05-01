@@ -30,6 +30,7 @@ type ScheduleRow = {
   lessonId: number | null;
 };
 
+// ---- Draggable элемент ----
 function DraggableLesson({ entry, isEditMode }: { entry: ScheduleRow; isEditMode: boolean }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `lesson-${entry.id}`,
@@ -50,6 +51,7 @@ function DraggableLesson({ entry, isEditMode }: { entry: ScheduleRow; isEditMode
   );
 }
 
+// ---- Droppable зона внутри ячейки (одна неделя) ----
 function DroppableArea({
   week,
   dayId,
@@ -114,6 +116,7 @@ function DroppableArea({
   );
 }
 
+// ---- Основной компонент ----
 export default function AdminSchedulePage() {
   const [weekBase, setWeekBase] = useState(1);
   const [viewMode, setViewMode] = useState<"units" | "groups">("units");
@@ -126,14 +129,10 @@ export default function AdminSchedulePage() {
 
   const utils = trpc.useUtils();
 
-  const { data: unitsData } = trpc.scheduleDisplay.getForWeekPair.useQuery(
-    { weekBase },
-    { enabled: !!weekBase && viewMode === "units" }
-  );
-  const { data: groupsData } = trpc.scheduleDisplay.getByStudyGroups.useQuery(
-    { weekBase },
-    { enabled: !!weekBase && viewMode === "groups" }
-  );
+  const { data: unitsData, isLoading: unitsLoading, error: unitsError } =
+    trpc.scheduleDisplay.getForWeekPair.useQuery({ weekBase }, { enabled: !!weekBase && viewMode === "units" });
+  const { data: groupsData, isLoading: groupsLoading, error: groupsError } =
+    trpc.scheduleDisplay.getByStudyGroups.useQuery({ weekBase }, { enabled: !!weekBase && viewMode === "groups" });
 
   const checkSlots = trpc.scheduleDisplay.checkSlots.useMutation();
   const moveMutation = trpc.scheduleDisplay.move.useMutation();
@@ -219,6 +218,8 @@ export default function AdminSchedulePage() {
     utils.scheduleDisplay.getForWeekPair.invalidate({ weekBase });
   };
 
+  // ========== ЭКСПОРТ ==========
+
   // Печать (открытие в новом окне)
   const handlePrint = () => {
     const tableElement = document.getElementById("schedule-table");
@@ -287,8 +288,7 @@ export default function AdminSchedulePage() {
       }
     }
 
-    const BOM = "\uFEFF";
-    const csvContent = "data:text/csv;charset=utf-8," + BOM + rows.map(r => r.join(";")).join("\n");
+    const csvContent = "data:text/csv;charset=utf-8," + rows.map(r => r.join(";")).join("\n");
     const link = document.createElement("a");
     link.setAttribute("href", encodeURI(csvContent));
     link.setAttribute("download", `schedule_week${weekBase}.csv`);
@@ -297,8 +297,8 @@ export default function AdminSchedulePage() {
     link.remove();
   };
 
-  if (viewMode === "units" && !unitsData) return <div className="p-6">Загрузка...</div>;
-  if (viewMode === "groups" && !groupsData) return <div className="p-6">Загрузка...</div>;
+  if (viewMode === "units" && unitsLoading) return <div className="p-6">Загрузка...</div>;
+  if (viewMode === "groups" && groupsLoading) return <div className="p-6">Загрузка...</div>;
 
   return (
     <div className="p-4">
