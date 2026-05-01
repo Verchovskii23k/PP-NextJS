@@ -272,3 +272,23 @@ export const schedule = pgTable("schedule", {
   positionFlag: integer("position_flag"),
   classroomFlag: integer("classroom_flag"),
 });
+export const scheduleDisplay = pgTable("schedule_display", {
+  id: serial("id").primaryKey(),
+  lessonId: integer("lesson_id").references(() => lessons.id, { onDelete: "set null" }),
+  weekNumber: integer("week_number").notNull(),
+  dayOfWeekId: integer("day_of_week_id").notNull().references(() => daysOfWeek.id),
+  pairNumberId: integer("pair_number_id").notNull().references(() => pairs.id),
+  unitCode: text("unit_code").notNull(),
+  displayText: text("display_text").notNull(),
+  mergeNumber: integer("merge_number").default(0),
+  positionFlag: boolean("position_flag").default(false),
+  classroomFlag: boolean("classroom_flag").default(false),
+});
+
+export const settings = pgTable('settings', {
+  id: serial('id').primaryKey(),
+  key: text('key').unique().notNull(),
+  value: text('value').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});

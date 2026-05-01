@@ -9,39 +9,44 @@ import {
   profiles,
   disciplineTeachers,
   curriculum, curriculumProfiles,
-  classrooms,
+  classrooms, studyGroups,
   employeesDepartments,
-  weeks, daysOfWeek, pairs,
-  roles, schedule, sheduleDisplay, lessonClassrooms, lessons,
+  weeks, daysOfWeek, pairs, unitRoots, units, settings, scheduleDisplay,
+  roles, schedule, lessonClassrooms, lessons,
 } from "@/db/schema";
 import { eq } from "drizzle-orm";
 async function main() {
   console.log("Заполнение справочников...");
-  await db.delete(scheduleDisplay);
-  await db.delete(schedule);
-  await db.delete(lessonClassrooms);
-  await db.delete(lessons);
-  await db.delete(curriculumProfiles);
-  await db.delete(curriculum);
-  await db.delete(disciplineTeachers);
-  await db.delete(employeesDepartments);
-  await db.delete(classrooms);
-  await db.delete(hourTypeMapping);
-  await db.delete(controlTypes);
-  await db.delete(academicLoadTypes);
-  await db.delete(lessonTypes);
-  await db.delete(unitTypes);
-  await db.delete(daysOfWeek);
-  await db.delete(pairs);
-  await db.delete(weeks);
-  await db.delete(students);
-  await db.delete(profiles);
-  await db.delete(specialties);
-  await db.delete(disciplines);
-  await db.delete(departments);
-  await db.delete(institutes);
-  await db.delete(buildings);
-  await db.delete(employees);
+  // Удаление в правильном порядке (потомки → родители)
+await db.delete(scheduleDisplay);
+await db.delete(schedule);
+await db.delete(lessonClassrooms);
+await db.delete(lessons);
+await db.delete(curriculumProfiles);
+await db.delete(curriculum);
+await db.delete(disciplineTeachers);
+await db.delete(employeesDepartments);
+await db.delete(classrooms);
+await db.delete(hourTypeMapping);
+await db.delete(controlTypes);
+await db.delete(academicLoadTypes);
+await db.delete(lessonTypes);
+await db.delete(unitRoots);
+await db.delete(units);
+await db.delete(unitTypes);
+await db.delete(daysOfWeek);
+await db.delete(pairs);
+await db.delete(weeks);
+await db.delete(students);
+await db.delete(studyGroups);
+await db.delete(profiles);
+await db.delete(specialties);
+await db.delete(disciplines);
+await db.delete(departments);
+await db.delete(institutes);
+await db.delete(buildings);
+await db.delete(employees);
+await db.delete(settings);
 
   // ---------- независимые таблицы ----------
   // Институты
