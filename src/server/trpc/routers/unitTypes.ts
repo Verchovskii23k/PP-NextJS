@@ -44,4 +44,10 @@ export const unitTypesRouter = router({
     const rows = await ctx.db.select().from(unitTypes).where(eq(unitTypes.id, input.id)).limit(1);
     return rows[0] ?? null;
   }),
+  getByName: adminProcedure
+  .input(z.object({ name: z.string() }))
+  .query(async ({ ctx, input }) => {
+    const rows = await ctx.db.select().from(unitTypes).where(eq(unitTypes.name, input.name)).limit(1);
+    return rows[0] ?? null;
+  }),
 });
