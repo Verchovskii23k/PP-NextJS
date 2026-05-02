@@ -1,17 +1,15 @@
 "use client";
-import { useState, useRef, useEffect } from "react";
-import { trpc } from "@/lib/trpc/client";
-import { tablesMeta, type FieldMeta } from "@/lib/table-meta";
+import { useState, useRef } from "react";
+import { trpc } from "@/trpc/client";
+import { tablesMeta } from "@/lib/table-meta";
 
-export function EntityTooltip({
-  tableName,
-  id,
-  children,
-}: {
+interface EntityTooltipProps {
   tableName: string;
   id: number;
   children: React.ReactNode;
-}) {
+}
+
+export function EntityTooltip({ tableName, id, children }: EntityTooltipProps) {
   const [show, setShow] = useState(false);
   const [coords, setCoords] = useState({ x: 0, y: 0 });
   const ref = useRef<HTMLSpanElement>(null);
@@ -40,7 +38,7 @@ export function EntityTooltip({
       {children}
       {show && (
         <div
-          className="absolute z-50 bg-white border border-gray-300 shadow-lg rounded-md p-2 text-sm min-w-[240px]"
+          className="fixed z-50 bg-white border border-gray-300 shadow-lg rounded-md p-2 text-sm min-w-[240px]"
           style={{ left: coords.x, top: coords.y }}
         >
           <div className="font-semibold mb-1">{meta.nameRu}</div>
@@ -52,7 +50,7 @@ export function EntityTooltip({
                 <span className="text-gray-600">{field.displayName}:</span>
                 {field.isFK ? (
                   <EntityTooltip
-                    tableName={field.dbName.replace(/_id$/, "") + "s"} // приблизительное определение имени таблицы
+                    tableName={field.references!.table}
                     id={data[field.dbName]}
                   >
                     <span className="underline decoration-dotted">
