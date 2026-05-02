@@ -44,4 +44,10 @@ export const studentsRouter = router({
     .mutation(async ({ ctx, input }) => {
       return ctx.db.delete(students).where(eq(students.id, input.id));
     }),
+  get: adminProcedure
+  .input(z.object({ id: z.number() }))
+  .query(async ({ ctx, input }) => {
+    const rows = await ctx.db.select().from(students).where(eq(students.id, input.id)).limit(1);
+    return rows[0] ?? null;
+  }),
 });

@@ -29,4 +29,10 @@ export const institutesRouter = router({
     .mutation(async ({ ctx, input }) => {
       return ctx.db.delete(institutes).where(eq(institutes.id, input.id));
     }),
+  get: adminProcedure
+  .input(z.object({ id: z.number() }))
+  .query(async ({ ctx, input }) => {
+    const rows = await ctx.db.select().from(institutes).where(eq(institutes.id, input.id)).limit(1);
+    return rows[0] ?? null;
+  }),
 });

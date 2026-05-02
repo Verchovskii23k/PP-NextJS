@@ -32,4 +32,10 @@ export const profilesRouter = router({
     .mutation(async ({ ctx, input }) => {
       return ctx.db.delete(profiles).where(eq(profiles.id, input.id));
     }),
+  get: adminProcedure
+  .input(z.object({ id: z.number() }))
+  .query(async ({ ctx, input }) => {
+    const rows = await ctx.db.select().from(profiles).where(eq(profiles.id, input.id)).limit(1);
+    return rows[0] ?? null;
+  }),
 });

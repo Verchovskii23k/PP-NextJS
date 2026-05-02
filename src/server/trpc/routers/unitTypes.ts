@@ -38,4 +38,10 @@ export const unitTypesRouter = router({
     .mutation(async ({ ctx, input }) => {
       return ctx.db.delete(unitTypes).where(eq(unitTypes.id, input.id));
     }),
+  get: adminProcedure
+  .input(z.object({ id: z.number() }))
+  .query(async ({ ctx, input }) => {
+    const rows = await ctx.db.select().from(unitTypes).where(eq(unitTypes.id, input.id)).limit(1);
+    return rows[0] ?? null;
+  }),
 });

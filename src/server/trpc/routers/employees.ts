@@ -40,4 +40,10 @@ export const employeesRouter = router({
     .mutation(async ({ ctx, input }) => {
       return ctx.db.delete(employees).where(eq(employees.id, input.id));
     }),
+  get: adminProcedure
+  .input(z.object({ id: z.number() }))
+  .query(async ({ ctx, input }) => {
+    const rows = await ctx.db.select().from(employees).where(eq(employees.id, input.id)).limit(1);
+    return rows[0] ?? null;
+  }),
 });
