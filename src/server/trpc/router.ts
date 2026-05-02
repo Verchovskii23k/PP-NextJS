@@ -1,3 +1,4 @@
+// src/server/trpc/router.ts
 import { router } from "./trpc";
 import { authRouter } from "./routers/auth";
 import { institutesRouter } from "./routers/institutes";
@@ -22,6 +23,15 @@ import { settingsRouter } from './routers/settings';
 import { lookupRouter } from "./routers/lookup";
 import { unitsRouter } from "./routers/units";
 import { lessonsRouter } from "./routers/lessons";
+import { curriculumRouter } from "./routers/curriculum";
+import { lessonClassroomsRouter } from "./routers/lessonClassrooms";
+import { unitRootsRouter } from "./routers/unitRoots";
+import { curriculumProfilesRouter } from "./routers/curriculumProfiles";
+import { academicLoadTypesRouter } from "./routers/academicLoadTypes";
+import { controlTypesRouter } from "./routers/controlTypes";
+import { hourTypeMappingRouter } from "./routers/hourTypeMapping";
+import { employeesDepartmentsRouter } from "./routers/employeesDepartments";
+import { disciplineTeachersRouter } from "./routers/disciplineTeachers";
 
 export const appRouter = router({
   auth: authRouter,
@@ -47,6 +57,15 @@ export const appRouter = router({
   lookup: lookupRouter,
   units: unitsRouter,
   lessons: lessonsRouter,
+  curriculum: curriculumRouter,
+  lessonClassrooms: lessonClassroomsRouter,
+  unitRoots: unitRootsRouter,
+  curriculumProfiles: curriculumProfilesRouter,
+  academicLoadTypes: academicLoadTypesRouter,
+  controlTypes: controlTypesRouter,
+  hourTypeMapping: hourTypeMappingRouter,
+  employeesDepartments: employeesDepartmentsRouter,
+  disciplineTeachers: disciplineTeachersRouter,
 });
 
 export type AppRouter = typeof appRouter;

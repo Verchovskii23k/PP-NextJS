@@ -14,7 +14,7 @@ import {
   weeks, daysOfWeek, pairs, unitRoots, units, settings, scheduleDisplay,
   roles, schedule, lessonClassrooms, lessons,
 } from "@/db/schema";
-import { eq, sql} from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 async function main() {
   console.log("Заполнение справочников...");
   // Удаление в правильном порядке (потомки → родители)
@@ -47,21 +47,23 @@ await db.delete(institutes);
 await db.delete(buildings);
 await db.delete(employees);
 await db.delete(settings);
-// Сброс всех последовательностей, чтобы нумерация начиналась с 1
-await db.execute(sql`
-  DO $$
-  DECLARE
-    seq RECORD;
-  BEGIN
-    FOR seq IN
-      SELECT sequence_name
-      FROM information_schema.sequences
-      WHERE sequence_schema = 'public'
-    LOOP
-      EXECUTE 'ALTER SEQUENCE ' || seq.sequence_name || ' RESTART WITH 1';
-    END LOOP;
-  END $$;
-`);
+
+  // Сброс всех последовательностей
+  await db.execute(sql`
+    DO $$
+    DECLARE
+      seq RECORD;
+    BEGIN
+      FOR seq IN
+        SELECT sequence_name
+        FROM information_schema.sequences
+        WHERE sequence_schema = 'public'
+      LOOP
+        EXECUTE 'ALTER SEQUENCE ' || seq.sequence_name || ' RESTART WITH 1';
+      END LOOP;
+    END $$;
+  `);
+
   // ---------- независимые таблицы ----------
   // Институты
   const instData = await db.insert(institutes).values([

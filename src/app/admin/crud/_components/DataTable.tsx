@@ -1,4 +1,4 @@
-// src/app/admin/crud/_components/DataTable.tsx
+// src/app/admin/crud/_components/DataTable.tsx (окончательная версия)
 "use client";
 import * as React from "react";
 import {
@@ -21,9 +21,10 @@ import { ForeignKeyCell } from "./ForeignKeyCell";
 import { ColumnFilterPopover } from "./ColumnFilterPopover";
 
 const arrayFilterFn: FilterFn<any> = (row, columnId, filterValue: any[]) => {
+  // filterValue – массив значений, которые нужно ИСКЛЮЧИТЬ
   if (!filterValue || filterValue.length === 0) return true;
   const cellValue = row.getValue(columnId);
-  return filterValue.includes(cellValue);
+  return !filterValue.includes(cellValue);
 };
 
 interface DataTableProps {
@@ -34,10 +35,18 @@ export function DataTable({ tableName }: DataTableProps) {
   const meta = tablesMeta[tableName];
   if (!meta) return <div>Таблица не найдена</div>;
 
+  // При смене таблицы сбрасываем все фильтры, сортировку и поиск
+  React.useEffect(() => {
+    setSorting([]);
+    setPagination({ pageIndex: 0, pageSize: 10000 });
+    setGlobalFilter("");
+    setColumnFilters([]);
+  }, [tableName]);
+
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [pagination, setPagination] = React.useState<PaginationState>({
     pageIndex: 0,
-    pageSize: 10000, // показываем все строки
+    pageSize: 10000,
   });
   const [globalFilter, setGlobalFilter] = React.useState("");
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
@@ -46,9 +55,12 @@ export function DataTable({ tableName }: DataTableProps) {
 
   const routerKey = meta.routerKey as keyof typeof trpc;
   const { data, isLoading, isError, error } = (trpc as any)[routerKey]?.list?.useQuery?.();
+
   const utils = trpc.useUtils();
   const deleteMutation = (trpc as any)[routerKey]?.delete?.useMutation?.({
-    onSuccess: () => (utils as any)[routerKey]?.list?.invalidate?.(),
+    onSuccess: () => {
+      (utils as any)[routerKey]?.list?.invalidate?.();
+    },
   });
 
   const rows = (data as any[]) ?? [];
@@ -100,7 +112,7 @@ export function DataTable({ tableName }: DataTableProps) {
           const value = getValue();
           if (field.isFK && field.references) {
             return (
-             <ForeignKeyCell
+              <ForeignKeyCell
                 table={field.references.table}
                 id={value as number}
                 displayField={field.references.displayField}
@@ -147,6 +159,15 @@ export function DataTable({ tableName }: DataTableProps) {
     return cols;
   }, [meta, rows, columnFilters, pagination.pageIndex, pagination.pageSize, deleteMutation]);
 
+  // Удаляем некорректные фильтры, если вдруг остались
+  React.useEffect(() => {
+    const validIds = new Set(columns.map(col => col.id));
+    const filtered = columnFilters.filter(f => validIds.has(f.id));
+    if (filtered.length !== columnFilters.length) {
+      setColumnFilters(filtered);
+    }
+  }, [columns, columnFilters]);
+
   const table = useReactTable({
     data: rows,
     columns,
@@ -160,7 +181,9 @@ export function DataTable({ tableName }: DataTableProps) {
     getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     globalFilterFn: "auto",
-    filterFns: { arrayFilter: arrayFilterFn },
+    filterFns: {
+      arrayFilter: arrayFilterFn,
+    },
   });
 
   if (isLoading) return <div>Загрузка...</div>;
@@ -275,4 +298,4 @@ export function DataTable({ tableName }: DataTableProps) {
       )}
     </div>
   );
-}
+} 

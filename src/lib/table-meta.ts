@@ -1,13 +1,13 @@
+// src/lib/table-meta.ts
 export interface FieldMeta {
-  dbName: string;          // имя свойства в коде (camelCase)
+  dbName: string;
   displayName: string;
   isFK: boolean;
   references?: {
-    table: string;
+    table: string;       // ключ из этого же объекта tablesMeta
     displayField: string;
-    dbTableName?: string;
+    dbTableName?: string; // реальное имя таблицы (если отличается от ключа)
   };
-  columnName?: string;      // реальное имя колонки в БД (snake_case)
 }
 
 export interface TableMeta {
@@ -23,9 +23,9 @@ export const tablesMeta: Record<string, TableMeta> = {
     routerKey: "institutes",
     dbTableName: "institutes",
     fields: [
-      { dbName: "id", displayName: "ID", isFK: false, columnName: "id" },
-      { dbName: "universityCode", displayName: "Код университета", isFK: false, columnName: "university_code" },
-      { dbName: "name", displayName: "Название", isFK: false, columnName: "name" },
+      { dbName: "id", displayName: "ID", isFK: false },
+      { dbName: "universityCode", displayName: "Код университета", isFK: false },
+      { dbName: "name", displayName: "Название", isFK: false },
     ],
   },
   buildings: {
@@ -33,8 +33,8 @@ export const tablesMeta: Record<string, TableMeta> = {
     routerKey: "buildings",
     dbTableName: "buildings",
     fields: [
-      { dbName: "id", displayName: "ID", isFK: false, columnName: "id" },
-      { dbName: "number", displayName: "Номер", isFK: false, columnName: "number" },
+      { dbName: "id", displayName: "ID", isFK: false },
+      { dbName: "number", displayName: "Номер", isFK: false },
     ],
   },
   departments: {
@@ -42,11 +42,11 @@ export const tablesMeta: Record<string, TableMeta> = {
     routerKey: "departments",
     dbTableName: "departments",
     fields: [
-      { dbName: "id", displayName: "ID", isFK: false, columnName: "id" },
-      { dbName: "name", displayName: "Название", isFK: false, columnName: "name" },
-      { dbName: "abbreviation", displayName: "Аббревиатура", isFK: false, columnName: "abbreviation" },
-      { dbName: "instituteId", displayName: "Институт", isFK: true, references: { table: "institutes", displayField: "name", dbTableName: "institutes" }, columnName: "institute_id" },
-      { dbName: "departmentCode", displayName: "Код кафедры", isFK: false, columnName: "department_code" },
+      { dbName: "id", displayName: "ID", isFK: false },
+      { dbName: "name", displayName: "Название", isFK: false },
+      { dbName: "abbreviation", displayName: "Аббревиатура", isFK: false },
+      { dbName: "instituteId", displayName: "Институт", isFK: true, references: { table: "institutes", displayField: "name" } },
+      { dbName: "departmentCode", displayName: "Код кафедры", isFK: false },
     ],
   },
   specialties: {
@@ -54,10 +54,10 @@ export const tablesMeta: Record<string, TableMeta> = {
     routerKey: "specialties",
     dbTableName: "specialties",
     fields: [
-      { dbName: "id", displayName: "ID", isFK: false, columnName: "id" },
-      { dbName: "code", displayName: "Код", isFK: false, columnName: "code" },
-      { dbName: "name", displayName: "Название", isFK: false, columnName: "name" },
-      { dbName: "departmentId", displayName: "Кафедра", isFK: true, references: { table: "departments", displayField: "name", dbTableName: "departments" }, columnName: "department_id" },
+      { dbName: "id", displayName: "ID", isFK: false },
+      { dbName: "code", displayName: "Код", isFK: false },
+      { dbName: "name", displayName: "Название", isFK: false },
+      { dbName: "departmentId", displayName: "Кафедра", isFK: true, references: { table: "departments", displayField: "name" } },
     ],
   },
   profiles: {
@@ -65,10 +65,10 @@ export const tablesMeta: Record<string, TableMeta> = {
     routerKey: "profiles",
     dbTableName: "profiles",
     fields: [
-      { dbName: "id", displayName: "ID", isFK: false, columnName: "id" },
-      { dbName: "name", displayName: "Название", isFK: false, columnName: "name" },
-      { dbName: "specialtyId", displayName: "Специальность", isFK: true, references: { table: "specialties", displayField: "name", dbTableName: "specialties" }, columnName: "specialty_id" },
-      { dbName: "letterCode", displayName: "Буквенный код", isFK: false, columnName: "letter_code" },
+      { dbName: "id", displayName: "ID", isFK: false },
+      { dbName: "name", displayName: "Название", isFK: false },
+      { dbName: "specialtyId", displayName: "Специальность", isFK: true, references: { table: "specialties", displayField: "name" } },
+      { dbName: "letterCode", displayName: "Буквенный код", isFK: false },
     ],
   },
   disciplines: {
@@ -76,10 +76,10 @@ export const tablesMeta: Record<string, TableMeta> = {
     routerKey: "disciplines",
     dbTableName: "disciplines",
     fields: [
-      { dbName: "id", displayName: "ID", isFK: false, columnName: "id" },
-      { dbName: "name", displayName: "Название", isFK: false, columnName: "name" },
-      { dbName: "abbreviation", displayName: "Аббревиатура", isFK: false, columnName: "abbreviation" },
-      { dbName: "departmentId", displayName: "Кафедра", isFK: true, references: { table: "departments", displayField: "name", dbTableName: "departments" }, columnName: "department_id" },
+      { dbName: "id", displayName: "ID", isFK: false },
+      { dbName: "name", displayName: "Название", isFK: false },
+      { dbName: "abbreviation", displayName: "Аббревиатура", isFK: false },
+      { dbName: "departmentId", displayName: "Кафедра", isFK: true, references: { table: "departments", displayField: "name" } },
     ],
   },
   unitTypes: {
@@ -87,13 +87,13 @@ export const tablesMeta: Record<string, TableMeta> = {
     routerKey: "unitTypes",
     dbTableName: "unit_types",
     fields: [
-      { dbName: "id", displayName: "ID", isFK: false, columnName: "id" },
-      { dbName: "name", displayName: "Название", isFK: false, columnName: "name" },
-      { dbName: "maxSize", displayName: "Макс. размер", isFK: false, columnName: "max_size" },
-      { dbName: "priorityLecture", displayName: "Приоритет лекций", isFK: false, columnName: "priority_lecture" },
-      { dbName: "priorityWorkshop", displayName: "Приоритет практик", isFK: false, columnName: "priority_workshop" },
-      { dbName: "priorityGuidedStudy", displayName: "Приоритет КСР", isFK: false, columnName: "priority_guided_study" },
-      { dbName: "priorityLab", displayName: "Приоритет лаб.", isFK: false, columnName: "priority_lab" },
+      { dbName: "id", displayName: "ID", isFK: false },
+      { dbName: "name", displayName: "Название", isFK: false },
+      { dbName: "maxSize", displayName: "Макс. размер", isFK: false },
+      { dbName: "priorityLecture", displayName: "Приоритет лекций", isFK: false },
+      { dbName: "priorityWorkshop", displayName: "Приоритет практик", isFK: false },
+      { dbName: "priorityGuidedStudy", displayName: "Приоритет КСР", isFK: false },
+      { dbName: "priorityLab", displayName: "Приоритет лаб.", isFK: false },
     ],
   },
   lessonTypes: {
@@ -101,9 +101,9 @@ export const tablesMeta: Record<string, TableMeta> = {
     routerKey: "lessonTypes",
     dbTableName: "lesson_types",
     fields: [
-      { dbName: "id", displayName: "ID", isFK: false, columnName: "id" },
-      { dbName: "name", displayName: "Название", isFK: false, columnName: "name" },
-      { dbName: "abbreviation", displayName: "Аббревиатура", isFK: false, columnName: "abbreviation" },
+      { dbName: "id", displayName: "ID", isFK: false },
+      { dbName: "name", displayName: "Название", isFK: false },
+      { dbName: "abbreviation", displayName: "Аббревиатура", isFK: false },
     ],
   },
   classrooms: {
@@ -111,16 +111,16 @@ export const tablesMeta: Record<string, TableMeta> = {
     routerKey: "classrooms",
     dbTableName: "classrooms",
     fields: [
-      { dbName: "id", displayName: "ID", isFK: false, columnName: "id" },
-      { dbName: "buildingId", displayName: "Корпус", isFK: true, references: { table: "buildings", displayField: "number", dbTableName: "buildings" }, columnName: "building_id" },
-      { dbName: "roomNumber", displayName: "Номер аудитории", isFK: false, columnName: "room_number" },
-      { dbName: "capacity", displayName: "Вместимость", isFK: false, columnName: "capacity" },
-      { dbName: "departmentId", displayName: "Кафедра", isFK: true, references: { table: "departments", displayField: "name", dbTableName: "departments" }, columnName: "department_id" },
-      { dbName: "priorityLecture", displayName: "Приоритет лекций", isFK: false, columnName: "priority_lecture" },
-      { dbName: "priorityWorkshop", displayName: "Приоритет практик", isFK: false, columnName: "priority_workshop" },
-      { dbName: "priorityGuidedStudy", displayName: "Приоритет КСР", isFK: false, columnName: "priority_guided_study" },
-      { dbName: "priorityLab", displayName: "Приоритет лаб.", isFK: false, columnName: "priority_lab" },
-      { dbName: "usageMetric", displayName: "Метрика использования", isFK: false, columnName: "usage_metric" },
+      { dbName: "id", displayName: "ID", isFK: false },
+      { dbName: "buildingId", displayName: "Корпус", isFK: true, references: { table: "buildings", displayField: "number" } },
+      { dbName: "roomNumber", displayName: "Номер аудитории", isFK: false },
+      { dbName: "capacity", displayName: "Вместимость", isFK: false },
+      { dbName: "departmentId", displayName: "Кафедра", isFK: true, references: { table: "departments", displayField: "name" } },
+      { dbName: "priorityLecture", displayName: "Приоритет лекций", isFK: false },
+      { dbName: "priorityWorkshop", displayName: "Приоритет практик", isFK: false },
+      { dbName: "priorityGuidedStudy", displayName: "Приоритет КСР", isFK: false },
+      { dbName: "priorityLab", displayName: "Приоритет лаб.", isFK: false },
+      { dbName: "usageMetric", displayName: "Метрика использования", isFK: false },
     ],
   },
   employees: {
@@ -128,13 +128,13 @@ export const tablesMeta: Record<string, TableMeta> = {
     routerKey: "employees",
     dbTableName: "employees",
     fields: [
-      { dbName: "id", displayName: "ID", isFK: false, columnName: "id" },
-      { dbName: "surname", displayName: "Фамилия", isFK: false, columnName: "surname" },
-      { dbName: "name", displayName: "Имя", isFK: false, columnName: "name" },
-      { dbName: "patronymic", displayName: "Отчество", isFK: false, columnName: "patronymic" },
-      { dbName: "phone", displayName: "Телефон", isFK: false, columnName: "phone" },
-      { dbName: "email", displayName: "Email", isFK: false, columnName: "email" },
-      { dbName: "isInactive", displayName: "Неактивен", isFK: false, columnName: "is_inactive" },
+      { dbName: "id", displayName: "ID", isFK: false },
+      { dbName: "surname", displayName: "Фамилия", isFK: false },
+      { dbName: "name", displayName: "Имя", isFK: false },
+      { dbName: "patronymic", displayName: "Отчество", isFK: false },
+      { dbName: "phone", displayName: "Телефон", isFK: false },
+      { dbName: "email", displayName: "Email", isFK: false },
+      { dbName: "isInactive", displayName: "Неактивен", isFK: false },
     ],
   },
   students: {
@@ -142,16 +142,16 @@ export const tablesMeta: Record<string, TableMeta> = {
     routerKey: "students",
     dbTableName: "students",
     fields: [
-      { dbName: "id", displayName: "ID", isFK: false, columnName: "id" },
-      { dbName: "surname", displayName: "Фамилия", isFK: false, columnName: "surname" },
-      { dbName: "name", displayName: "Имя", isFK: false, columnName: "name" },
-      { dbName: "admissionYear", displayName: "Год поступления", isFK: false, columnName: "admission_year" },
-      { dbName: "profileId", displayName: "Профиль", isFK: true, references: { table: "profiles", displayField: "name", dbTableName: "profiles" }, columnName: "profile_id" },
-      { dbName: "studyGroupId", displayName: "Учебная группа", isFK: true, references: { table: "studyGroups", displayField: "code", dbTableName: "study_groups" }, columnName: "study_group_id" },
-      { dbName: "course", displayName: "Курс", isFK: false, columnName: "course" },
-      { dbName: "phone", displayName: "Телефон", isFK: false, columnName: "phone" },
-      { dbName: "email", displayName: "Email", isFK: false, columnName: "email" },
-      { dbName: "isInactive", displayName: "Неактивен", isFK: false, columnName: "is_inactive" },
+      { dbName: "id", displayName: "ID", isFK: false },
+      { dbName: "surname", displayName: "Фамилия", isFK: false },
+      { dbName: "name", displayName: "Имя", isFK: false },
+      { dbName: "admissionYear", displayName: "Год поступления", isFK: false },
+      { dbName: "profileId", displayName: "Профиль", isFK: true, references: { table: "profiles", displayField: "name" } },
+      { dbName: "studyGroupId", displayName: "Учебная группа", isFK: true, references: { table: "studyGroups", displayField: "code" } },
+      { dbName: "course", displayName: "Курс", isFK: false },
+      { dbName: "phone", displayName: "Телефон", isFK: false },
+      { dbName: "email", displayName: "Email", isFK: false },
+      { dbName: "isInactive", displayName: "Неактивен", isFK: false },
     ],
   },
   studyGroups: {
@@ -159,11 +159,11 @@ export const tablesMeta: Record<string, TableMeta> = {
     routerKey: "studyGroups",
     dbTableName: "study_groups",
     fields: [
-      { dbName: "id", displayName: "ID", isFK: false, columnName: "id" },
-      { dbName: "code", displayName: "Код группы", isFK: false, columnName: "code" },
-      { dbName: "profileId", displayName: "Профиль", isFK: true, references: { table: "profiles", displayField: "name", dbTableName: "profiles" }, columnName: "profile_id" },
-      { dbName: "course", displayName: "Курс", isFK: false, columnName: "course" },
-      { dbName: "studentCount", displayName: "Кол-во студентов", isFK: false, columnName: "student_count" },
+      { dbName: "id", displayName: "ID", isFK: false },
+      { dbName: "code", displayName: "Код группы", isFK: false },
+      { dbName: "profileId", displayName: "Профиль", isFK: true, references: { table: "profiles", displayField: "name" } },
+      { dbName: "course", displayName: "Курс", isFK: false },
+      { dbName: "studentCount", displayName: "Кол-во студентов", isFK: false },
     ],
   },
   units: {
@@ -171,9 +171,9 @@ export const tablesMeta: Record<string, TableMeta> = {
     routerKey: "units",
     dbTableName: "units",
     fields: [
-      { dbName: "id", displayName: "ID", isFK: false, columnName: "id" },
-      { dbName: "code", displayName: "Код юнита", isFK: false, columnName: "code" },
-      { dbName: "unitTypeId", displayName: "Тип юнита", isFK: true, references: { table: "unitTypes", displayField: "name", dbTableName: "unit_types" }, columnName: "unit_type_id" },
+      { dbName: "id", displayName: "ID", isFK: false },
+      { dbName: "code", displayName: "Код юнита", isFK: false },
+      { dbName: "unitTypeId", displayName: "Тип юнита", isFK: true, references: { table: "unitTypes", displayField: "name" } },
     ],
   },
   lessons: {
@@ -181,33 +181,142 @@ export const tablesMeta: Record<string, TableMeta> = {
     routerKey: "lessons",
     dbTableName: "lessons",
     fields: [
-      { dbName: "id", displayName: "ID", isFK: false, columnName: "id" },
-      { dbName: "curriculumId", displayName: "Учебный план", isFK: true, references: { table: "curriculum", displayField: "id", dbTableName: "curriculum" }, columnName: "curriculum_id" },
-      { dbName: "unitId", displayName: "Юнит", isFK: true, references: { table: "units", displayField: "code", dbTableName: "units" }, columnName: "unit_id" },
-      { dbName: "lessonTypeId", displayName: "Тип занятия", isFK: true, references: { table: "lessonTypes", displayField: "name", dbTableName: "lesson_types" }, columnName: "lesson_type_id" },
-      { dbName: "disciplineId", displayName: "Дисциплина", isFK: true, references: { table: "disciplines", displayField: "name", dbTableName: "disciplines" }, columnName: "discipline_id" },
-      { dbName: "teacherId", displayName: "Преподаватель", isFK: true, references: { table: "employeesDepartments", displayField: "id", dbTableName: "employees_departments" }, columnName: "teacher_id" },
-      { dbName: "countPerSemester", displayName: "На семестр", isFK: false, columnName: "count_per_semester" },
+      { dbName: "id", displayName: "ID", isFK: false },
+      { dbName: "curriculumId", displayName: "Учебный план", isFK: true, references: { table: "curriculum", displayField: "id" } },
+      { dbName: "unitId", displayName: "Юнит", isFK: true, references: { table: "units", displayField: "code" } },
+      { dbName: "lessonTypeId", displayName: "Тип занятия", isFK: true, references: { table: "lessonTypes", displayField: "name" } },
+      { dbName: "disciplineId", displayName: "Дисциплина", isFK: true, references: { table: "disciplines", displayField: "name" } },
+      { dbName: "teacherId", displayName: "Преподаватель", isFK: true, references: { table: "employees", displayField: "id" } },
+      { dbName: "countPerSemester", displayName: "На семестр", isFK: false },
     ],
   },
+  // ----- НОВЫЕ ТАБЛИЦЫ -----
   curriculum: {
     nameRu: "Учебные планы",
     routerKey: "curriculum",
     dbTableName: "curriculum",
     fields: [
-      { dbName: "id", displayName: "ID", isFK: false, columnName: "id" },
-      { dbName: "disciplineId", displayName: "Дисциплина", isFK: true, references: { table: "disciplines", displayField: "name", dbTableName: "disciplines" }, columnName: "discipline_id" },
-      { dbName: "specialtyId", displayName: "Специальность", isFK: true, references: { table: "specialties", displayField: "name", dbTableName: "specialties" }, columnName: "specialty_id" },
+      { dbName: "id", displayName: "ID", isFK: false },
+      { dbName: "course", displayName: "Курс", isFK: false },
+      { dbName: "semester", displayName: "Семестр", isFK: false },
+      { dbName: "disciplineId", displayName: "Дисциплина", isFK: true, references: { table: "disciplines", displayField: "name" } },
+      { dbName: "hoursLecture", displayName: "Часов лекций", isFK: false },
+      { dbName: "hoursGuidedStudy", displayName: "Часов КСР", isFK: false },
+      { dbName: "hoursWorkshop", displayName: "Часов практик", isFK: false },
+      { dbName: "hoursLab", displayName: "Часов лаб.", isFK: false },
+      { dbName: "additionalTaskId", displayName: "Доп. задача", isFK: true, references: { table: "academicLoadTypes", displayField: "name" } },
+      { dbName: "controlTypeId", displayName: "Тип контроля", isFK: true, references: { table: "controlTypes", displayField: "name" } },
+    ],
+  },
+  lessonClassrooms: {
+    nameRu: "Аудитории занятий",
+    routerKey: "lessonClassrooms",
+    dbTableName: "lesson_classrooms",
+    fields: [
+      { dbName: "id", displayName: "ID", isFK: false },
+      { dbName: "lessonId", displayName: "Занятие", isFK: true, references: { table: "lessons", displayField: "id" } },
+      { dbName: "classroomId", displayName: "Аудитория", isFK: true, references: { table: "classrooms", displayField: "roomNumber" } },
+    ],
+  },
+  unitRoots: {
+    nameRu: "Корни юнитов",
+    routerKey: "unitRoots",
+    dbTableName: "unit_roots",
+    fields: [
+      { dbName: "id", displayName: "ID", isFK: false },
+      { dbName: "unitCode", displayName: "Код юнита", isFK: true, references: { table: "units", displayField: "code" } },
+      { dbName: "studyGroupId", displayName: "Учебная группа", isFK: true, references: { table: "studyGroups", displayField: "code" } },
+    ],
+  },
+  curriculumProfiles: {
+    nameRu: "Профили учебных планов",
+    routerKey: "curriculumProfiles",
+    dbTableName: "curriculum_profiles",
+    fields: [
+      { dbName: "id", displayName: "ID", isFK: false },
+      { dbName: "curriculumId", displayName: "Учебный план", isFK: true, references: { table: "curriculum", displayField: "id" } },
+      { dbName: "profileId", displayName: "Профиль", isFK: true, references: { table: "profiles", displayField: "name" } },
+    ],
+  },
+  academicLoadTypes: {
+    nameRu: "Типы нагрузки",
+    routerKey: "academicLoadTypes",
+    dbTableName: "academic_load_types",
+    fields: [
+      { dbName: "id", displayName: "ID", isFK: false },
+      { dbName: "name", displayName: "Название", isFK: false },
+      { dbName: "abbreviation", displayName: "Сокращение", isFK: false },
+    ],
+  },
+  controlTypes: {
+    nameRu: "Типы контроля",
+    routerKey: "controlTypes",
+    dbTableName: "control_types",
+    fields: [
+      { dbName: "id", displayName: "ID", isFK: false },
+      { dbName: "name", displayName: "Название", isFK: false },
+      { dbName: "abbreviation", displayName: "Сокращение", isFK: false },
+    ],
+  },
+  hourTypeMapping: {
+    nameRu: "Соответствие часов",
+    routerKey: "hourTypeMapping",
+    dbTableName: "hour_type_mapping",
+    fields: [
+      { dbName: "id", displayName: "ID", isFK: false },
+      { dbName: "planHourColumn", displayName: "План часов", isFK: false },
+      { dbName: "priorityColumn", displayName: "Приоритет", isFK: false },
+      { dbName: "lessonTypeId", displayName: "Тип занятия", isFK: true, references: { table: "lessonTypes", displayField: "name" } },
     ],
   },
   employeesDepartments: {
-    nameRu: "Сотрудник-Кафедра",
+    nameRu: "Сотрудники кафедр",
     routerKey: "employeesDepartments",
     dbTableName: "employees_departments",
     fields: [
-      { dbName: "id", displayName: "ID", isFK: false, columnName: "id" },
-      { dbName: "employeeId", displayName: "Сотрудник", isFK: true, references: { table: "employees", displayField: "surname", dbTableName: "employees" }, columnName: "employee_id" },
-      { dbName: "departmentId", displayName: "Кафедра", isFK: true, references: { table: "departments", displayField: "name", dbTableName: "departments" }, columnName: "department_id" },
+      { dbName: "id", displayName: "ID", isFK: false },
+      { dbName: "employeeId", displayName: "Сотрудник", isFK: true, references: { table: "employees", displayField: "id" } },
+      { dbName: "departmentId", displayName: "Кафедра", isFK: true, references: { table: "departments", displayField: "name" } },
+      { dbName: "employmentType", displayName: "Тип занятости", isFK: false },
+      { dbName: "position", displayName: "Должность", isFK: false },
+    ],
+  },
+  disciplineTeachers: {
+    nameRu: "Преподаватели дисциплин",
+    routerKey: "disciplineTeachers",
+    dbTableName: "discipline_teachers",
+    fields: [
+      { dbName: "id", displayName: "ID", isFK: false },
+      { dbName: "lessonTypeId", displayName: "Тип занятия", isFK: true, references: { table: "lessonTypes", displayField: "name" } },
+      { dbName: "disciplineId", displayName: "Дисциплина", isFK: true, references: { table: "disciplines", displayField: "name" } },
+      { dbName: "teacherDepartmentId", displayName: "Преподаватель", isFK: true, references: { table: "employeesDepartments", displayField: "id" } },
+    ],
+  },
+  daysOfWeek: {
+    nameRu: "Дни недели",
+    routerKey: "daysOfWeek",
+    dbTableName: "days_of_week",
+    fields: [
+      { dbName: "id", displayName: "ID", isFK: false },
+      { dbName: "name", displayName: "День", isFK: false },
+    ],
+  },
+  pairs: {
+    nameRu: "Пары",
+    routerKey: "pairs",
+    dbTableName: "pairs",
+    fields: [
+      { dbName: "id", displayName: "ID", isFK: false },
+      { dbName: "number", displayName: "Номер пары", isFK: false },
+    ],
+  },
+  weeks: {
+    nameRu: "Недели",
+    routerKey: "weeks",
+    dbTableName: "weeks",
+    fields: [
+      { dbName: "id", displayName: "ID", isFK: false },
+      { dbName: "type", displayName: "Тип", isFK: false },
     ],
   },
 };

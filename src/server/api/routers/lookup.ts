@@ -1,45 +1,47 @@
-// server/api/routers/lookup.ts
 import { z } from "zod";
-import { router, publicProcedure } from "../trpc";
-import { sql } from "drizzle-orm";
-
-// Преобразование snake_case в camelCase
-function toCamelCase(str: string): string {
-  return str.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
-}
-
-function transformRowToCamel(row: Record<string, unknown>): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-  for (const key of Object.keys(row)) {
-    result[toCamelCase(key)] = row[key];
-  }
-  return result;
-}
+import { router, adminProcedure } from "@/server/trpc";   // ✅ абсолютный путь
+import * as schema from "@/db/schema";
+import { eq, sql } from "drizzle-orm";
 
 export const lookupRouter = router({
-  getRow: publicProcedure
-    .input(z.object({ tableName: z.string(), id: z.number() }))
+  getRow: adminProcedure
+    .input(z.object({
+      tableName: z.string(),
+      id: z.number(),
+    }))
     .query(async ({ ctx, input }) => {
-      const allowedTables = [
-        "institutes", "buildings", "departments", "specialties", "profiles",
-        "disciplines", "unit_types", "lesson_types", "classrooms", "employees",
-        "students", "study_groups", "units", "lessons", "curriculum",
-        "employees_departments",
-      ];
-      if (!allowedTables.includes(input.tableName)) {
-        throw new Error(`Таблица "${input.tableName}" не разрешена`);
-      }
+      const table = (schema as any)[input.tableName];
+      if (!table) throw new Error(`Table ${input.tableName} not found`);
+      const rows = await ctx.db
+        .select()
+        .from(table)
+        .where(eq(table.id, input.id))
+        .limit(1);
+      return rows[0] ?? null;
+    }),
 
-      try {
-        const rows = await ctx.db.execute(
-          sql`SELECT * FROM ${sql.identifier(input.tableName)} WHERE id = ${input.id}`
-        );
-        if (!rows || rows.length === 0) return null;
-        // Преобразуем ключи первой строки в camelCase
-        return transformRowToCamel(rows[0] as Record<string, unknown>);
-      } catch (error) {
-        console.error(error);
-        throw new Error(`Ошибка загрузки данных из таблицы "${input.tableName}"`);
-      }
+  getList: adminProcedure
+    .input(z.object({
+      tableName: z.string(),
+      page: z.number().int().min(1).default(1),
+      pageSize: z.number().int().min(1).max(50).default(15),
+      search: z.string().optional(),
+    }))
+    .query(async ({ ctx, input }) => {
+      const table = (schema as any)[input.tableName];
+      if (!table) throw new Error("Table not found");
+
+      const [countRow] = await ctx.db
+        .select({ cnt: sql<number>`count(*)` })
+        .from(table);
+      const total = countRow?.cnt ?? 0;
+
+      const rows = await ctx.db
+        .select()
+        .from(table)
+        .limit(input.pageSize)
+        .offset((input.page - 1) * input.pageSize);
+
+      return { rows, total };
     }),
 });

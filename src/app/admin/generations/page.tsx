@@ -1,3 +1,4 @@
+// src/app/admin/generations/page.tsx
 "use client";
 import { trpc } from "@/trpc/client";
 import { useState, useEffect } from "react";
@@ -6,14 +7,12 @@ export default function GenerationsPage() {
   const [error, setError] = useState<string | null>(null);
   const utils = trpc.useUtils();
 
-  // ---------- Порог подгруппы из БД ----------
+  // ---------- Порог подгруппы (из unit_types) ----------
   const { data: subgroupType, isLoading: thresholdLoading } =
     trpc.unitTypes.getByName.useQuery({ name: "ПОДГРУППА" });
 
   const updateThreshold = trpc.unitTypes.update.useMutation({
-    onSuccess: () => {
-      utils.unitTypes.getByName.invalidate({ name: "ПОДГРУППА" });
-    },
+    onSuccess: () => utils.unitTypes.getByName.invalidate({ name: "ПОДГРУППА" }),
     onError: (e) => setError(e.message),
   });
 
@@ -27,10 +26,30 @@ export default function GenerationsPage() {
 
   const handleSaveThreshold = () => {
     if (!subgroupType || threshold === undefined) return;
-    updateThreshold.mutate({
-      id: subgroupType.id,
-      maxSize: threshold,
-    });
+    updateThreshold.mutate({ id: subgroupType.id, maxSize: threshold });
+  };
+
+  // ---------- Всего недель (из settings) ----------
+  const { data: totalWeeksSetting, isLoading: weeksLoading } =
+    trpc.settings.get.useQuery({ key: "total_weeks" });
+
+  const updateTotalWeeks = trpc.settings.update.useMutation({
+    onSuccess: () => utils.settings.get.invalidate({ key: "total_weeks" }),
+    onError: (e) => setError(e.message),
+  });
+
+  const [totalWeeksInput, setTotalWeeksInput] = useState<number | undefined>(undefined);
+
+  useEffect(() => {
+    if (totalWeeksSetting?.value) {
+      const num = Number(totalWeeksSetting.value);
+      if (!isNaN(num)) setTotalWeeksInput(num);
+    }
+  }, [totalWeeksSetting]);
+
+  const handleSaveTotalWeeks = () => {
+    if (totalWeeksInput === undefined || isNaN(totalWeeksInput)) return;
+    updateTotalWeeks.mutate({ key: "total_weeks", value: String(totalWeeksInput) });
   };
 
   // ---------- Мутации генераций ----------
@@ -77,7 +96,7 @@ export default function GenerationsPage() {
   });
 
   // ---------- Рендер ----------
-  if (thresholdLoading) return <div>Загрузка данных о типах юнитов...</div>;
+  if (thresholdLoading || weeksLoading) return <div>Загрузка настроек...</div>;
 
   return (
     <div className="p-6 space-y-6">
@@ -99,7 +118,7 @@ export default function GenerationsPage() {
         </button>
       </div>
 
-      {/* 2. Юниты + управление порогом */}
+      {/* 2. Юниты + порог */}
       <div className="space-y-2">
         <label className="mr-2">Макс. размер подгруппы:</label>
         <input
@@ -114,16 +133,16 @@ export default function GenerationsPage() {
           onClick={handleSaveThreshold}
           disabled={updateThreshold.isPending}
         >
-          {updateThreshold.isPending ? "Сохраняю..." : "Сохранить"}
+          {updateThreshold.isPending ? "Сохранение..." : "Сохранить порог"}
         </button>
         <button
           className="bg-blue-500 text-white px-4 py-2 rounded disabled:opacity-50 ml-2"
-          onClick={() => units.mutate({ maxSubgroupSize: threshold ?? 16 })}
+          onClick={() => units.mutate()}
           disabled={units.isPending}
         >
           {units.isPending ? "..." : "2. Сгенерировать юниты"}
         </button>
-      </div>
+      </div>  
 
       {/* 3. Занятия */}
       <div className="space-y-2">
@@ -149,9 +168,28 @@ export default function GenerationsPage() {
 
       {/* 5. Расписание */}
       <div className="space-y-2">
+        <label>Всего недель: </label>
+        <input
+          type="number"
+          value={totalWeeksInput ?? ""}
+          onChange={(e) => setTotalWeeksInput(Number(e.target.value))}
+          className="border p-1 w-24"
+          placeholder="18"
+        />
         <button
-          className="bg-blue-500 text-white px-4 py-2 rounded disabled:opacity-50"
-          onClick={() => schedule.mutate({ totalWeeks: 16, cycleLength: 2 })}
+          className="bg-green-500 text-white px-3 py-1 rounded text-sm ml-2"
+          onClick={handleSaveTotalWeeks}
+          disabled={updateTotalWeeks.isPending}
+        >
+          {updateTotalWeeks.isPending ? "Сохранение..." : "Сохранить недели"}
+        </button>
+        <button
+          className="bg-blue-500 text-white px-4 py-2 rounded disabled:opacity-50 ml-2"
+          onClick={() =>
+            schedule.mutate({
+              totalWeeks: totalWeeksInput ?? 18,
+            })
+          }
           disabled={schedule.isPending}
         >
           {schedule.isPending ? "..." : "5. Сгенерировать расписание"}

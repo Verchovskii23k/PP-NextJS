@@ -46,16 +46,13 @@ function SortableItem({
       {...attributes}
       {...listeners}
       className={`flex items-center gap-2 px-3 py-2 rounded cursor-grab ${
-        isActive
-          ? "bg-blue-500 text-white"
-          : "hover:bg-gray-200"
+        isActive ? "bg-blue-500 text-white" : "hover:bg-gray-200"
       }`}
     >
-      {/* Ручка для перетаскивания (можно заменить на иконку) */}
       <span className="text-gray-400 cursor-grab select-none">⠿</span>
       <button
         onClick={(e) => {
-          e.stopPropagation(); // чтобы не срабатывал drag при клике
+          e.stopPropagation();
           onClick();
         }}
         className="flex-1 text-left"
@@ -70,16 +67,13 @@ export default function AdminCrudPage() {
   const [selectedTable, setSelectedTable] = useState<string | null>(null);
   const [order, setOrder] = useState<string[]>([]);
 
-  // Инициализация порядка: сначала смотрим localStorage, иначе алфавитный
   useEffect(() => {
     const stored = localStorage.getItem("crud_table_order");
     let initialOrder: string[];
     if (stored) {
       try {
         initialOrder = JSON.parse(stored) as string[];
-        // Убедимся, что все ключи актуальны (могли добавиться новые таблицы)
         const allKeys = tableNames.map(t => t.key);
-        // Добавляем отсутствующие ключи в конец
         const missing = allKeys.filter(k => !initialOrder.includes(k));
         initialOrder = [...initialOrder.filter(k => allKeys.includes(k)), ...missing];
       } catch {
@@ -90,7 +84,6 @@ export default function AdminCrudPage() {
         });
       }
     } else {
-      // Алфавитный порядок по русским названиям
       initialOrder = tableNames
         .map(t => t.key)
         .sort((a, b) => {
@@ -102,7 +95,6 @@ export default function AdminCrudPage() {
     setOrder(initialOrder);
   }, []);
 
-  // Сохранение порядка в localStorage при изменениях
   useEffect(() => {
     if (order.length > 0) {
       localStorage.setItem("crud_table_order", JSON.stringify(order));
@@ -110,9 +102,7 @@ export default function AdminCrudPage() {
   }, [order]);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 5 }, // предотвращает случайный drag при клике
-    })
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
   );
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -126,7 +116,6 @@ export default function AdminCrudPage() {
     }
   };
 
-  // Построение упорядоченного списка с метками
   const sortedTableList = order
     .map(key => {
       const meta = tableNames.find(t => t.key === key);
@@ -176,5 +165,4 @@ export default function AdminCrudPage() {
       </main>
     </div>
   );
-  
 }

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { router, adminProcedure } from "../../trpc";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, sql } from "drizzle-orm";
+import { weeks } from "@/db/schema";
 
 import {
   schedule, lessons, lessonClassrooms,
@@ -15,10 +16,16 @@ export const generateScheduleRouter = router({
   generateSchedule: adminProcedure
     .input(z.object({
       totalWeeks: z.number().int().min(1).default(18),
-      cycleLength: z.number().int().min(1).default(2),
     }))
     .mutation(async ({ ctx, input }) => {
-      const { totalWeeks, cycleLength } = input;
+      const { totalWeeks } = input;
+
+      // Определяем длину цикла по количеству записей в weeks
+      const [cycleCount] = await ctx.db
+        .select({ count: sql<number>`count(*)` })
+        .from(weeks);
+      const cycleLength = Number(cycleCount?.count) || 2; 
+
       const step = Math.ceil(totalWeeks / cycleLength);
 
       // 1. Все занятия
