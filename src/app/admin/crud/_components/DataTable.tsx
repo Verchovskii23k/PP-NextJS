@@ -235,31 +235,33 @@ export function DataTable({ tableName }: DataTableProps) {
               </tr>
             ))}
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {table.getRowModel().rows.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={columns.length}
-                  className="px-4 py-4 text-center text-sm text-gray-500"
-                >
+          <tbody className="bg-white divide-y divide-gray-200 min-h-[300px]">
+          {table.getRowModel().rows.length === 0 ? (
+            <tr>
+              <td
+                colSpan={columns.length}
+                className="px-4 py-4 text-center text-sm text-gray-500 align-middle"
+              >
+                <div className="flex items-center justify-center h-full min-h-[250px]">
                   Нет данных
-                </td>
+                </div>
+              </td>
+            </tr>
+          ) : (
+            table.getRowModel().rows.map(row => (
+              <tr key={row.id} className="hover:bg-gray-50">
+                {row.getVisibleCells().map(cell => (
+                  <td
+                    key={cell.id}
+                    className="px-4 py-2 whitespace-nowrap text-sm text-gray-700"
+                  >
+                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                  </td>
+                ))}
               </tr>
-            ) : (
-              table.getRowModel().rows.map(row => (
-                <tr key={row.id} className="hover:bg-gray-50">
-                  {row.getVisibleCells().map(cell => (
-                    <td
-                      key={cell.id}
-                      className="px-4 py-2 whitespace-nowrap text-sm text-gray-700"
-                    >
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </td>
-                  ))}
-                </tr>
-              ))
-            )}
-          </tbody>
+            ))
+          )}
+        </tbody>
         </table>
       </div>
       {table.getPageCount() > 1 && (

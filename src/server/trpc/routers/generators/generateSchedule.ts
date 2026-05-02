@@ -1,7 +1,7 @@
+// src/server/trpc/routers/generations/generateSchedule.ts
 import { z } from "zod";
 import { router, adminProcedure } from "../../trpc";
-import { eq, and, inArray, sql } from "drizzle-orm";
-import { weeks } from "@/db/schema";
+import { eq, and, sql } from "drizzle-orm";
 
 import {
   schedule, lessons, lessonClassrooms,
@@ -9,22 +9,23 @@ import {
   disciplines, lessonTypes,
   employeesDepartments, employees,
   units, classrooms, buildings,
-  unitRoots,
+  unitRoots, weeks,
 } from "@/db/schema";
 
 export const generateScheduleRouter = router({
   generateSchedule: adminProcedure
     .input(z.object({
       totalWeeks: z.number().int().min(1).default(18),
+      // cycleLength больше не принимаем – он вычисляется из таблицы weeks
     }))
     .mutation(async ({ ctx, input }) => {
       const { totalWeeks } = input;
 
-      // Определяем длину цикла по количеству записей в weeks
+      // Вычисляем длину цикла по количеству записей в справочнике "weeks"
       const [cycleCount] = await ctx.db
         .select({ count: sql<number>`count(*)` })
         .from(weeks);
-      const cycleLength = Number(cycleCount?.count) || 2; 
+      const cycleLength = Number(cycleCount?.count) || 2; // fallback на 2, если таблица пуста
 
       const step = Math.ceil(totalWeeks / cycleLength);
 

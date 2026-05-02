@@ -31,8 +31,8 @@ export const studentsRouter = router({
       profileId: z.number().int().optional(),
       studyGroupId: z.number().int().optional(),
       course: z.number().int().optional(),
-      phone: z.string().optional(),
-      email: z.string().email().optional(),
+      phone: z.string().nullable().optional(),
+      email: z.string().email().nullable().optional(),
       isInactive: z.boolean().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
