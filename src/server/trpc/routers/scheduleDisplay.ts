@@ -1,3 +1,4 @@
+// src/server/trpc/routers/scheduleDisplay.ts
 import { z } from "zod";
 import { router, adminProcedure } from "../trpc";
 import { scheduleDisplay, daysOfWeek, pairs, unitRoots, studyGroups } from "@/db/schema";
@@ -150,7 +151,7 @@ export const scheduleDisplayRouter = router({
       };
     }),
 
-  // Пакетная проверка слотов
+  // Проверка слотов (исправленная)
   checkSlots: adminProcedure
     .input(z.object({
       movingId: z.number(),
@@ -166,12 +167,14 @@ export const scheduleDisplayRouter = router({
       if (!moving.length) throw new Error('Занятие не найдено');
       const m = moving[0];
 
+      // Группы перемещаемого юнита
       const movingUnitGroups = await ctx.db
         .select({ studyGroupId: unitRoots.studyGroupId })
         .from(unitRoots)
         .where(eq(unitRoots.unitCode, m.unitCode));
       const movingGroupIds = new Set(movingUnitGroups.map(r => r.studyGroupId));
 
+      // Атрибуты перемещаемого занятия
       const [mTeacher, mClassroom] = await Promise.all([
         ctx.db.select({ teacherId: lessons.teacherId })
           .from(lessons)
@@ -185,11 +188,20 @@ export const scheduleDisplayRouter = router({
       const mTeacherId = mTeacher[0]?.teacherId ?? null;
       const mClassroomId = mClassroom[0]?.classroomId ?? null;
 
+      // Старый слот перемещаемого
+      const oldSlot = {
+        week: m.weekNumber,
+        dayId: m.dayOfWeekId,
+        pairId: m.pairNumberId,
+        unitCode: m.unitCode,
+      };
+
       const results: Record<string, { status: string; swapId?: number }> = {};
 
       for (const slot of input.slots) {
         const key = `week-${slot.week}-${slot.dayId}-${slot.pairId}-${slot.unitCode}`;
 
+        // 1. Пустой слот
         const existing = await ctx.db
           .select()
           .from(scheduleDisplay)
@@ -199,47 +211,102 @@ export const scheduleDisplayRouter = router({
             eq(scheduleDisplay.pairNumberId, slot.pairId),
             eq(scheduleDisplay.unitCode, slot.unitCode),
           ));
-
         const others = existing.filter(e => e.id !== input.movingId);
         if (others.length === 0) {
           results[key] = { status: 'free' };
           continue;
         }
 
-        let swapId: number | null = null;
-        for (const o of others) {
-          const oUnitGroups = await ctx.db
+        // 2. Проверка прямого конфликта
+        let directConflict = false;
+        for (const other of others) {
+          const otherUnitGroups = await ctx.db
             .select({ studyGroupId: unitRoots.studyGroupId })
             .from(unitRoots)
-            .where(eq(unitRoots.unitCode, o.unitCode));
-          const oGroupIds = new Set(oUnitGroups.map(r => r.studyGroupId));
-          const studentConflict = [...movingGroupIds].some(g => oGroupIds.has(g));
+            .where(eq(unitRoots.unitCode, other.unitCode));
+          const otherGroupIds = new Set(otherUnitGroups.map(r => r.studyGroupId));
 
-          const [oTeacher, oClassroom] = await Promise.all([
-            ctx.db.select({ teacherId: lessons.teacherId })
-              .from(lessons)
-              .where(eq(lessons.id, o.lessonId))
-              .limit(1),
-            ctx.db.select({ classroomId: lessonClassrooms.classroomId })
-              .from(lessonClassrooms)
-              .where(eq(lessonClassrooms.lessonId, o.lessonId))
-              .limit(1),
+          const [otherTeacher, otherClassroom] = await Promise.all([
+            ctx.db.select({ teacherId: lessons.teacherId }).from(lessons).where(eq(lessons.id, other.lessonId)).limit(1),
+            ctx.db.select({ classroomId: lessonClassrooms.classroomId }).from(lessonClassrooms).where(eq(lessonClassrooms.lessonId, other.lessonId)).limit(1),
           ]);
+          const oTeacherId = otherTeacher[0]?.teacherId ?? null;
+          const oClassroomId = otherClassroom[0]?.classroomId ?? null;
 
-          const teacherConflict = mTeacherId && oTeacher[0]?.teacherId && mTeacherId === oTeacher[0]?.teacherId;
-          const roomConflict = mClassroomId && oClassroom[0]?.classroomId && mClassroomId === oClassroom[0]?.classroomId;
-
-          if (studentConflict || teacherConflict || roomConflict) {
-            swapId = null;
+          if (
+            ([...movingGroupIds].some(g => otherGroupIds.has(g))) ||
+            (mTeacherId && oTeacherId && mTeacherId === oTeacherId) ||
+            (mClassroomId && oClassroomId && mClassroomId === oClassroomId)
+          ) {
+            directConflict = true;
             break;
-          } else {
-            swapId = o.id;
           }
         }
+        if (directConflict) {
+          results[key] = { status: 'conflict' };
+          continue;
+        }
 
-        results[key] = swapId !== null
-          ? { status: 'swap', swapId }
-          : { status: 'conflict' };
+        // 3. Если есть ровно одно другое занятие – пробуем swap
+        if (others.length === 1) {
+          const other = others[0];
+
+          // Собираем данные other
+          const otherUnitGroups = await ctx.db
+            .select({ studyGroupId: unitRoots.studyGroupId })
+            .from(unitRoots)
+            .where(eq(unitRoots.unitCode, other.unitCode));
+          const otherGroupIds = new Set(otherUnitGroups.map(r => r.studyGroupId));
+          const [oTeacher] = await ctx.db.select({ teacherId: lessons.teacherId }).from(lessons).where(eq(lessons.id, other.lessonId)).limit(1);
+          const [oClassroom] = await ctx.db.select({ classroomId: lessonClassrooms.classroomId }).from(lessonClassrooms).where(eq(lessonClassrooms.lessonId, other.lessonId)).limit(1);
+          const oTeacherId = oTeacher?.teacherId ?? null;
+          const oClassroomId = oClassroom?.classroomId ?? null;
+
+          // Проверяем, что other можно разместить в старом слоте moving
+          const oldSlotExisting = await ctx.db
+            .select()
+            .from(scheduleDisplay)
+            .where(and(
+              eq(scheduleDisplay.weekNumber, oldSlot.week),
+              eq(scheduleDisplay.dayOfWeekId, oldSlot.dayId),
+              eq(scheduleDisplay.pairNumberId, oldSlot.pairId),
+              eq(scheduleDisplay.unitCode, oldSlot.unitCode),
+            ));
+          const oldOthers = oldSlotExisting.filter(e => e.id !== input.movingId);
+
+          let reverseConflict = false;
+          for (const oldOther of oldOthers) {
+            const oldUnitGroups = await ctx.db
+              .select({ studyGroupId: unitRoots.studyGroupId })
+              .from(unitRoots)
+              .where(eq(unitRoots.unitCode, oldOther.unitCode));
+            const oldGroupIds = new Set(oldUnitGroups.map(r => r.studyGroupId));
+            const [oldTeacher, oldClassroom] = await Promise.all([
+              ctx.db.select({ teacherId: lessons.teacherId }).from(lessons).where(eq(lessons.id, oldOther.lessonId)).limit(1),
+              ctx.db.select({ classroomId: lessonClassrooms.classroomId }).from(lessonClassrooms).where(eq(lessonClassrooms.lessonId, oldOther.lessonId)).limit(1),
+            ]);
+            const oldTeacherId = oldTeacher[0]?.teacherId ?? null;
+            const oldClassroomId = oldClassroom[0]?.classroomId ?? null;
+
+            if (
+              ([...otherGroupIds].some(g => oldGroupIds.has(g))) ||
+              (oTeacherId && oldTeacherId && oTeacherId === oldTeacherId) ||
+              (oClassroomId && oldClassroomId && oClassroomId === oldClassroomId)
+            ) {
+              reverseConflict = true;
+              break;
+            }
+          }
+
+          if (!reverseConflict) {
+            results[key] = { status: 'swap', swapId: other.id };
+          } else {
+            results[key] = { status: 'conflict' };
+          }
+        } else {
+          // Больше одного занятия – конфликт
+          results[key] = { status: 'conflict' };
+        }
       }
 
       return results;

@@ -1,7 +1,7 @@
 // src/server/trpc/routers/generations/generateSchedule.ts
 import { z } from "zod";
 import { router, adminProcedure } from "../../trpc";
-import { eq, sql } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 
 import {
   schedule, lessons, lessonClassrooms,
@@ -15,17 +15,17 @@ import {
 export const generateScheduleRouter = router({
   generateSchedule: adminProcedure
     .input(z.object({
-      totalWeeks: z.number().int().min(1).default(18),
+      totalWeeks: z.number().int().min(1).default(18), // больше не используется для размещения
     }))
     .mutation(async ({ ctx, input }) => {
-      const { totalWeeks } = input;
-
       // Длина цикла = количество записей в таблице weeks
       const [cycleCount] = await ctx.db
         .select({ count: sql<number>`count(*)` })
         .from(weeks);
       const cycleLength = Number(cycleCount?.count) || 2;
 
+      // Количество повторений шаблона (для распределения количества занятий)
+      const totalWeeks = input.totalWeeks ?? 18;
       const step = Math.ceil(totalWeeks / cycleLength);
 
       // 1. Все занятия
@@ -40,7 +40,7 @@ export const generateScheduleRouter = router({
         lessonClassroomMap.get(lc.lessonId)!.push(lc.classroomId);
       }
 
-      // 3. unitRoots: unitCode -> Set<studyGroupId>
+      // 3. unitRoots: unit_code -> Set<studyGroupId>
       const allUnitRoots = await ctx.db.select().from(unitRoots);
       const unitToGroups = new Map<string, Set<number>>();
       for (const ur of allUnitRoots) {
@@ -76,37 +76,28 @@ export const generateScheduleRouter = router({
         groupIds: Set<number>;
       }>();
 
-      // 9. Сборщик неразмещённых занятий
-      const unplacedLessons: { lessonId: number; reason: string }[] = [];
-
-      // 10. Основной цикл размещения
+      // 9. Основной цикл размещения ТОЛЬКО для первых cycleLength недель
       for (const lesson of allLessons) {
-        // Проверка наличия преподавателя и аудиторий
-        if (lesson.teacherId == null) {
-          unplacedLessons.push({ lessonId: lesson.id, reason: "Нет преподавателя" });
-          continue;
-        }
-        const classroomIds = lessonClassroomMap.get(lesson.id) || [];
-        if (classroomIds.length === 0) {
-          unplacedLessons.push({ lessonId: lesson.id, reason: "Нет назначенных аудиторий" });
-          continue;
-        }
-
         if (!lesson.countPerSemester || lesson.countPerSemester <= 0) continue;
 
+        // Сколько занятий должно быть в шаблоне (одном цикле)
         const S = Math.ceil(lesson.countPerSemester / step);
         const base = Math.floor(S / cycleLength);
         const remainder = S % cycleLength;
         const weekLoad = Array(cycleLength).fill(base);
         for (let i = 0; i < remainder; i++) weekLoad[i]++;
 
+        const classroomIds = lessonClassroomMap.get(lesson.id) || [];
         const lessonUnitCode = lessonUnitMap.get(lesson.id) || "";
         const lessonGroups = unitToGroups.get(lessonUnitCode) ?? new Set<number>();
 
+        // Преподаватель и аудитории должны быть назначены
+        if (lesson.teacherId == null || classroomIds.length === 0) continue;
+
         let placed = 0;
 
-        for (let globalWeek = 0; globalWeek < totalWeeks; globalWeek++) {
-          const cycleWeek = globalWeek % cycleLength;
+        // Перебираем только недели внутри одного цикла (0..cycleLength-1)
+        for (let cycleWeek = 0; cycleWeek < cycleLength; cycleWeek++) {
           const needed = weekLoad[cycleWeek];
           if (needed <= 0) continue;
 
@@ -116,7 +107,7 @@ export const generateScheduleRouter = router({
             let placedInSlot = false;
             for (const day of days) {
               for (const pair of pairsList) {
-                const weekNum = globalWeek + 1;
+                const weekNum = cycleWeek + 1; // нумерация с 1
                 const slotKey = `${weekNum}-${day.id}-${pair.id}`;
 
                 if (!slotOccupancy.has(slotKey)) {
@@ -129,9 +120,8 @@ export const generateScheduleRouter = router({
                 const occupancy = slotOccupancy.get(slotKey)!;
 
                 // Проверка конфликтов
-                const teacherConflict = occupancy.teacherIds.has(lesson.teacherId!);
-                const groupConflict = [...lessonGroups].some(g => occupancy.groupIds.has(g));
-                if (teacherConflict || groupConflict) continue;
+                if (occupancy.teacherIds.has(lesson.teacherId!)) continue;
+                if ([...lessonGroups].some(g => occupancy.groupIds.has(g))) continue;
 
                 // Поиск свободной аудитории
                 let freeClassroomId: number | null = null;
@@ -141,7 +131,7 @@ export const generateScheduleRouter = router({
                     break;
                   }
                 }
-                if (freeClassroomId === null) continue; // все аудитории заняты
+                if (freeClassroomId === null) continue;
 
                 // Добавляем запись и обновляем занятость слота
                 scheduleRows.push({
@@ -168,22 +158,15 @@ export const generateScheduleRouter = router({
             }
           }
         }
-
-        if (placed < S) {
-          unplacedLessons.push({
-            lessonId: lesson.id,
-            reason: `Размещено только ${placed} из ${S} занятий (нехватка свободных слотов)`,
-          });
-        }
       }
 
-      // 11. Вставка schedule
+      // 10. Вставка schedule
       if (scheduleRows.length > 0) {
         const cleanRows = scheduleRows.map(({ _unitCode, ...rest }) => rest);
         await ctx.db.insert(schedule).values(cleanRows);
       }
 
-      // 12. Заполнение schedule_display
+      // 11. Заполнение schedule_display
       const insertedSchedule = await ctx.db.select().from(schedule);
       if (insertedSchedule.length > 0) {
         const enriched = await ctx.db
@@ -248,7 +231,6 @@ export const generateScheduleRouter = router({
         status: "schedule generated",
         totalSlots: scheduleRows.length,
         placedLessons: new Set(scheduleRows.map(r => r.lessonId)).size,
-        unplacedLessons,
       };
     }),
 });
