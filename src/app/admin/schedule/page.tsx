@@ -30,7 +30,6 @@ type ScheduleRow = {
   lessonId: number | null;
 };
 
-// ---- Draggable элемент ----
 function DraggableLesson({ entry, isEditMode }: { entry: ScheduleRow; isEditMode: boolean }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `lesson-${entry.id}`,
@@ -51,7 +50,6 @@ function DraggableLesson({ entry, isEditMode }: { entry: ScheduleRow; isEditMode
   );
 }
 
-// ---- Droppable зона внутри ячейки (одна неделя) ----
 function DroppableArea({
   week,
   dayId,
@@ -116,7 +114,6 @@ function DroppableArea({
   );
 }
 
-// ---- Основной компонент ----
 export default function AdminSchedulePage() {
   const [weekBase, setWeekBase] = useState(1);
   const [viewMode, setViewMode] = useState<"units" | "groups">("units");
@@ -129,10 +126,14 @@ export default function AdminSchedulePage() {
 
   const utils = trpc.useUtils();
 
-  const { data: unitsData, isLoading: unitsLoading, error: unitsError } =
-    trpc.scheduleDisplay.getForWeekPair.useQuery({ weekBase }, { enabled: !!weekBase && viewMode === "units" });
-  const { data: groupsData, isLoading: groupsLoading, error: groupsError } =
-    trpc.scheduleDisplay.getByStudyGroups.useQuery({ weekBase }, { enabled: !!weekBase && viewMode === "groups" });
+  const { data: unitsData } = trpc.scheduleDisplay.getForWeekPair.useQuery(
+    { weekBase },
+    { enabled: !!weekBase && viewMode === "units" }
+  );
+  const { data: groupsData } = trpc.scheduleDisplay.getByStudyGroups.useQuery(
+    { weekBase },
+    { enabled: !!weekBase && viewMode === "groups" }
+  );
 
   const checkSlots = trpc.scheduleDisplay.checkSlots.useMutation();
   const moveMutation = trpc.scheduleDisplay.move.useMutation();
@@ -218,8 +219,6 @@ export default function AdminSchedulePage() {
     utils.scheduleDisplay.getForWeekPair.invalidate({ weekBase });
   };
 
-  // ========== ЭКСПОРТ ==========
-
   // Печать (открытие в новом окне)
   const handlePrint = () => {
     const tableElement = document.getElementById("schedule-table");
@@ -288,7 +287,8 @@ export default function AdminSchedulePage() {
       }
     }
 
-    const csvContent = "data:text/csv;charset=utf-8," + rows.map(r => r.join(";")).join("\n");
+    const BOM = "\uFEFF";
+    const csvContent = "data:text/csv;charset=utf-8," + BOM + rows.map(r => r.join(";")).join("\n");
     const link = document.createElement("a");
     link.setAttribute("href", encodeURI(csvContent));
     link.setAttribute("download", `schedule_week${weekBase}.csv`);
@@ -297,8 +297,8 @@ export default function AdminSchedulePage() {
     link.remove();
   };
 
-  if (viewMode === "units" && unitsLoading) return <div className="p-6">Загрузка...</div>;
-  if (viewMode === "groups" && groupsLoading) return <div className="p-6">Загрузка...</div>;
+  if (viewMode === "units" && !unitsData) return <div className="p-6">Загрузка...</div>;
+  if (viewMode === "groups" && !groupsData) return <div className="p-6">Загрузка...</div>;
 
   return (
     <div className="p-4">
@@ -410,61 +410,103 @@ export default function AdminSchedulePage() {
         )}
 
         {viewMode === "groups" && groupsData && (
-          <div className="overflow-x-auto border border-gray-300 rounded-md">
-            <table className="border-collapse text-sm w-full">
-              <thead>
-                <tr className="bg-gray-100">
-                  <th className="sticky left-0 z-20 bg-gray-100 border border-gray-400 p-2 w-[70px] min-w-[70px]">День</th>
-                  <th className="sticky left-[70px] z-20 bg-gray-100 border border-gray-400 p-2 w-[50px] min-w-[50px]">Пара</th>
-                  {Array.from(new Set(groupsData.rows.map((r: any) => r.studyGroupCode))).sort().map((code) => (
-                    <th key={code} className="border border-gray-400 p-2 bg-blue-50 whitespace-nowrap min-w-[180px]">{code}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {groupsData.days.map((day: Day) =>
-                  groupsData.pairs.map((pair: Pair, pairIdx: number) => {
-                    const isFirstPairOfDay = pairIdx === 0;
-                    return (
-                      <tr key={`${day.id}-${pair.id}`}>
-                        {isFirstPairOfDay && (
-                          <td rowSpan={groupsData.pairs.length} className="sticky left-0 z-10 bg-white border border-gray-400 p-2 font-medium text-center align-top" style={{ backgroundColor: "#fff" }}>
-                            {day.name}
-                          </td>
-                        )}
-                        <td className="sticky left-[70px] z-10 bg-white border border-gray-400 p-2 text-center align-top">{pair.number}</td>
-                        {Array.from(new Set(groupsData.rows.map((r: any) => r.studyGroupCode))).sort().map((code) => {
-                          const entries = groupsData.rows.filter(
-                            (r: any) => r.studyGroupCode === code && r.dayOfWeekId === day.id && r.pairNumberId === pair.id
-                          );
-                          entries.sort((a: any, b: any) => a.weekNumber - b.weekNumber);
-                          return (
-                            <td key={code} className="border border-gray-300 p-1 min-w-[180px] align-top">
-                              {entries.length === 0 ? (
-                                <div className="text-gray-300 text-xs text-center">—</div>
-                              ) : (
-                                <div className="flex flex-col gap-1">
-                                  {entries.map((entry: any) => (
-                                    <div key={entry.id} className={`text-xs p-1 rounded leading-tight ${entry.weekNumber === weekBase ? "bg-green-50 border border-green-200" : "bg-amber-50 border border-amber-200"}`}>
-                                      <div className="flex items-center gap-1">
-                                        <span className="text-gray-500 font-mono text-[10px]">{entry.weekNumber === weekBase ? "н." : "ч."}</span>
-                                        <span className="truncate">{entry.displayText}</span>
-                                      </div>
-                                    </div>
-                                  ))}
+      <div className="overflow-x-auto border border-gray-300 rounded-md">
+        <table className="border-collapse text-sm w-full">
+          <thead>
+            <tr className="bg-gray-100">
+              <th className="sticky left-0 z-20 bg-gray-100 border border-gray-400 p-2 w-[70px] min-w-[70px]">День</th>
+              <th className="sticky left-[70px] z-20 bg-gray-100 border border-gray-400 p-2 w-[50px] min-w-[50px]">Пара</th>
+              {Array.from(new Set(groupsData.rows.map((r: any) => r.studyGroupCode))).sort().map((code) => (
+                <th key={code} className="border border-gray-400 p-2 bg-blue-50 whitespace-nowrap min-w-[180px]">
+                  {code}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {groupsData.days.map((day: Day) =>
+              groupsData.pairs.map((pair: Pair, pairIdx: number) => {
+                const isFirstPairOfDay = pairIdx === 0;
+                return (
+                  <tr key={`${day.id}-${pair.id}`}>
+                    {isFirstPairOfDay && (
+                      <td
+                        rowSpan={groupsData.pairs.length}
+                        className="sticky left-0 z-10 bg-white border border-gray-400 p-2 font-medium text-center align-top"
+                        style={{ backgroundColor: "#fff" }}
+                      >
+                        {day.name}
+                      </td>
+                    )}
+                    <td className="sticky left-[70px] z-10 bg-white border border-gray-400 p-2 text-center align-top">
+                      {pair.number}
+                    </td>
+                    {Array.from(new Set(groupsData.rows.map((r: any) => r.studyGroupCode))).sort().map((code) => {
+                      // Для каждой группы берём занятия на обе недели
+                      const oddEntry = groupsData.rows.find(
+                        (r: any) =>
+                          r.studyGroupCode === code &&
+                          r.dayOfWeekId === day.id &&
+                          r.pairNumberId === pair.id &&
+                          r.weekNumber === weekBase
+                      );
+                      const evenEntry = groupsData.rows.find(
+                        (r: any) =>
+                          r.studyGroupCode === code &&
+                          r.dayOfWeekId === day.id &&
+                          r.pairNumberId === pair.id &&
+                          r.weekNumber === weekBase + 1
+                      );
+
+                      return (
+                        <td key={code} className="border border-gray-300 p-1 min-w-[180px] align-top">
+                          <div className="flex flex-col gap-1">
+                            {/* Нечётная неделя */}
+                            <div
+                              className={`text-xs p-1 rounded leading-tight border ${
+                                oddEntry
+                                  ? "bg-green-50 border-green-200"
+                                  : "border-dashed border-gray-200"
+                              }`}
+                            >
+                              {oddEntry ? (
+                                <div className="flex items-center gap-1">
+                                  <span className="text-gray-500 font-mono text-[10px]">н.</span>
+                                  <span className="truncate">{oddEntry.displayText}</span>
                                 </div>
+                              ) : (
+                                <span className="text-gray-300">—</span>
                               )}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
+                            </div>
+                            {/* Чётная неделя */}
+                            <div
+                              className={`text-xs p-1 rounded leading-tight border ${
+                                evenEntry
+                                  ? "bg-amber-50 border-amber-200"
+                                  : "border-dashed border-gray-200"
+                              }`}
+                            >
+                              {evenEntry ? (
+                                <div className="flex items-center gap-1">
+                                  <span className="text-gray-500 font-mono text-[10px]">ч.</span>
+                                  <span className="truncate">{evenEntry.displayText}</span>
+                                </div>
+                              ) : (
+                                <span className="text-gray-300">—</span>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+    )}
       </div>
 
       {selectedEntry && (

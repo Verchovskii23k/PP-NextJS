@@ -1,7 +1,7 @@
 // src/server/trpc/routers/generations/generateSchedule.ts
 import { z } from "zod";
 import { router, adminProcedure } from "../../trpc";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 import {
   schedule, lessons, lessonClassrooms,
@@ -16,16 +16,15 @@ export const generateScheduleRouter = router({
   generateSchedule: adminProcedure
     .input(z.object({
       totalWeeks: z.number().int().min(1).default(18),
-      // cycleLength больше не принимаем – он вычисляется из таблицы weeks
     }))
     .mutation(async ({ ctx, input }) => {
       const { totalWeeks } = input;
 
-      // Вычисляем длину цикла по количеству записей в справочнике "weeks"
+      // Длина цикла = количество записей в таблице weeks
       const [cycleCount] = await ctx.db
         .select({ count: sql<number>`count(*)` })
         .from(weeks);
-      const cycleLength = Number(cycleCount?.count) || 2; // fallback на 2, если таблица пуста
+      const cycleLength = Number(cycleCount?.count) || 2;
 
       const step = Math.ceil(totalWeeks / cycleLength);
 
@@ -41,7 +40,7 @@ export const generateScheduleRouter = router({
         lessonClassroomMap.get(lc.lessonId)!.push(lc.classroomId);
       }
 
-      // 3. unitRoots: unit_code -> Set<studyGroupId>
+      // 3. unitRoots: unitCode -> Set<studyGroupId>
       const allUnitRoots = await ctx.db.select().from(unitRoots);
       const unitToGroups = new Map<string, Set<number>>();
       for (const ur of allUnitRoots) {
@@ -70,8 +69,29 @@ export const generateScheduleRouter = router({
       // 7. Массив будущих записей schedule
       const scheduleRows: (typeof schedule.$inferInsert & { _unitCode?: string })[] = [];
 
-      // 8. Основной цикл
+      // 8. Структура занятости слотов: ключ "week-day-pair"
+      const slotOccupancy = new Map<string, {
+        teacherIds: Set<number>;
+        classroomIds: Set<number>;
+        groupIds: Set<number>;
+      }>();
+
+      // 9. Сборщик неразмещённых занятий
+      const unplacedLessons: { lessonId: number; reason: string }[] = [];
+
+      // 10. Основной цикл размещения
       for (const lesson of allLessons) {
+        // Проверка наличия преподавателя и аудиторий
+        if (lesson.teacherId == null) {
+          unplacedLessons.push({ lessonId: lesson.id, reason: "Нет преподавателя" });
+          continue;
+        }
+        const classroomIds = lessonClassroomMap.get(lesson.id) || [];
+        if (classroomIds.length === 0) {
+          unplacedLessons.push({ lessonId: lesson.id, reason: "Нет назначенных аудиторий" });
+          continue;
+        }
+
         if (!lesson.countPerSemester || lesson.countPerSemester <= 0) continue;
 
         const S = Math.ceil(lesson.countPerSemester / step);
@@ -80,7 +100,6 @@ export const generateScheduleRouter = router({
         const weekLoad = Array(cycleLength).fill(base);
         for (let i = 0; i < remainder; i++) weekLoad[i]++;
 
-        const classroomIds = lessonClassroomMap.get(lesson.id) || [];
         const lessonUnitCode = lessonUnitMap.get(lesson.id) || "";
         const lessonGroups = unitToGroups.get(lessonUnitCode) ?? new Set<number>();
 
@@ -98,56 +117,48 @@ export const generateScheduleRouter = router({
             for (const day of days) {
               for (const pair of pairsList) {
                 const weekNum = globalWeek + 1;
+                const slotKey = `${weekNum}-${day.id}-${pair.id}`;
 
-                // Проверка конфликтов в уже накопленных scheduleRows
-                const conflict = scheduleRows.some(row => {
-                  if (row.weekNumber !== weekNum || row.dayOfWeekId !== day.id || row.pairNumberId !== pair.id) return false;
-
-                  const rowLesson = allLessons.find(l => l.id === row.lessonId);
-                  if (!rowLesson) return false;
-
-                  if (rowLesson.teacherId === lesson.teacherId) return true;
-
-                  if (row.classroomId && classroomIds.includes(row.classroomId)) return true;
-
-                  const rowUnitCode = row._unitCode || lessonUnitMap.get(rowLesson.id) || "";
-                  const rowGroups = unitToGroups.get(rowUnitCode) ?? new Set<number>();
-                  for (const g of lessonGroups) {
-                    if (rowGroups.has(g)) return true;
-                  }
-                  return false;
-                });
-
-                if (conflict) continue;
-
-                let freeClassroomId: number | null = null;
-                if (classroomIds.length > 0) {
-                  for (const cid of classroomIds) {
-                    const occupied = scheduleRows.some(r =>
-                      r.weekNumber === weekNum &&
-                      r.dayOfWeekId === day.id &&
-                      r.pairNumberId === pair.id &&
-                      r.classroomId === cid
-                    );
-                    if (!occupied) {
-                      freeClassroomId = cid;
-                      break;
-                    }
-                  }
-                  if (freeClassroomId === null) continue;
+                if (!slotOccupancy.has(slotKey)) {
+                  slotOccupancy.set(slotKey, {
+                    teacherIds: new Set(),
+                    classroomIds: new Set(),
+                    groupIds: new Set(),
+                  });
                 }
+                const occupancy = slotOccupancy.get(slotKey)!;
 
+                // Проверка конфликтов
+                const teacherConflict = occupancy.teacherIds.has(lesson.teacherId!);
+                const groupConflict = [...lessonGroups].some(g => occupancy.groupIds.has(g));
+                if (teacherConflict || groupConflict) continue;
+
+                // Поиск свободной аудитории
+                let freeClassroomId: number | null = null;
+                for (const cid of classroomIds) {
+                  if (!occupancy.classroomIds.has(cid)) {
+                    freeClassroomId = cid;
+                    break;
+                  }
+                }
+                if (freeClassroomId === null) continue; // все аудитории заняты
+
+                // Добавляем запись и обновляем занятость слота
                 scheduleRows.push({
                   weekNumber: weekNum,
                   dayOfWeekId: day.id,
                   pairNumberId: pair.id,
                   lessonId: lesson.id,
                   classroomId: freeClassroomId,
-                  classroomFlag: freeClassroomId !== null ? 1 : 0,
+                  classroomFlag: 1,
                   mergeFlag: undefined,
                   positionFlag: undefined,
                   _unitCode: lessonUnitCode,
                 });
+
+                occupancy.teacherIds.add(lesson.teacherId!);
+                occupancy.classroomIds.add(freeClassroomId);
+                for (const g of lessonGroups) occupancy.groupIds.add(g);
 
                 placed++;
                 placedInSlot = true;
@@ -157,15 +168,22 @@ export const generateScheduleRouter = router({
             }
           }
         }
+
+        if (placed < S) {
+          unplacedLessons.push({
+            lessonId: lesson.id,
+            reason: `Размещено только ${placed} из ${S} занятий (нехватка свободных слотов)`,
+          });
+        }
       }
 
-      // 9. Вставка schedule пачкой
+      // 11. Вставка schedule
       if (scheduleRows.length > 0) {
         const cleanRows = scheduleRows.map(({ _unitCode, ...rest }) => rest);
         await ctx.db.insert(schedule).values(cleanRows);
       }
 
-      // 10. Заполнение schedule_display
+      // 12. Заполнение schedule_display
       const insertedSchedule = await ctx.db.select().from(schedule);
       if (insertedSchedule.length > 0) {
         const enriched = await ctx.db
@@ -226,6 +244,11 @@ export const generateScheduleRouter = router({
         }
       }
 
-      return { status: "schedule generated" };
+      return {
+        status: "schedule generated",
+        totalSlots: scheduleRows.length,
+        placedLessons: new Set(scheduleRows.map(r => r.lessonId)).size,
+        unplacedLessons,
+      };
     }),
 });
