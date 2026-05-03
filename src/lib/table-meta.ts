@@ -224,7 +224,7 @@ export const tablesMeta: Record<string, TableMeta> = {
     dbTableName: "unit_roots",
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
-      { dbName: "unitCode", displayName: "Код юнита", isFK: true, references: { table: "units", displayField: "code" } },
+      { dbName: "unitCode", displayName: "Код юнита", isFK: false },  // <-- убрали isFK: true и references
       { dbName: "studyGroupId", displayName: "Учебная группа", isFK: true, references: { table: "studyGroups", displayField: "code" } },
     ],
   },

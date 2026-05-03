@@ -1,202 +1,3 @@
-// // src/server/api/routers/generateUnits.ts
-// import { z } from "zod";
-// import { router, adminProcedure } from "../../trpc";
-// import {
-//   units, unitTypes, unitRoots,
-//   studyGroups, profiles,
-//   curriculum, curriculumProfiles,
-//   lessons, lessonClassrooms, schedule // на всякий случай очистим
-// } from "@/db/schema";
-// import { eq, and, inArray, sql } from "drizzle-orm";
-
-// export const generateUnitsRouter = router({
-//   generateUnits: adminProcedure
-//     .input(z.object({ maxSubgroupSize: z.number().int().default(16) }))
-//     .mutation(async ({ ctx, input }) => {
-//       // 1. Очистка старых юнитов и связанных данных
-//       await ctx.db.transaction(async (tx) => {
-//         await tx.delete(schedule);
-//         await tx.delete(lessonClassrooms);
-//         await tx.delete(lessons);
-//         await tx.delete(unitRoots);
-//         await tx.delete(units);
-//       });
-
-//       // 2. Получение ID типов юнитов
-//       const [unitTypeGroup] = await ctx.db.select().from(unitTypes).where(eq(unitTypes.name, "ГРУППА")).limit(1);
-//       const [unitTypeSubgroup] = await ctx.db.select().from(unitTypes).where(eq(unitTypes.name, "ПОДГРУППА")).limit(1);
-//       const [unitTypeStream] = await ctx.db.select().from(unitTypes).where(eq(unitTypes.name, "ПОТОК")).limit(1);
-//       if (!unitTypeGroup || !unitTypeSubgroup || !unitTypeStream) {
-//         throw new Error("Не все типы юнитов (Группа, Подгруппа, Поток) найдены");
-//       }
-
-//       // 3. Получение всех учебных групп (результат generateGroups)
-//       const groups = await ctx.db.select().from(studyGroups);
-//       if (groups.length === 0) {
-//         throw new Error("Нет учебных групп. Сначала выполните генерацию групп.");
-//       }
-
-//       // 4. Подготовка: словарь профиль -> ID группы (для потоков)
-//       const profileToGroupId = new Map<number, number>();
-//       for (const g of groups) {
-//         profileToGroupId.set(g.profileId, g.id);
-//       }
-
-//       let createdCounts = { groups: 0, subgroups: 0, streams: 0, connections: 0 };
-
-//       // 5. Создание юнитов «ГРУППА» и «ПОДГРУППА»
-//       for (const group of groups) {
-//         // --- Группа ---
-//         const [existingUnit] = await ctx.db.select({ id: units.id }).from(units).where(eq(units.code, group.code)).limit(1);
-//         if (!existingUnit) {
-//           await ctx.db.insert(units).values({ code: group.code, unitTypeId: unitTypeGroup.id });
-//           createdCounts.groups++;
-//         }
-//         const [root] = await ctx.db.select().from(unitRoots).where(and(eq(unitRoots.unitCode, group.code), eq(unitRoots.studyGroupId, group.id))).limit(1);
-//         if (!root) {
-//           await ctx.db.insert(unitRoots).values({ unitCode: group.code, studyGroupId: group.id });
-//           createdCounts.connections++;
-//         }
-
-//         // --- Подгруппы (если > maxSubgroupSize) ---
-//         const size = group.studentCount ?? 0;
-//         if (size > input.maxSubgroupSize) {
-//           for (let i = 1; i <= 2; i++) {
-//             const subCode = `${group.code}${i}`;
-//             const [existingSub] = await ctx.db.select({ id: units.id }).from(units).where(eq(units.code, subCode)).limit(1);
-//             if (!existingSub) {
-//               await ctx.db.insert(units).values({ code: subCode, unitTypeId: unitTypeSubgroup.id });
-//               createdCounts.subgroups++;
-//             }
-//             const [subRoot] = await ctx.db.select().from(unitRoots).where(and(eq(unitRoots.unitCode, subCode), eq(unitRoots.studyGroupId, group.id))).limit(1);
-//             if (!subRoot) {
-//               await ctx.db.insert(unitRoots).values({ unitCode: subCode, studyGroupId: group.id });
-//               createdCounts.connections++;
-//             }
-//           }
-//         }
-//       }
-
-//       // 6. Потоки (уровень 1 и 2 объединены – поиск по параметрам)
-//       // Получаем все связи curriculum_profiles с часами лекций > 0
-//       const planRows = await ctx.db
-//         .select({
-//           curriculumId: curriculum.id,
-//           disciplineId: curriculum.disciplineId,
-//           course: curriculum.course,
-//           semester: curriculum.semester,
-//           hoursLecture: curriculum.hoursLecture,
-//           profileId: curriculumProfiles.profileId,
-//         })
-//         .from(curriculum)
-//         .innerJoin(curriculumProfiles, eq(curriculum.id, curriculumProfiles.curriculumId))
-//         .where(sql`${curriculum.hoursLecture} > 0`);
-
-//       // Группируем на JS по дисциплине, курсу, семестру, часам лекций
-//       const groupKey = (r: typeof planRows[0]) =>
-//         `${r.disciplineId}_${r.course}_${r.semester}_${r.hoursLecture}`;
-
-//       const streamMap = new Map<string, Set<number>>();
-//       for (const row of planRows) {
-//         const key = groupKey(row);
-//         if (!streamMap.has(key)) {
-//           streamMap.set(key, new Set());
-//         }
-//         streamMap.get(key)!.add(row.profileId);
-//       }
-
-//       const createdStreamCombinations = new Set<string>(); // ключ – отсортированные profileId
-
-//       for (const [key, profileSet] of streamMap) {
-//         if (profileSet.size < 2) continue; // нужен поток минимум для двух профилей
-
-//         const profileIds = Array.from(profileSet).sort((a, b) => a - b);
-//         const profileTuple = profileIds.join(",");
-//         if (createdStreamCombinations.has(profileTuple)) continue;
-
-//         // Получаем буквенные коды профилей (сортируем для кода потока)
-//         const profilesData = await ctx.db
-//           .select({ letterCode: profiles.letterCode })
-//           .from(profiles)
-//           .where(inArray(profiles.id, profileIds))
-//           .orderBy(profiles.letterCode);
-
-//         const sortedCodes = profilesData.map(p => p.letterCode).join("");
-
-//         // Берем первую группу, чтобы определить институт и год
-//         const firstProfileId = profileIds[0];
-//         const firstGroupId = profileToGroupId.get(firstProfileId);
-//         if (!firstGroupId) continue;
-
-//         const [firstGroup] = await ctx.db
-//           .select({ code: studyGroups.code })
-//           .from(studyGroups)
-//           .where(eq(studyGroups.id, firstGroupId))
-//           .limit(1);
-//         if (!firstGroup) continue;
-
-//         const groupCode = firstGroup.code;
-//         const instituteCode = groupCode[0]; // первая цифра кода группы
-//         const yearDigit = groupCode[1];     // вторая цифра кода группы
-//         const streamCode = `${instituteCode}${yearDigit}${sortedCodes}`;
-
-//         // Создаем юнит потока, если его ещё нет
-//         const [existingStream] = await ctx.db
-//           .select({ id: units.id })
-//           .from(units)
-//           .where(eq(units.code, streamCode))
-//           .limit(1);
-//         if (!existingStream) {
-//           await ctx.db.insert(units).values({ code: streamCode, unitTypeId: unitTypeStream.id });
-//           createdCounts.streams++;
-//         }
-
-//         // Привязываем поток ко всем группам этих профилей
-//         for (const pid of profileIds) {
-//           const gid = profileToGroupId.get(pid);
-//           if (!gid) continue;
-
-//           const [root] = await ctx.db
-//             .select()
-//             .from(unitRoots)
-//             .where(and(eq(unitRoots.unitCode, streamCode), eq(unitRoots.studyGroupId, gid)))
-//             .limit(1);
-//           if (!root) {
-//             await ctx.db.insert(unitRoots).values({ unitCode: streamCode, studyGroupId: gid });
-//             createdCounts.connections++;
-//           }
-//         }
-
-//         createdStreamCombinations.add(profileTuple);
-//       }
-
-//       const totalUnits = createdCounts.groups + createdCounts.subgroups + createdCounts.streams;
-
-//       return {
-//         createdUnits: totalUnits,
-//         groups: createdCounts.groups,
-//         subgroups: createdCounts.subgroups,
-//         streams: createdCounts.streams,
-//         connections: createdCounts.connections,
-//       };
-//     }),
-// });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // src/server/api/routers/generateUnits.ts
 import { router, adminProcedure } from "../../trpc";
 import {
@@ -246,7 +47,7 @@ export const generateUnitsRouter = router({
     const groups = await ctx.db.select().from(studyGroups);
     if (groups.length === 0) throw new Error("Сначала выполните генерацию групп");
 
-    // Строим удобную карту: profileId -> (course -> группа)
+    // Карта: profileId -> (course -> группа)
     const profileCourseToGroup = new Map<
       number,
       Map<number, typeof groups[0]>
@@ -263,33 +64,30 @@ export const generateUnitsRouter = router({
     // 4. Группы и подгруппы
     for (const group of groups) {
       // --- Юнит группы ---
-      const [existingUnit] = await ctx.db
+      const unitCode = group.code; // код группы (например, 23к)
+      let [existingUnit] = await ctx.db
         .select({ id: units.id })
         .from(units)
-        .where(eq(units.code, group.code))
+        .where(eq(units.code, unitCode))
         .limit(1);
       if (!existingUnit) {
-        await ctx.db.insert(units).values({
-          code: group.code,
+        const [inserted] = await ctx.db.insert(units).values({
+          code: unitCode,
           unitTypeId: unitTypeGroup.id,
-        });
+        }).returning({ id: units.id });
+        existingUnit = inserted;
         counters.groups++;
       }
 
-      // Связь группы с её юнитом
+      // Связь с группой
       const [rootExist] = await ctx.db
         .select()
         .from(unitRoots)
-        .where(
-          and(
-            eq(unitRoots.unitCode, group.code),
-            eq(unitRoots.studyGroupId, group.id)
-          )
-        )
+        .where(and(eq(unitRoots.unitCode, unitCode), eq(unitRoots.studyGroupId, group.id)))
         .limit(1);
       if (!rootExist) {
         await ctx.db.insert(unitRoots).values({
-          unitCode: group.code,
+          unitCode: unitCode,       // <-- явно передаём код
           studyGroupId: group.id,
         });
         counters.connections++;
@@ -300,32 +98,28 @@ export const generateUnitsRouter = router({
       if (size > maxSubgroupSize) {
         const numSubgroups = Math.ceil(size / maxSubgroupSize);
         for (let i = 1; i <= numSubgroups; i++) {
-          const subCode = `${group.code}${i}`;
-          const [subUnit] = await ctx.db
+          const subCode = `${unitCode}${i}`;
+          let [existingSub] = await ctx.db
             .select({ id: units.id })
             .from(units)
             .where(eq(units.code, subCode))
             .limit(1);
-          if (!subUnit) {
-            await ctx.db.insert(units).values({
+          if (!existingSub) {
+            const [inserted] = await ctx.db.insert(units).values({
               code: subCode,
               unitTypeId: unitTypeSubgroup.id,
-            });
+            }).returning({ id: units.id });
+            existingSub = inserted;
             counters.subgroups++;
           }
-          const [subRoot] = await ctx.db
+          const [subRootExist] = await ctx.db
             .select()
             .from(unitRoots)
-            .where(
-              and(
-                eq(unitRoots.unitCode, subCode),
-                eq(unitRoots.studyGroupId, group.id)
-              )
-            )
+            .where(and(eq(unitRoots.unitCode, subCode), eq(unitRoots.studyGroupId, group.id)))
             .limit(1);
-          if (!subRoot) {
+          if (!subRootExist) {
             await ctx.db.insert(unitRoots).values({
-              unitCode: subCode,
+              unitCode: subCode,    // <-- явно передаём код подгруппы
               studyGroupId: group.id,
             });
             counters.connections++;
@@ -334,7 +128,7 @@ export const generateUnitsRouter = router({
       }
     }
 
-    // 5. Потоки (алгоритм полностью сохранён)
+    // 5. Потоки (алгоритм сохранён)
     const planRows = await ctx.db
       .select({
         disciplineId: curriculum.disciplineId,
@@ -344,24 +138,13 @@ export const generateUnitsRouter = router({
         profileId: curriculumProfiles.profileId,
       })
       .from(curriculum)
-      .innerJoin(
-        curriculumProfiles,
-        eq(curriculum.id, curriculumProfiles.curriculumId)
-      )
+      .innerJoin(curriculumProfiles, eq(curriculum.id, curriculumProfiles.curriculumId))
       .where(sql`${curriculum.hoursLecture} > 0`);
 
-    const streamMap = new Map<
-      string,
-      { course: number; profileIds: Set<number> }
-    >();
+    const streamMap = new Map<string, { course: number; profileIds: Set<number> }>();
     for (const row of planRows) {
       const key = `${row.disciplineId}_${row.course}_${row.semester}_${row.hoursLecture}`;
-      if (!streamMap.has(key)) {
-        streamMap.set(key, {
-          course: row.course,
-          profileIds: new Set(),
-        });
-      }
+      if (!streamMap.has(key)) streamMap.set(key, { course: row.course, profileIds: new Set() });
       streamMap.get(key)!.profileIds.add(row.profileId);
     }
 
@@ -369,24 +152,19 @@ export const generateUnitsRouter = router({
 
     for (const [, { course, profileIds }] of streamMap) {
       if (profileIds.size < 2) continue;
-
       const profArray = Array.from(profileIds).sort((a, b) => a - b);
       const tupleKey = profArray.join(",");
       if (createdCombinations.has(tupleKey)) continue;
 
-      // Буквенные коды профилей
       const pData = await ctx.db
         .select({ letterCode: profiles.letterCode })
         .from(profiles)
         .where(inArray(profiles.id, profArray))
         .orderBy(profiles.letterCode);
-      const codes = pData.map((p) => p.letterCode).join("");
+      const codes = pData.map(p => p.letterCode).join("");
 
-      // Берём группу первого профиля для данного курса
       const firstProf = profArray[0];
-      const groupForCourse = profileCourseToGroup
-        .get(firstProf)
-        ?.get(course);
+      const groupForCourse = profileCourseToGroup.get(firstProf)?.get(course);
       if (!groupForCourse) continue;
 
       const groupCode = groupForCourse.code;
@@ -394,49 +172,42 @@ export const generateUnitsRouter = router({
       const yearDigit = groupCode[1];
       const streamCode = `${instituteCode}${yearDigit}${codes}`;
 
-      // Создаём юнит потока
-      const [existingStream] = await ctx.db
+      let [existingStream] = await ctx.db
         .select({ id: units.id })
         .from(units)
         .where(eq(units.code, streamCode))
         .limit(1);
       if (!existingStream) {
-        await ctx.db.insert(units).values({
+        const [inserted] = await ctx.db.insert(units).values({
           code: streamCode,
           unitTypeId: unitTypeStream.id,
-        });
+        }).returning({ id: units.id });
+        existingStream = inserted;
         counters.streams++;
       }
 
-      // Связываем с группами этого курса
+      // Связи с группами этого потока
       for (const profId of profArray) {
         const g = profileCourseToGroup.get(profId)?.get(course);
         if (!g) continue;
         const [root] = await ctx.db
           .select()
           .from(unitRoots)
-          .where(
-            and(
-              eq(unitRoots.unitCode, streamCode),
-              eq(unitRoots.studyGroupId, g.id)
-            )
-          )
+          .where(and(eq(unitRoots.unitCode, streamCode), eq(unitRoots.studyGroupId, g.id)))
           .limit(1);
         if (!root) {
           await ctx.db.insert(unitRoots).values({
-            unitCode: streamCode,
+            unitCode: streamCode,   // <-- явно передаём код потока
             studyGroupId: g.id,
           });
           counters.connections++;
         }
       }
-
       createdCombinations.add(tupleKey);
     }
 
     return {
-      createdUnits:
-        counters.groups + counters.subgroups + counters.streams,
+      createdUnits: counters.groups + counters.subgroups + counters.streams,
       groups: counters.groups,
       subgroups: counters.subgroups,
       streams: counters.streams,
