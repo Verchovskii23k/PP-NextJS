@@ -3,14 +3,12 @@ import { z } from "zod";
 import { router, adminProcedure } from "../trpc";
 import { scheduleDisplay, daysOfWeek, pairs, unitRoots, studyGroups } from "@/db/schema";
 import { lessons, lessonClassrooms } from "@/db/schema";
-import { eq, inArray, asc, and } from "drizzle-orm";
+import { eq, inArray, asc, and, gte } from "drizzle-orm";
 
 export const scheduleDisplayRouter = router({
-  // Получить расписание для пары недель (нечётная + чётная)
+  // Получить расписание для пары недель (нечётная + чётная) – без буферных
   getForWeekPair: adminProcedure
-    .input(z.object({
-      weekBase: z.number().int().min(1),
-    }))
+    .input(z.object({ weekBase: z.number().int().min(1) }))
     .query(async ({ ctx, input }) => {
       const { weekBase } = input;
       const weekEven = weekBase + 1;
@@ -19,54 +17,11 @@ export const scheduleDisplayRouter = router({
         .select()
         .from(scheduleDisplay)
         .where(
-          inArray(scheduleDisplay.weekNumber, [weekBase, weekEven])
+          and(
+            inArray(scheduleDisplay.weekNumber, [weekBase, weekEven]),
+            gte(scheduleDisplay.weekNumber, 1) // исключаем буфер
+          )
         )
-        .orderBy(
-          asc(scheduleDisplay.weekNumber),
-          asc(scheduleDisplay.dayOfWeekId),
-          asc(scheduleDisplay.pairNumberId),
-          asc(scheduleDisplay.unitCode)
-        );
-
-      const days = await ctx.db.select().from(daysOfWeek).orderBy(asc(daysOfWeek.id));
-      const pairsList = await ctx.db.select().from(pairs).orderBy(asc(pairs.number));
-
-      return {
-        rows,
-        days,
-        pairs: pairsList,
-      };
-    }),
-
-  // Расписание одной группы (по выбору)
-  getByGroup: adminProcedure
-    .input(z.object({
-      studyGroupCode: z.string().min(1),
-      weekBase: z.number().int().min(1),
-    }))
-    .query(async ({ ctx, input }) => {
-      const { studyGroupCode, weekBase } = input;
-      const weekEven = weekBase + 1;
-
-      const unitLinks = await ctx.db
-        .select({ unitCode: unitRoots.unitCode })
-        .from(unitRoots)
-        .innerJoin(studyGroups, eq(unitRoots.studyGroupId, studyGroups.id))
-        .where(eq(studyGroups.code, studyGroupCode));
-
-      if (unitLinks.length === 0) {
-        return { rows: [], days: [], pairs: [] };
-      }
-
-      const unitCodes = [...new Set(unitLinks.map(u => u.unitCode))];
-
-      const rows = await ctx.db
-        .select()
-        .from(scheduleDisplay)
-        .where(and(
-          inArray(scheduleDisplay.weekNumber, [weekBase, weekEven]),
-          inArray(scheduleDisplay.unitCode, unitCodes)
-        ))
         .orderBy(
           asc(scheduleDisplay.weekNumber),
           asc(scheduleDisplay.dayOfWeekId),
@@ -80,11 +35,49 @@ export const scheduleDisplayRouter = router({
       return { rows, days, pairs: pairsList };
     }),
 
-  // Расписание, сгруппированное по учебным группам (все сразу)
+  // Расписание одной группы (по выбору) – без буферных
+  getByGroup: adminProcedure
+    .input(z.object({ studyGroupCode: z.string().min(1), weekBase: z.number().int().min(1) }))
+    .query(async ({ ctx, input }) => {
+      const { studyGroupCode, weekBase } = input;
+      const weekEven = weekBase + 1;
+
+      const unitLinks = await ctx.db
+        .select({ unitCode: unitRoots.unitCode })
+        .from(unitRoots)
+        .innerJoin(studyGroups, eq(unitRoots.studyGroupId, studyGroups.id))
+        .where(eq(studyGroups.code, studyGroupCode));
+
+      if (unitLinks.length === 0) return { rows: [], days: [], pairs: [] };
+
+      const unitCodes = [...new Set(unitLinks.map(u => u.unitCode))];
+
+      const rows = await ctx.db
+        .select()
+        .from(scheduleDisplay)
+        .where(
+          and(
+            inArray(scheduleDisplay.weekNumber, [weekBase, weekEven]),
+            inArray(scheduleDisplay.unitCode, unitCodes),
+            gte(scheduleDisplay.weekNumber, 1)
+          )
+        )
+        .orderBy(
+          asc(scheduleDisplay.weekNumber),
+          asc(scheduleDisplay.dayOfWeekId),
+          asc(scheduleDisplay.pairNumberId),
+          asc(scheduleDisplay.unitCode)
+        );
+
+      const days = await ctx.db.select().from(daysOfWeek).orderBy(asc(daysOfWeek.id));
+      const pairsList = await ctx.db.select().from(pairs).orderBy(asc(pairs.number));
+
+      return { rows, days, pairs: pairsList };
+    }),
+
+  // Расписание, сгруппированное по учебным группам (все сразу) – без буферных
   getByStudyGroups: adminProcedure
-    .input(z.object({
-      weekBase: z.number().int().min(1),
-    }))
+    .input(z.object({ weekBase: z.number().int().min(1) }))
     .query(async ({ ctx, input }) => {
       const { weekBase } = input;
       const weekEven = weekBase + 1;
@@ -98,7 +91,10 @@ export const scheduleDisplayRouter = router({
         .innerJoin(studyGroups, eq(unitRoots.studyGroupId, studyGroups.id))
         .innerJoin(scheduleDisplay, eq(unitRoots.unitCode, scheduleDisplay.unitCode))
         .where(
-          inArray(scheduleDisplay.weekNumber, [weekBase, weekEven])
+          and(
+            inArray(scheduleDisplay.weekNumber, [weekBase, weekEven]),
+            gte(scheduleDisplay.weekNumber, 1)
+          )
         );
 
       const groupUnitMap = new Map<string, Set<string>>();
@@ -124,10 +120,13 @@ export const scheduleDisplayRouter = router({
             classroomFlag: scheduleDisplay.classroomFlag,
           })
           .from(scheduleDisplay)
-          .where(and(
-            inArray(scheduleDisplay.weekNumber, [weekBase, weekEven]),
-            inArray(scheduleDisplay.unitCode, unitList)
-          ));
+          .where(
+            and(
+              inArray(scheduleDisplay.weekNumber, [weekBase, weekEven]),
+              inArray(scheduleDisplay.unitCode, unitList),
+              gte(scheduleDisplay.weekNumber, 1)
+            )
+          );
 
         for (const row of groupRows) {
           allRows.push({ ...row, studyGroupCode: groupCode });
@@ -144,15 +143,79 @@ export const scheduleDisplayRouter = router({
       const days = await ctx.db.select().from(daysOfWeek).orderBy(asc(daysOfWeek.id));
       const pairsList = await ctx.db.select().from(pairs).orderBy(asc(pairs.number));
 
-      return {
-        rows: allRows,
-        days,
-        pairs: pairsList,
-      };
+      return { rows: allRows, days, pairs: pairsList };
+    }),
+
+  // Буфер (записи с weekNumber = 0)
+  getBuffer: adminProcedure.query(async ({ ctx }) => {
+    return ctx.db
+      .select()
+      .from(scheduleDisplay)
+      .where(eq(scheduleDisplay.weekNumber, 0))
+      .orderBy(asc(scheduleDisplay.id));
+  }),
+
+  // Перенос в буфер
+  moveToBuffer: adminProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      await ctx.db
+        .update(scheduleDisplay)
+        .set({ weekNumber: 0 })   // оставляем dayOfWeekId и pairNumberId без изменений
+        .where(eq(scheduleDisplay.id, input.id));
+      return { success: true };
+    }),
+
+  // Перенос из буфера в слот (с проверкой конфликтов)
+  moveFromBuffer: adminProcedure
+    .input(z.object({
+      id: z.number(),
+      targetWeek: z.number().int().min(1),
+      targetDayId: z.number().int(),
+      targetPairId: z.number().int(),
+      targetUnitCode: z.string(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const record = await ctx.db
+        .select()
+        .from(scheduleDisplay)
+        .where(eq(scheduleDisplay.id, input.id))
+        .limit(1);
+      if (!record.length || record[0].weekNumber !== 0) {
+        throw new Error('Запись не в буфере');
+      }
+
+      // Проверка, что слот свободен (можно было бы использовать checkSlots, но для простоты делаем здесь)
+      const existing = await ctx.db
+        .select()
+        .from(scheduleDisplay)
+        .where(
+          and(
+            eq(scheduleDisplay.weekNumber, input.targetWeek),
+            eq(scheduleDisplay.dayOfWeekId, input.targetDayId),
+            eq(scheduleDisplay.pairNumberId, input.targetPairId),
+            eq(scheduleDisplay.unitCode, input.targetUnitCode),
+            gte(scheduleDisplay.weekNumber, 1)
+          )
+        );
+      if (existing.length > 0) throw new Error('Слот занят');
+
+      await ctx.db
+        .update(scheduleDisplay)
+        .set({
+          weekNumber: input.targetWeek,
+          dayOfWeekId: input.targetDayId,
+          pairNumberId: input.targetPairId,
+          unitCode: input.targetUnitCode,
+        })
+        .where(eq(scheduleDisplay.id, input.id));
+
+      return { success: true };
     }),
 
   // Проверка слотов (исправленная)
   // Проверка слотов с учётом всех юнитов в строке
+// Проверка слотов с учётом буфера (исправленная)
 checkSlots: adminProcedure
   .input(z.object({
     movingId: z.number(),
@@ -167,6 +230,8 @@ checkSlots: adminProcedure
     const moving = await ctx.db.select().from(scheduleDisplay).where(eq(scheduleDisplay.id, input.movingId)).limit(1);
     if (!moving.length) throw new Error('Занятие не найдено');
     const m = moving[0];
+
+    const isBuffer = m.weekNumber === 0;   // Находится ли занятие в буфере
 
     // Группы перемещаемого юнита
     const movingUnitGroups = await ctx.db
@@ -199,8 +264,8 @@ checkSlots: adminProcedure
     const mTeacherId = mTeacher[0]?.teacherId ?? null;
     const mClassroomId = mClassroom[0]?.classroomId ?? null;
 
-    // Старый слот перемещаемого
-    const oldSlot = {
+    // Старый слот (только для не буферных)
+    const oldSlot = isBuffer ? null : {
       week: m.weekNumber,
       dayId: m.dayOfWeekId,
       pairId: m.pairNumberId,
@@ -212,8 +277,7 @@ checkSlots: adminProcedure
     for (const slot of input.slots) {
       const key = `week-${slot.week}-${slot.dayId}-${slot.pairId}-${slot.unitCode}`;
 
-      // ====== ВАЖНОЕ ИЗМЕНЕНИЕ ======
-      // Выбираем ВСЕ записи в этом слоте (неделя-день-пара), независимо от unitCode
+      // Все записи в этом слоте (неделя‑день‑пара), без ограничения по unitCode
       const allInSlot = await ctx.db
         .select()
         .from(scheduleDisplay)
@@ -224,12 +288,7 @@ checkSlots: adminProcedure
         ));
       const others = allInSlot.filter(e => e.id !== input.movingId);
 
-      if (others.length === 0) {
-        results[key] = { status: 'free' };
-        continue;
-      }
-
-      // Проверяем каждую запись в слоте на конфликты
+      // Проверка прямых конфликтов с каждым другим занятием в слоте
       let directConflict = false;
       for (const other of others) {
         const otherUnitGroups = await ctx.db
@@ -246,9 +305,9 @@ checkSlots: adminProcedure
         const oClassroomId = otherClassroom[0]?.classroomId ?? null;
 
         if (
-          ([...movingGroupIds].some(g => otherGroupIds.has(g))) ||
-          (mTeacherId && oTeacherId && mTeacherId === oTeacherId) ||
-          (mClassroomId && oClassroomId && mClassroomId === oClassroomId)
+          ([...movingGroupIds].some(g => otherGroupIds.has(g))) ||   // пересечение групп
+          (mTeacherId && oTeacherId && mTeacherId === oTeacherId) || // один преподаватель
+          (mClassroomId && oClassroomId && mClassroomId === oClassroomId) // одна аудитория
         ) {
           directConflict = true;
           break;
@@ -260,11 +319,24 @@ checkSlots: adminProcedure
         continue;
       }
 
-      // Если в слоте ровно одно другое занятие – пробуем swap
+      // ---------- ИЗМЕНЁННАЯ ЛОГИКА ДЛЯ БУФЕРА ----------
+      // Для буферной записи swap не имеет смысла, разрешаем занять слот,
+      // если нет прямых конфликтов (даже если слот не пуст, но другие записи не мешают).
+      if (isBuffer) {
+        results[key] = { status: 'free' };
+        continue;
+      }
+
+      // ---------- ДАЛЕЕ ВСЁ КАК РАНЬШЕ (для не буферных) ----------
+      if (others.length === 0) {
+        results[key] = { status: 'free' };
+        continue;
+      }
+
+      // Попытка swap, если в слоте ровно одно другое занятие
       if (others.length === 1) {
         const other = others[0];
 
-        // Группы другого занятия
         const otherUnitGroups = await ctx.db
           .select({ studyGroupId: unitRoots.studyGroupId })
           .from(unitRoots)
@@ -275,14 +347,14 @@ checkSlots: adminProcedure
         const oTeacherId = oTeacher?.teacherId ?? null;
         const oClassroomId = oClassroom?.classroomId ?? null;
 
-        // Проверяем, можно ли other перенести в старый слот moving (учитывая все записи в старом слоте)
+        // Проверяем, можно ли поставить other в старый слот moving
         const oldSlotAll = await ctx.db
           .select()
           .from(scheduleDisplay)
           .where(and(
-            eq(scheduleDisplay.weekNumber, oldSlot.week),
-            eq(scheduleDisplay.dayOfWeekId, oldSlot.dayId),
-            eq(scheduleDisplay.pairNumberId, oldSlot.pairId),
+            eq(scheduleDisplay.weekNumber, oldSlot!.week),
+            eq(scheduleDisplay.dayOfWeekId, oldSlot!.dayId),
+            eq(scheduleDisplay.pairNumberId, oldSlot!.pairId),
           ));
         const oldOthers = oldSlotAll.filter(e => e.id !== input.movingId);
 
@@ -316,7 +388,6 @@ checkSlots: adminProcedure
           results[key] = { status: 'conflict' };
         }
       } else {
-        // Больше одного занятия в слоте – конфликт
         results[key] = { status: 'conflict' };
       }
     }
