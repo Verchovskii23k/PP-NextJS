@@ -283,6 +283,7 @@ export const scheduleDisplay = pgTable("schedule_display", {
   mergeNumber: integer("merge_number").default(0),
   positionFlag: boolean("position_flag").default(false),
   classroomFlag: boolean("classroom_flag").default(false),
+  isBuffered: boolean("is_buffered").default(false).notNull(),
 });
 
 export const settings = pgTable('settings', {

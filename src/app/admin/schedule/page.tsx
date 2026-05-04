@@ -31,7 +31,6 @@ type ScheduleRow = {
   lessonId: number | null;
 };
 
-// Draggable элемент
 function DraggableLesson({ entry, isEditMode }: { entry: ScheduleRow; isEditMode: boolean }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `lesson-${entry.id}`,
@@ -54,7 +53,6 @@ function DraggableLesson({ entry, isEditMode }: { entry: ScheduleRow; isEditMode
   );
 }
 
-// Droppable зона внутри ячейки (обёрнута в div с data-атрибутом для печати)
 function DroppableArea({ week, dayId, pairId, unitCode, entry, isEditMode, status, onCellClick }: {
   week: number; dayId: number; pairId: number; unitCode: string;
   entry: ScheduleRow | undefined; isEditMode: boolean;
@@ -105,7 +103,6 @@ function DroppableArea({ week, dayId, pairId, unitCode, entry, isEditMode, statu
   );
 }
 
-// Элемент буфера (перетаскиваемый)
 function BufferEntry({ entry }: { entry: ScheduleRow }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `buffer-${entry.id}`,
@@ -127,7 +124,6 @@ function BufferEntry({ entry }: { entry: ScheduleRow }) {
   );
 }
 
-// Буферная панель (droppable)
 function BufferZone({ entries, isEditMode }: { entries: ScheduleRow[]; isEditMode: boolean }) {
   const droppableId = "buffer-zone";
   const { isOver, setNodeRef } = useDroppable({
@@ -151,7 +147,6 @@ function BufferZone({ entries, isEditMode }: { entries: ScheduleRow[]; isEditMod
   );
 }
 
-// Основной компонент
 export default function AdminSchedulePage() {
   const weekBase = 1;
   const [viewMode, setViewMode] = useState<"units" | "groups">("units");
@@ -161,10 +156,10 @@ export default function AdminSchedulePage() {
   const [activeDragEntry, setActiveDragEntry] = useState<ScheduleRow | null>(null);
   const [slotStatuses, setSlotStatuses] = useState<Record<string, "free" | "conflict" | "swap">>({});
   const [slotSwapIds, setSlotSwapIds] = useState<Record<string, number>>({});
+  const [showRegenDialog, setShowRegenDialog] = useState(false);
 
   const utils = trpc.useUtils();
 
-  // Все хуки до условных return
   const { data: unitsData, isLoading: unitsLoading } =
     trpc.scheduleDisplay.getForWeekPair.useQuery({ weekBase }, { enabled: viewMode === "units" });
   const { data: groupsData, isLoading: groupsLoading } =
@@ -300,159 +295,160 @@ export default function AdminSchedulePage() {
     utils.scheduleDisplay.getBuffer.invalidate();
   };
 
-  // Печать с явным разделением строк и цветовым кодированием
-const handlePrint = () => {
-  const tableElement = document.getElementById("schedule-table");
-  if (!tableElement) return;
+  const handlePrint = () => {
+    const tableElement = document.getElementById("schedule-table");
+    if (!tableElement) return;
 
-  const clone = tableElement.cloneNode(true) as HTMLElement;
+    const clone = tableElement.cloneNode(true) as HTMLElement;
 
-  // Добавляем границы всем ячейкам
-  clone.querySelectorAll("td, th").forEach((el) => {
-    (el as HTMLElement).style.border = "1px solid #666";
-    (el as HTMLElement).style.padding = "2px";
-  });
+    clone.querySelectorAll("td, th").forEach((el) => {
+      (el as HTMLElement).style.border = "1px solid #666";
+      (el as HTMLElement).style.padding = "2px";
+    });
 
-  const rowHeight = "2.5em"; // высота одной строки (недели)
+    const rowHeight = "2.5em";
 
-  // Обрабатываем каждый элемент с data-week (строки нечётной/чётной недели)
-  clone.querySelectorAll("[data-week]").forEach((el) => {
-    const htmlEl = el as HTMLElement;
-    const weekType = htmlEl.getAttribute("data-week");
+    clone.querySelectorAll("[data-week]").forEach((el) => {
+      const htmlEl = el as HTMLElement;
+      const weekType = htmlEl.getAttribute("data-week");
+      htmlEl.style.backgroundColor = weekType === "even" ? "#d1d5db" : "transparent";
+      htmlEl.style.minHeight = rowHeight;
+      htmlEl.style.height = rowHeight;
+      htmlEl.style.display = "flex";
+      htmlEl.style.alignItems = "center";
+      htmlEl.style.padding = "2px";
+      htmlEl.style.borderBottom = "1px solid #666";
 
-    // Цвет фона: чётная неделя — серый, нечётная — прозрачный
-    htmlEl.style.backgroundColor = weekType === "even" ? "#d1d5db" : "transparent";
-
-    // Фиксированная высота и выравнивание
-    htmlEl.style.minHeight = rowHeight;
-    htmlEl.style.height = rowHeight;
-    htmlEl.style.display = "flex";
-    htmlEl.style.alignItems = "center";
-    htmlEl.style.padding = "2px";
-    htmlEl.style.borderBottom = "1px solid #666";
-
-    // Если внутри только прочерк или пусто — заменяем на заполнитель
-    const text = htmlEl.textContent?.trim() ?? "";
-    if (text === "—" || text === "") {
-      htmlEl.innerHTML = `<span style="display:inline-block; min-height:${rowHeight}; height:${rowHeight}; line-height:${rowHeight};">—</span>`;
-    }
-  });
-
-  // Дополнительно фиксируем высоту для всех td (кроме rowspan)
-  clone.querySelectorAll("td").forEach((td) => {
-    if (td.hasAttribute("rowspan")) return;
-    (td as HTMLElement).style.minHeight = rowHeight;
-  });
-
-  // Стили для печати
-  const printStyles = `
-    <style>
-      @media print {
-        * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        table { border-collapse: collapse; width: 100%; font-size: 9px; }
-        [data-week="even"] { background-color: #d1d5db !important; }
-        [data-week="odd"] { background-color: transparent !important; }
-        td { vertical-align: middle; }
+      const text = htmlEl.textContent?.trim() ?? "";
+      if (text === "—" || text === "") {
+        htmlEl.innerHTML = `<span style="display:inline-block; min-height:${rowHeight}; height:${rowHeight}; line-height:${rowHeight};">—</span>`;
       }
-    </style>
-  `;
+    });
 
-  const styles = document.querySelectorAll("style, link[rel=stylesheet]");
-  let stylesHtml = "";
-  styles.forEach(s => stylesHtml += s.outerHTML);
+    clone.querySelectorAll("td").forEach((td) => {
+      if (td.hasAttribute("rowspan")) return;
+      (td as HTMLElement).style.minHeight = rowHeight;
+    });
 
-  const printWindow = window.open("", "_blank", "width=1200,height=800");
-  if (!printWindow) return;
-  printWindow.document.write(`
-    <html>
-      <head>
-        <title>Расписание (нед. ${weekBase}–${weekBase + 1})</title>
-        ${stylesHtml}
-        ${printStyles}
-      </head>
-      <body class="p-4">
-        <h1 class="text-xl font-bold mb-4">Расписание (нед. ${weekBase}–${weekBase + 1})</h1>
-        ${clone.outerHTML}
-      </body>
-    </html>
-  `);
-  printWindow.document.close();
-  printWindow.focus();
-  printWindow.print();
-  printWindow.close();
-};
-  // CSV с префиксами недель
+    const printStyles = `
+      <style>
+        @media print {
+          * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          table { border-collapse: collapse; width: 100%; font-size: 9px; }
+          [data-week="even"] { background-color: #d1d5db !important; }
+          [data-week="odd"] { background-color: transparent !important; }
+          td { vertical-align: middle; }
+        }
+      </style>
+    `;
+
+    const styles = document.querySelectorAll("style, link[rel=stylesheet]");
+    let stylesHtml = "";
+    styles.forEach(s => stylesHtml += s.outerHTML);
+
+    const printWindow = window.open("", "_blank", "width=1200,height=800");
+    if (!printWindow) return;
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Расписание (нед. ${weekBase}–${weekBase + 1})</title>
+          ${stylesHtml}
+          ${printStyles}
+        </head>
+        <body class="p-4">
+          <h1 class="text-xl font-bold mb-4">Расписание (нед. ${weekBase}–${weekBase + 1})</h1>
+          ${clone.outerHTML}
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+    printWindow.close();
+  };
+
   const handleCSV = () => {
-  const rows: string[][] = [];
-  // Заголовок: День, Пара, Неделя, и далее все коды юнитов (или групп)
-  const header = ["День", "Пара", "Неделя"];
+    const rows: string[][] = [];
+    const header = ["День", "Пара", "Неделя"];
 
-  if (viewMode === "units" && unitsData) {
-    const unitCodes = Array.from(new Set(unitsData.rows.map(r => r.unitCode))).sort();
-    unitCodes.forEach(code => header.push(code));
-    rows.push(header);
+    if (viewMode === "units" && unitsData) {
+      const unitCodes = Array.from(new Set(unitsData.rows.map(r => r.unitCode))).sort();
+      unitCodes.forEach(code => header.push(code));
+      rows.push(header);
 
-    const days = unitsData.days;
-    const pairs = unitsData.pairs;
-    for (const day of days) {
-      for (const pair of pairs) {
-        // Строка для нечётной недели
-        const oddRow = [day.name, String(pair.number), "неч."];
-        // Строка для чётной недели
-        const evenRow = [day.name, String(pair.number), "чёт."];
-
-        for (const code of unitCodes) {
-          const odd = unitsData.rows.find(
-            r => r.unitCode === code && r.dayOfWeekId === day.id && r.pairNumberId === pair.id && r.weekNumber === weekBase
-          );
-          const even = unitsData.rows.find(
-            r => r.unitCode === code && r.dayOfWeekId === day.id && r.pairNumberId === pair.id && r.weekNumber === weekBase + 1
-          );
-          oddRow.push(odd ? odd.displayText : "—");
-          evenRow.push(even ? even.displayText : "—");
+      const days = unitsData.days;
+      const pairs = unitsData.pairs;
+      for (const day of days) {
+        for (const pair of pairs) {
+          const oddRow = [day.name, String(pair.number), "неч."];
+          const evenRow = [day.name, String(pair.number), "чёт."];
+          for (const code of unitCodes) {
+            const odd = unitsData.rows.find(
+              r => r.unitCode === code && r.dayOfWeekId === day.id && r.pairNumberId === pair.id && r.weekNumber === weekBase
+            );
+            const even = unitsData.rows.find(
+              r => r.unitCode === code && r.dayOfWeekId === day.id && r.pairNumberId === pair.id && r.weekNumber === weekBase + 1
+            );
+            oddRow.push(odd ? odd.displayText : "—");
+            evenRow.push(even ? even.displayText : "—");
+          }
+          rows.push(oddRow);
+          rows.push(evenRow);
         }
-        rows.push(oddRow);
-        rows.push(evenRow);
+      }
+    } else if (viewMode === "groups" && groupsData) {
+      const groupCodes = Array.from(new Set(groupsData.rows.map((r: any) => r.studyGroupCode))).sort();
+      groupCodes.forEach(code => header.push(code));
+      rows.push(header);
+
+      const days = groupsData.days;
+      const pairs = groupsData.pairs;
+      for (const day of days) {
+        for (const pair of pairs) {
+          const oddRow = [day.name, String(pair.number), "неч."];
+          const evenRow = [day.name, String(pair.number), "чёт."];
+          for (const code of groupCodes) {
+            const odd = groupsData.rows.find(
+              (r: any) => r.studyGroupCode === code && r.dayOfWeekId === day.id && r.pairNumberId === pair.id && r.weekNumber === weekBase
+            );
+            const even = groupsData.rows.find(
+              (r: any) => r.studyGroupCode === code && r.dayOfWeekId === day.id && r.pairNumberId === pair.id && r.weekNumber === weekBase + 1
+            );
+            oddRow.push(odd ? odd.displayText : "—");
+            evenRow.push(even ? even.displayText : "—");
+          }
+          rows.push(oddRow);
+          rows.push(evenRow);
+        }
       }
     }
-  } else if (viewMode === "groups" && groupsData) {
-    const groupCodes = Array.from(new Set(groupsData.rows.map((r: any) => r.studyGroupCode))).sort();
-    groupCodes.forEach(code => header.push(code));
-    rows.push(header);
 
-    const days = groupsData.days;
-    const pairs = groupsData.pairs;
-    for (const day of days) {
-      for (const pair of pairs) {
-        const oddRow = [day.name, String(pair.number), "неч."];
-        const evenRow = [day.name, String(pair.number), "чёт."];
+    const bom = "\uFEFF";
+    const csvContent = "data:text/csv;charset=utf-8," + bom + rows.map(r => r.join(";")).join("\n");
+    const link = document.createElement("a");
+    link.setAttribute("href", encodeURI(csvContent));
+    link.setAttribute("download", `schedule_week${weekBase}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  };
 
-        for (const code of groupCodes) {
-          const odd = groupsData.rows.find(
-            (r: any) => r.studyGroupCode === code && r.dayOfWeekId === day.id && r.pairNumberId === pair.id && r.weekNumber === weekBase
-          );
-          const even = groupsData.rows.find(
-            (r: any) => r.studyGroupCode === code && r.dayOfWeekId === day.id && r.pairNumberId === pair.id && r.weekNumber === weekBase + 1
-          );
-          oddRow.push(odd ? odd.displayText : "—");
-          evenRow.push(even ? even.displayText : "—");
-        }
-        rows.push(oddRow);
-        rows.push(evenRow);
+  const handleRegenerate = async (includeBuffered: boolean) => {
+    try {
+      const result = await regenerateSchedule.mutateAsync({ includeBuffered });
+      utils.scheduleDisplay.getForWeekPair.invalidate({ weekBase });
+      utils.scheduleDisplay.getByStudyGroups.invalidate({ weekBase });
+      utils.scheduleDisplay.getBuffer.invalidate();
+      if (result.unplacedMerges && result.unplacedMerges.length > 0) {
+        alert(`Расписание перегенерировано. Не удалось разместить слияния: ${result.unplacedMerges.join(', ')}`);
+      } else {
+        alert('Расписание перегенерировано');
       }
+    } catch (e: any) {
+      alert(e.message);
     }
-  }
+  };
 
-  // BOM для корректной кириллицы в Excel
-  const bom = "\uFEFF";
-  const csvContent = "data:text/csv;charset=utf-8," + bom + rows.map(r => r.join(";")).join("\n");
-  const link = document.createElement("a");
-  link.setAttribute("href", encodeURI(csvContent));
-  link.setAttribute("download", `schedule_week${weekBase}.csv`);
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-};
   if (viewMode === "units" && unitsLoading) return <div className="p-6">Загрузка...</div>;
   if (viewMode === "groups" && groupsLoading) return <div className="p-6">Загрузка...</div>;
 
@@ -481,28 +477,12 @@ const handlePrint = () => {
         <button onClick={handleCSV} className="bg-green-600 text-white px-3 py-1 rounded ml-2">📥 CSV</button>
 
         <button
-          onClick={async () => {
+          onClick={() => {
             if (editMode) {
               alert('Выйдите из режима редактирования перед перегенерацией');
               return;
             }
-            const bufferCount = bufferEntries.length;
-            if (bufferCount > 0) {
-              const ok = window.confirm(`В буфере находится ${bufferCount} занятий. При перегенерации они не будут участвовать. Продолжить?`);
-              if (!ok) return;
-            }
-            try {
-              const result = await regenerateSchedule.mutateAsync();
-              utils.scheduleDisplay.getForWeekPair.invalidate({ weekBase });
-              utils.scheduleDisplay.getByStudyGroups.invalidate({ weekBase });
-              if (result.unplacedMerges && result.unplacedMerges.length > 0) {
-                alert(`Расписание перегенерировано. Не удалось разместить слияния: ${result.unplacedMerges.join(', ')}`);
-              } else {
-                alert('Расписание перегенерировано');
-              }
-            } catch (e: any) {
-              alert(e.message);
-            }
+            setShowRegenDialog(true);
           }}
           disabled={editMode}
           className={`px-3 py-1 rounded ml-2 ${editMode ? 'bg-gray-400 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-700'} text-white`}
@@ -695,6 +675,41 @@ const handlePrint = () => {
             <div className="flex justify-end gap-2">
               <button onClick={() => setSelectedEntry(null)} className="bg-gray-300 px-3 py-1 rounded">Отмена</button>
               <button onClick={saveFlags} className="bg-blue-500 text-white px-3 py-1 rounded">Сохранить</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showRegenDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded shadow-lg w-96">
+            <h2 className="font-bold mb-4">Перегенерация расписания</h2>
+            <p className="text-sm mb-4">
+              В буфере находится {bufferEntries.length} занятий.
+              Выберите вариант перегенерации:
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => {
+                  setShowRegenDialog(false);
+                  handleRegenerate(false);
+                }}
+                className="bg-gray-500 text-white px-3 py-1 rounded"
+              >
+                Без буфера
+              </button>
+              <button
+                onClick={() => {
+                  setShowRegenDialog(false);
+                  handleRegenerate(true);
+                }}
+                className="bg-blue-500 text-white px-3 py-1 rounded"
+              >
+                С буфером
+              </button>
+              <button onClick={() => setShowRegenDialog(false)} className="bg-gray-300 px-3 py-1 rounded">
+                Отмена
+              </button>
             </div>
           </div>
         </div>

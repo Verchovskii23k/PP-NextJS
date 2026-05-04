@@ -15,6 +15,13 @@
       "when": 1777642842756,
       "tag": "0001_volatile_wind_dancer",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1777895741456,
+      "tag": "0002_calm_blizzard",
+      "breakpoints": true
     }
   ]
 }
