@@ -31,7 +31,7 @@ type ScheduleRow = {
   lessonId: number | null;
 };
 
-// Draggable элемент (без изменений)
+// Draggable элемент
 function DraggableLesson({ entry, isEditMode }: { entry: ScheduleRow; isEditMode: boolean }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `lesson-${entry.id}`,
@@ -54,7 +54,7 @@ function DraggableLesson({ entry, isEditMode }: { entry: ScheduleRow; isEditMode
   );
 }
 
-// Droppable зона внутри ячейки (без изменений)
+// Droppable зона внутри ячейки (обёрнута в div с data-атрибутом для печати)
 function DroppableArea({ week, dayId, pairId, unitCode, entry, isEditMode, status, onCellClick }: {
   week: number; dayId: number; pairId: number; unitCode: string;
   entry: ScheduleRow | undefined; isEditMode: boolean;
@@ -76,7 +76,7 @@ function DroppableArea({ week, dayId, pairId, unitCode, entry, isEditMode, statu
     if (isOver) bg += " ring-2 ring-blue-500";
   } else {
     if (entry) {
-      bg = week % 2 === 1 ? "bg-green-50" : "bg-amber-50";
+      bg = week % 2 === 1 ? "bg-green-100" : "bg-amber-100";
     }
   }
 
@@ -89,6 +89,7 @@ function DroppableArea({ week, dayId, pairId, unitCode, entry, isEditMode, statu
   return (
     <div
       ref={setNodeRef}
+      data-week={week % 2 === 1 ? "odd" : "even"}
       className={`text-xs p-1 rounded leading-tight border ${bg} ${isEditMode ? "min-h-[1.5rem]" : ""}`}
       onClick={() => entry && isEditMode && onCellClick(entry)}
     >
@@ -129,7 +130,10 @@ function BufferEntry({ entry }: { entry: ScheduleRow }) {
 // Буферная панель (droppable)
 function BufferZone({ entries, isEditMode }: { entries: ScheduleRow[]; isEditMode: boolean }) {
   const droppableId = "buffer-zone";
-  const { isOver, setNodeRef } = useDroppable({ id: droppableId, disabled: !isEditMode });
+  const { isOver, setNodeRef } = useDroppable({
+    id: droppableId,
+    disabled: !isEditMode,
+  });
 
   return (
     <div
@@ -160,6 +164,7 @@ export default function AdminSchedulePage() {
 
   const utils = trpc.useUtils();
 
+  // Все хуки до условных return
   const { data: unitsData, isLoading: unitsLoading } =
     trpc.scheduleDisplay.getForWeekPair.useQuery({ weekBase }, { enabled: viewMode === "units" });
   const { data: groupsData, isLoading: groupsLoading } =
@@ -172,6 +177,7 @@ export default function AdminSchedulePage() {
   const updateFlags = trpc.scheduleDisplay.updateFlags.useMutation();
   const moveToBufferMut = trpc.scheduleDisplay.moveToBuffer.useMutation();
   const moveFromBufferMut = trpc.scheduleDisplay.moveFromBuffer.useMutation();
+  const regenerateSchedule = trpc.scheduleDisplay.regenerateSchedule.useMutation();
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -205,7 +211,6 @@ export default function AdminSchedulePage() {
     const entry = event.active.data.current?.entry as ScheduleRow;
     if (entry) {
       setActiveDragEntry(entry);
-      // Вызываем проверку слотов для любого элемента, включая буфер
       if (unitsData) {
         refreshSlotStatuses(entry);
       }
@@ -221,7 +226,6 @@ export default function AdminSchedulePage() {
     const entry = active.data.current.entry as ScheduleRow;
     const targetId = over.id as string;
 
-    // Дроп в буфер
     if (targetId === "buffer-zone") {
       if (entry.weekNumber !== 0) {
         await moveToBufferMut.mutateAsync({ id: entry.id });
@@ -232,7 +236,6 @@ export default function AdminSchedulePage() {
       return;
     }
 
-    // Дроп из буфера в ячейку
     if (entry.weekNumber === 0) {
       const parts = targetId.split("-");
       if (parts.length < 5 || parts[0] !== "week") return;
@@ -240,7 +243,6 @@ export default function AdminSchedulePage() {
       const targetDayId = parseInt(parts[2], 10);
       const targetPairId = parseInt(parts[3], 10);
       const targetUnitCode = parts.slice(4).join("-");
-
       const slots = [{ week: targetWeek, dayId: targetDayId, pairId: targetPairId, unitCode: targetUnitCode }];
       const result = await checkSlots.mutateAsync({ movingId: entry.id, slots });
       const status = result[`week-${targetWeek}-${targetDayId}-${targetPairId}-${targetUnitCode}`]?.status;
@@ -248,7 +250,6 @@ export default function AdminSchedulePage() {
         alert('Невозможно разместить: конфликт');
         return;
       }
-
       await moveFromBufferMut.mutateAsync({ id: entry.id, targetWeek, targetDayId, targetPairId, targetUnitCode });
       utils.scheduleDisplay.getBuffer.invalidate();
       utils.scheduleDisplay.getForWeekPair.invalidate({ weekBase });
@@ -256,7 +257,6 @@ export default function AdminSchedulePage() {
       return;
     }
 
-    // Обычное перемещение внутри расписания
     const targetWeek = parseInt(targetId.split("-")[1], 10);
     const targetDayId = parseInt(targetId.split("-")[2], 10);
     const targetPairId = parseInt(targetId.split("-")[3], 10);
@@ -284,7 +284,11 @@ export default function AdminSchedulePage() {
 
   const openFlagEditor = (entry: ScheduleRow) => {
     setSelectedEntry(entry);
-    setFlagForm({ mergeNumber: entry.mergeNumber, positionFlag: entry.positionFlag, classroomFlag: entry.classroomFlag });
+    setFlagForm({
+      mergeNumber: entry.mergeNumber,
+      positionFlag: entry.positionFlag,
+      classroomFlag: entry.classroomFlag,
+    });
   };
 
   const saveFlags = async () => {
@@ -292,12 +296,163 @@ export default function AdminSchedulePage() {
     await updateFlags.mutateAsync({ id: selectedEntry.id, ...flagForm });
     setSelectedEntry(null);
     utils.scheduleDisplay.getForWeekPair.invalidate({ weekBase });
+    utils.scheduleDisplay.getByStudyGroups.invalidate({ weekBase });
+    utils.scheduleDisplay.getBuffer.invalidate();
   };
 
-  // Заглушки для печати и CSV (в реальном коде должны быть полные функции)
-  const handlePrint = () => {};
-  const handleCSV = () => {};
+  // Печать с явным разделением строк и цветовым кодированием
+const handlePrint = () => {
+  const tableElement = document.getElementById("schedule-table");
+  if (!tableElement) return;
 
+  const clone = tableElement.cloneNode(true) as HTMLElement;
+
+  // Добавляем границы всем ячейкам
+  clone.querySelectorAll("td, th").forEach((el) => {
+    (el as HTMLElement).style.border = "1px solid #666";
+    (el as HTMLElement).style.padding = "2px";
+  });
+
+  const rowHeight = "2.5em"; // высота одной строки (недели)
+
+  // Обрабатываем каждый элемент с data-week (строки нечётной/чётной недели)
+  clone.querySelectorAll("[data-week]").forEach((el) => {
+    const htmlEl = el as HTMLElement;
+    const weekType = htmlEl.getAttribute("data-week");
+
+    // Цвет фона: чётная неделя — серый, нечётная — прозрачный
+    htmlEl.style.backgroundColor = weekType === "even" ? "#d1d5db" : "transparent";
+
+    // Фиксированная высота и выравнивание
+    htmlEl.style.minHeight = rowHeight;
+    htmlEl.style.height = rowHeight;
+    htmlEl.style.display = "flex";
+    htmlEl.style.alignItems = "center";
+    htmlEl.style.padding = "2px";
+    htmlEl.style.borderBottom = "1px solid #666";
+
+    // Если внутри только прочерк или пусто — заменяем на заполнитель
+    const text = htmlEl.textContent?.trim() ?? "";
+    if (text === "—" || text === "") {
+      htmlEl.innerHTML = `<span style="display:inline-block; min-height:${rowHeight}; height:${rowHeight}; line-height:${rowHeight};">—</span>`;
+    }
+  });
+
+  // Дополнительно фиксируем высоту для всех td (кроме rowspan)
+  clone.querySelectorAll("td").forEach((td) => {
+    if (td.hasAttribute("rowspan")) return;
+    (td as HTMLElement).style.minHeight = rowHeight;
+  });
+
+  // Стили для печати
+  const printStyles = `
+    <style>
+      @media print {
+        * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        table { border-collapse: collapse; width: 100%; font-size: 9px; }
+        [data-week="even"] { background-color: #d1d5db !important; }
+        [data-week="odd"] { background-color: transparent !important; }
+        td { vertical-align: middle; }
+      }
+    </style>
+  `;
+
+  const styles = document.querySelectorAll("style, link[rel=stylesheet]");
+  let stylesHtml = "";
+  styles.forEach(s => stylesHtml += s.outerHTML);
+
+  const printWindow = window.open("", "_blank", "width=1200,height=800");
+  if (!printWindow) return;
+  printWindow.document.write(`
+    <html>
+      <head>
+        <title>Расписание (нед. ${weekBase}–${weekBase + 1})</title>
+        ${stylesHtml}
+        ${printStyles}
+      </head>
+      <body class="p-4">
+        <h1 class="text-xl font-bold mb-4">Расписание (нед. ${weekBase}–${weekBase + 1})</h1>
+        ${clone.outerHTML}
+      </body>
+    </html>
+  `);
+  printWindow.document.close();
+  printWindow.focus();
+  printWindow.print();
+  printWindow.close();
+};
+  // CSV с префиксами недель
+  const handleCSV = () => {
+  const rows: string[][] = [];
+  // Заголовок: День, Пара, Неделя, и далее все коды юнитов (или групп)
+  const header = ["День", "Пара", "Неделя"];
+
+  if (viewMode === "units" && unitsData) {
+    const unitCodes = Array.from(new Set(unitsData.rows.map(r => r.unitCode))).sort();
+    unitCodes.forEach(code => header.push(code));
+    rows.push(header);
+
+    const days = unitsData.days;
+    const pairs = unitsData.pairs;
+    for (const day of days) {
+      for (const pair of pairs) {
+        // Строка для нечётной недели
+        const oddRow = [day.name, String(pair.number), "неч."];
+        // Строка для чётной недели
+        const evenRow = [day.name, String(pair.number), "чёт."];
+
+        for (const code of unitCodes) {
+          const odd = unitsData.rows.find(
+            r => r.unitCode === code && r.dayOfWeekId === day.id && r.pairNumberId === pair.id && r.weekNumber === weekBase
+          );
+          const even = unitsData.rows.find(
+            r => r.unitCode === code && r.dayOfWeekId === day.id && r.pairNumberId === pair.id && r.weekNumber === weekBase + 1
+          );
+          oddRow.push(odd ? odd.displayText : "—");
+          evenRow.push(even ? even.displayText : "—");
+        }
+        rows.push(oddRow);
+        rows.push(evenRow);
+      }
+    }
+  } else if (viewMode === "groups" && groupsData) {
+    const groupCodes = Array.from(new Set(groupsData.rows.map((r: any) => r.studyGroupCode))).sort();
+    groupCodes.forEach(code => header.push(code));
+    rows.push(header);
+
+    const days = groupsData.days;
+    const pairs = groupsData.pairs;
+    for (const day of days) {
+      for (const pair of pairs) {
+        const oddRow = [day.name, String(pair.number), "неч."];
+        const evenRow = [day.name, String(pair.number), "чёт."];
+
+        for (const code of groupCodes) {
+          const odd = groupsData.rows.find(
+            (r: any) => r.studyGroupCode === code && r.dayOfWeekId === day.id && r.pairNumberId === pair.id && r.weekNumber === weekBase
+          );
+          const even = groupsData.rows.find(
+            (r: any) => r.studyGroupCode === code && r.dayOfWeekId === day.id && r.pairNumberId === pair.id && r.weekNumber === weekBase + 1
+          );
+          oddRow.push(odd ? odd.displayText : "—");
+          evenRow.push(even ? even.displayText : "—");
+        }
+        rows.push(oddRow);
+        rows.push(evenRow);
+      }
+    }
+  }
+
+  // BOM для корректной кириллицы в Excel
+  const bom = "\uFEFF";
+  const csvContent = "data:text/csv;charset=utf-8," + bom + rows.map(r => r.join(";")).join("\n");
+  const link = document.createElement("a");
+  link.setAttribute("href", encodeURI(csvContent));
+  link.setAttribute("download", `schedule_week${weekBase}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+};
   if (viewMode === "units" && unitsLoading) return <div className="p-6">Загрузка...</div>;
   if (viewMode === "groups" && groupsLoading) return <div className="p-6">Загрузка...</div>;
 
@@ -307,7 +462,6 @@ export default function AdminSchedulePage() {
     <div className="p-4">
       <h1 className="text-xl font-bold mb-4">Расписание</h1>
 
-      {/* Легенда */}
       <div className="flex flex-wrap gap-4 mb-4 p-3 bg-gray-50 rounded border text-sm">
         <div className="flex items-center gap-2"><span className="inline-block w-4 h-4 rounded bg-green-100 border border-green-200"></span> Нечётная неделя</div>
         <div className="flex items-center gap-2"><span className="inline-block w-4 h-4 rounded bg-amber-100 border border-amber-200"></span> Чётная неделя</div>
@@ -320,12 +474,42 @@ export default function AdminSchedulePage() {
         )}
       </div>
 
-      {/* Кнопки управления */}
       <div className="flex gap-4 mb-4">
         <button onClick={() => setViewMode("units")} className={viewMode === "units" ? "font-bold border-b-2 border-blue-500" : ""}>По юнитам</button>
         <button onClick={() => setViewMode("groups")} className={viewMode === "groups" ? "font-bold border-b-2 border-blue-500" : ""}>По группам</button>
         <button onClick={handlePrint} className="bg-blue-600 text-white px-3 py-1 rounded ml-2">🖨️ Печать</button>
         <button onClick={handleCSV} className="bg-green-600 text-white px-3 py-1 rounded ml-2">📥 CSV</button>
+
+        <button
+          onClick={async () => {
+            if (editMode) {
+              alert('Выйдите из режима редактирования перед перегенерацией');
+              return;
+            }
+            const bufferCount = bufferEntries.length;
+            if (bufferCount > 0) {
+              const ok = window.confirm(`В буфере находится ${bufferCount} занятий. При перегенерации они не будут участвовать. Продолжить?`);
+              if (!ok) return;
+            }
+            try {
+              const result = await regenerateSchedule.mutateAsync();
+              utils.scheduleDisplay.getForWeekPair.invalidate({ weekBase });
+              utils.scheduleDisplay.getByStudyGroups.invalidate({ weekBase });
+              if (result.unplacedMerges && result.unplacedMerges.length > 0) {
+                alert(`Расписание перегенерировано. Не удалось разместить слияния: ${result.unplacedMerges.join(', ')}`);
+              } else {
+                alert('Расписание перегенерировано');
+              }
+            } catch (e: any) {
+              alert(e.message);
+            }
+          }}
+          disabled={editMode}
+          className={`px-3 py-1 rounded ml-2 ${editMode ? 'bg-gray-400 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-700'} text-white`}
+        >
+          Перегенерировать
+        </button>
+
         {viewMode === "units" && (
           <button onClick={() => setEditMode(!editMode)} className="ml-auto bg-blue-500 text-white px-3 py-1 rounded">
             {editMode ? "Завершить редактирование" : "Редактировать"}
@@ -333,7 +517,6 @@ export default function AdminSchedulePage() {
         )}
       </div>
 
-      {/* DndContext поднят на уровень выше, чтобы охватить буфер и таблицу */}
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
         <div className="flex gap-4 items-stretch" style={{ minHeight: "400px" }}>
           {editMode && (
@@ -374,27 +557,31 @@ export default function AdminSchedulePage() {
                               );
                               return (
                                 <td key={`${day.id}-${pair.id}-${code}`} className="border border-gray-300 p-1 min-w-[180px] align-top">
-                                  <div className="flex flex-col gap-1">
-                                    <DroppableArea
-                                      week={weekBase}
-                                      dayId={day.id}
-                                      pairId={pair.id}
-                                      unitCode={code}
-                                      entry={oddEntry}
-                                      isEditMode={editMode}
-                                      status={slotStatuses[`week-${weekBase}-${day.id}-${pair.id}-${code}`] ?? null}
-                                      onCellClick={openFlagEditor}
-                                    />
-                                    <DroppableArea
-                                      week={weekBase + 1}
-                                      dayId={day.id}
-                                      pairId={pair.id}
-                                      unitCode={code}
-                                      entry={evenEntry}
-                                      isEditMode={editMode}
-                                      status={slotStatuses[`week-${weekBase + 1}-${day.id}-${pair.id}-${code}`] ?? null}
-                                      onCellClick={openFlagEditor}
-                                    />
+                                  <div className="flex flex-col">
+                                    <div className="border-b border-dashed border-gray-300 pb-1 mb-1">
+                                      <DroppableArea
+                                        week={weekBase}
+                                        dayId={day.id}
+                                        pairId={pair.id}
+                                        unitCode={code}
+                                        entry={oddEntry}
+                                        isEditMode={editMode}
+                                        status={slotStatuses[`week-${weekBase}-${day.id}-${pair.id}-${code}`] ?? null}
+                                        onCellClick={openFlagEditor}
+                                      />
+                                    </div>
+                                    <div className="pt-1">
+                                      <DroppableArea
+                                        week={weekBase + 1}
+                                        dayId={day.id}
+                                        pairId={pair.id}
+                                        unitCode={code}
+                                        entry={evenEntry}
+                                        isEditMode={editMode}
+                                        status={slotStatuses[`week-${weekBase + 1}-${day.id}-${pair.id}-${code}`] ?? null}
+                                        onCellClick={openFlagEditor}
+                                      />
+                                    </div>
                                   </div>
                                 </td>
                               );
@@ -441,26 +628,30 @@ export default function AdminSchedulePage() {
                               );
                               return (
                                 <td key={code} className="border border-gray-300 p-1 min-w-[180px] align-top">
-                                  <div className="flex flex-col gap-1">
-                                    <div className={`text-xs p-1 rounded leading-tight border ${oddEntry ? "bg-green-50 border-green-200" : "border-dashed border-gray-200"}`}>
-                                      {oddEntry ? (
-                                        <div className="flex items-center gap-1">
-                                          <span className="text-gray-500 font-mono text-[10px]">н.</span>
-                                          <span className="truncate">{oddEntry.displayText}</span>
-                                        </div>
-                                      ) : (
-                                        <span className="text-gray-300">—</span>
-                                      )}
+                                  <div className="flex flex-col">
+                                    <div data-week="odd" className="border-b border-dashed border-gray-300 pb-1 mb-1">
+                                      <div className={`text-xs p-1 rounded leading-tight border ${oddEntry ? "bg-green-100 border-green-200" : "border-dashed border-gray-200"}`}>
+                                        {oddEntry ? (
+                                          <div className="flex items-center gap-1">
+                                            <span className="text-gray-500 font-mono text-[10px]">н.</span>
+                                            <span className="truncate">{oddEntry.displayText}</span>
+                                          </div>
+                                        ) : (
+                                          <span className="text-gray-300">—</span>
+                                        )}
+                                      </div>
                                     </div>
-                                    <div className={`text-xs p-1 rounded leading-tight border ${evenEntry ? "bg-amber-50 border-amber-200" : "border-dashed border-gray-200"}`}>
-                                      {evenEntry ? (
-                                        <div className="flex items-center gap-1">
-                                          <span className="text-gray-500 font-mono text-[10px]">ч.</span>
-                                          <span className="truncate">{evenEntry.displayText}</span>
-                                        </div>
-                                      ) : (
-                                        <span className="text-gray-300">—</span>
-                                      )}
+                                    <div data-week="even" className="pt-1">
+                                      <div className={`text-xs p-1 rounded leading-tight border ${evenEntry ? "bg-amber-100 border-amber-200" : "border-dashed border-gray-200"}`}>
+                                        {evenEntry ? (
+                                          <div className="flex items-center gap-1">
+                                            <span className="text-gray-500 font-mono text-[10px]">ч.</span>
+                                            <span className="truncate">{evenEntry.displayText}</span>
+                                          </div>
+                                        ) : (
+                                          <span className="text-gray-300">—</span>
+                                        )}
+                                      </div>
                                     </div>
                                   </div>
                                 </td>
@@ -484,7 +675,6 @@ export default function AdminSchedulePage() {
         </DragOverlay>
       </DndContext>
 
-      {/* Модальное окно флагов */}
       {selectedEntry && (
         <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded shadow-lg w-80">
