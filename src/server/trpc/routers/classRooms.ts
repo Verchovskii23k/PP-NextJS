@@ -9,15 +9,15 @@ export const classroomsRouter = router({
   }),
   create: adminProcedure
     .input(z.object({
-      buildingId: z.number().int(),
+      buildingId: z.coerce.number().int(),
       roomNumber: z.string().min(1),
-      capacity: z.number().int(),
-      departmentId: z.number().int().optional(),
-      priorityLecture: z.number().int().optional(),
-      priorityWorkshop: z.number().int().optional(),
-      priorityGuidedStudy: z.number().int().optional(),
-      priorityLab: z.number().int().optional(),
-      usageMetric: z.number().optional(),
+      capacity: z.coerce.number().int(),
+      departmentId: z.coerce.number().int().optional(),
+      priorityLecture: z.coerce.number().int().optional(),
+      priorityWorkshop: z.coerce.number().int().optional(),
+      priorityGuidedStudy: z.coerce.number().int().optional(),
+      priorityLab: z.coerce.number().int().optional(),
+      usageMetric: z.coerce.number().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       return ctx.db.insert(classrooms).values(input).returning();

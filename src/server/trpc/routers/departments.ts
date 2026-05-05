@@ -11,9 +11,9 @@ export const departmentsRouter = router({
     .input(z.object({
       name: z.string().min(1),
       abbreviation: z.string().optional(),
-      instituteId: z.number().int(),
-      departmentCode: z.number().int().positive(),
-      headId: z.number().int().optional(), // пока может быть пустым
+      instituteId: z.coerce.number().int(),
+      departmentCode: z.coerce.number().int().positive(),
+      headId: z.coerce.number().int().nullable().optional(), // пока может быть пустым
     }))
     .mutation(async ({ ctx, input }) => {
       return ctx.db.insert(departments).values(input).returning();
@@ -25,7 +25,7 @@ export const departmentsRouter = router({
       abbreviation: z.string().optional(),
       instituteId: z.number().int().optional(),
       departmentCode: z.number().int().positive().optional(),
-      headId: z.number().int().optional(),
+      headId: z.number().int().nullable().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;

@@ -13,19 +13,19 @@ export const employeesDepartmentsRouter = router({
     }),
   create: adminProcedure
     .input(z.object({
-      employeeId: z.number().int(),
-      departmentId: z.number().int(),
-      employmentType: z.string().optional(),
-      position: z.string().optional(),
+      employeeId: z.coerce.number().int(),
+      departmentId: z.coerce.number().int(),
+      employmentType: z.coerce.string().nullable().optional(),
+      position: z.coerce.string().nullable().optional(),
     }))
     .mutation(async ({ ctx, input }) => ctx.db.insert(employeesDepartments).values(input).returning()),
   update: adminProcedure
     .input(z.object({
       id: z.number(),
-      employeeId: z.number().int().optional(),
-      departmentId: z.number().int().optional(),
-      employmentType: z.string().optional(),
-      position: z.string().optional(),
+      employeeId: z.coerce.number().int().optional(),
+      departmentId: z.coerce.number().int().optional(),
+      employmentType: z.coerce.string().nullable().optional(),
+      position: z.coerce.string().nullable().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;

@@ -15,7 +15,7 @@ export const hourTypeMappingRouter = router({
     .input(z.object({
       planHourColumn: z.string().min(1),
       priorityColumn: z.string().min(1),
-      lessonTypeId: z.number().int(),
+      lessonTypeId: z.coerce.number().int(),
     }))
     .mutation(async ({ ctx, input }) => ctx.db.insert(hourTypeMapping).values(input).returning()),
   update: adminProcedure
@@ -23,7 +23,7 @@ export const hourTypeMappingRouter = router({
       id: z.number(),
       planHourColumn: z.string().min(1).optional(),
       priorityColumn: z.string().min(1).optional(),
-      lessonTypeId: z.number().int().optional(),
+      lessonTypeId: z.coerce.number().int().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;

@@ -13,15 +13,15 @@ export const curriculumProfilesRouter = router({
     }),
   create: adminProcedure
     .input(z.object({
-      curriculumId: z.number().int(),
-      profileId: z.number().int(),
+      curriculumId: z.coerce.number().int(),
+      profileId: z.coerce.number().int(),
     }))
     .mutation(async ({ ctx, input }) => ctx.db.insert(curriculumProfiles).values(input).returning()),
   update: adminProcedure
     .input(z.object({
       id: z.number(),
-      curriculumId: z.number().int().optional(),
-      profileId: z.number().int().optional(),
+      curriculumId: z.coerce.number().int().optional(),
+      profileId: z.coerce.number().int().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;

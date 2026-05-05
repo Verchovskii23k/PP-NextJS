@@ -13,15 +13,15 @@ export const unitRootsRouter = router({
     }),
   create: adminProcedure
     .input(z.object({
-      unitCode: z.string().min(1),
-      studyGroupId: z.number().int(),
+      unitCode: z.coerce.string().min(1),
+      studyGroupId: z.coerce.number().int(),
     }))
     .mutation(async ({ ctx, input }) => ctx.db.insert(unitRoots).values(input).returning()),
   update: adminProcedure
     .input(z.object({
       id: z.number(),
-      unitCode: z.string().min(1).optional(),
-      studyGroupId: z.number().int().optional(),
+      unitCode: z.coerce.string().min(1).optional(),
+      studyGroupId: z.coerce.number().int().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;

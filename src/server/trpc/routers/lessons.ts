@@ -15,12 +15,12 @@ export const lessonsRouter = router({
     }),
   create: adminProcedure
     .input(z.object({
-      curriculumId: z.number().int(),
-      unitId: z.number().int(),
-      lessonTypeId: z.number().int(),
-      disciplineId: z.number().int(),
-      teacherId: z.number().int().optional(),
-      countPerSemester: z.number().int(),
+      curriculumId: z.coerce.number().int(),
+      unitId: z.coerce.number().int(),
+      lessonTypeId: z.coerce.number().int(),
+      disciplineId: z.coerce.number().int(),
+      teacherId: z.coerce.number().int().nullable().optional(),
+      countPerSemester: z.coerce.number().int(),
     }))
     .mutation(async ({ ctx, input }) => {
       return ctx.db.insert(lessons).values(input).returning();
@@ -32,7 +32,7 @@ export const lessonsRouter = router({
       unitId: z.number().int().optional(),
       lessonTypeId: z.number().int().optional(),
       disciplineId: z.number().int().optional(),
-      teacherId: z.number().int().optional(),
+      teacherId: z.number().int().nullable().optional(),
       countPerSemester: z.number().int().optional(),
     }))
     .mutation(async ({ ctx, input }) => {

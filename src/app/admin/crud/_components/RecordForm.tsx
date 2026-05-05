@@ -4,17 +4,30 @@ import { useState, useEffect } from "react";
 import { trpc } from "@/trpc/client";
 import { tablesMeta, type FieldMeta } from "@/lib/table-meta";
 
-interface RecordFormProps {
-  tableName: string;
-  editId?: number | null;
-  onClose: () => void;
+// Поля, которые рендерятся как toggle
+const TOGGLE_FIELDS = new Set(["isActive", "positionFlag", "classroomFlag", "isBuffered"]);
+
+function isNumericField(field: FieldMeta): boolean {
+  if (field.dbName === "unitCode" || field.dbName === "code" || field.dbName === "letterCode") return false;
+  return (
+    field.dbName.includes("year") ||
+    field.dbName.includes("count") ||
+    field.dbName.includes("Id") ||
+    field.dbName.includes("course") ||
+    field.dbName.includes("semester") ||
+    field.dbName.includes("capacity") ||
+    field.dbName.includes("code")
+  );
 }
 
 export function RecordForm({ tableName, editId, onClose }: RecordFormProps) {
   const meta = tablesMeta[tableName];
   if (!meta) return null;
 
-  const { data: existingData, isLoading: isLoadingExisting } = (trpc as any)[meta.routerKey]?.get?.useQuery?.({ id: editId! }, { enabled: !!editId });
+  const { data: existingData, isLoading: isLoadingExisting } = (trpc as any)[meta.routerKey]?.get?.useQuery?.(
+    { id: editId! },
+    { enabled: !!editId }
+  );
   const createMutation = (trpc as any)[meta.routerKey]?.create?.useMutation?.();
   const updateMutation = (trpc as any)[meta.routerKey]?.update?.useMutation?.();
 
@@ -26,9 +39,17 @@ export function RecordForm({ tableName, editId, onClose }: RecordFormProps) {
       setFormValues({ ...existingData });
     } else {
       const initial: Record<string, any> = {};
-      meta.fields.forEach(f => {
-        if (f.dbName !== "id") {
-          initial[f.dbName] = f.isFK ? null : "";
+      meta.fields.forEach((f) => {
+        if (f.dbName === "id") return;
+        if (f.isFK) {
+          initial[f.dbName] = null;
+        } else if (TOGGLE_FIELDS.has(f.dbName)) {
+          // Значение по умолчанию для isActive = true, для флагов = false
+          initial[f.dbName] = f.dbName === "isActive" ? true : false;
+        } else if (isNumericField(f)) {
+          initial[f.dbName] = null;
+        } else {
+          initial[f.dbName] = "";
         }
       });
       setFormValues(initial);
@@ -36,17 +57,51 @@ export function RecordForm({ tableName, editId, onClose }: RecordFormProps) {
   }, [editId, existingData, meta.fields]);
 
   const handleChange = (field: string, value: any) => {
-    setFormValues(prev => ({ ...prev, [field]: value }));
+    setFormValues((prev) => ({ ...prev, [field]: value }));
+    setErrors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const cleanedValues = { ...formValues };
+
+    meta.fields.forEach((f) => {
+      const key = f.dbName;
+      if (key === "id") return;
+      const val = cleanedValues[key];
+      if (!TOGGLE_FIELDS.has(key) && typeof val === "string" && val.trim() === "") {
+        if (f.isFK || isNumericField(f) || key === "email" || key === "phone") {
+          cleanedValues[key] = null;
+        }
+      }
+    });
+
+    const newErrors: Record<string, string> = {};
+    meta.fields.forEach((f) => {
+      if (f.required && f.dbName !== "id") {
+        const val = cleanedValues[f.dbName];
+        if (val === null || val === undefined || (typeof val === "string" && val.trim() === "")) {
+          newErrors[f.dbName] = "Обязательное поле";
+        }
+      }
+    });
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+
     setErrors({});
     try {
       if (editId) {
-        await updateMutation?.mutateAsync({ id: editId, ...formValues });
+        await updateMutation?.mutateAsync({ id: editId, ...cleanedValues });
       } else {
-        await createMutation?.mutateAsync(formValues);
+        await createMutation?.mutateAsync(cleanedValues);
       }
       onClose();
     } catch (err: any) {
@@ -57,19 +112,26 @@ export function RecordForm({ tableName, editId, onClose }: RecordFormProps) {
   const renderField = (field: FieldMeta) => {
     if (field.dbName === "id") return null;
     const value = formValues[field.dbName] ?? (field.isFK ? null : "");
+    const hasError = !!errors[field.dbName];
+    const errorMsg = errors[field.dbName];
 
+    // Внешний ключ (select)
     if (field.isFK && field.references) {
       const refTable = field.references.table;
       const refRouterKey = tablesMeta[refTable]?.routerKey;
-      const { data: options, isLoading: optionsLoading } = (trpc as any)[refRouterKey]?.list?.useQuery?.() ?? { data: [], isLoading: false };
+      const { data: options, isLoading: optionsLoading } =
+        (trpc as any)[refRouterKey]?.list?.useQuery?.() ?? { data: [], isLoading: false };
 
       return (
         <div key={field.dbName} className="mb-3">
-          <label className="block text-sm font-medium mb-1">{field.displayName}</label>
+          <label className="block text-sm font-medium mb-1">
+            {field.displayName}
+            {field.required && <span className="text-red-500 ml-1">*</span>}
+          </label>
           <select
             value={value ?? ""}
-            onChange={e => handleChange(field.dbName, e.target.value === "" ? null : Number(e.target.value))}
-            className="border border-gray-300 rounded px-3 py-1.5 w-full"
+            onChange={(e) => handleChange(field.dbName, e.target.value === "" ? null : Number(e.target.value))}
+            className={`border rounded px-3 py-1.5 w-full ${hasError ? "border-red-500" : "border-gray-300"}`}
             disabled={optionsLoading}
           >
             <option value="">-- Не выбрано --</option>
@@ -77,29 +139,60 @@ export function RecordForm({ tableName, editId, onClose }: RecordFormProps) {
               <option key={opt.id} value={opt.id}>{opt[field.references!.displayField] ?? opt.id}</option>
             ))}
           </select>
+          {hasError && <p className="text-red-500 text-xs mt-1">{errorMsg}</p>}
         </div>
       );
     }
 
-    if (field.dbName === "is_inactive" || field.dbName === "positionFlag" || field.dbName === "classroomFlag") {
+    // Toggle для булевых полей
+    if (TOGGLE_FIELDS.has(field.dbName) || field.inputType === "toggle") {
+      const isActive = !!value;
       return (
-        <div key={field.dbName} className="mb-3 flex items-center gap-2">
-          <input type="checkbox" checked={!!value} onChange={e => handleChange(field.dbName, e.target.checked)} />
-          <label className="text-sm">{field.displayName}</label>
+        <div key={field.dbName} className="mb-3">
+          <label className="block text-sm font-medium mb-1">
+            {field.displayName}
+            {field.required && <span className="text-red-500 ml-1">*</span>}
+          </label>
+          <button
+            type="button"
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+              isActive ? "bg-blue-600" : "bg-gray-300"
+            }`}
+            onClick={() => handleChange(field.dbName, !isActive)}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                isActive ? "translate-x-6" : "translate-x-1"
+              }`}
+            />
+          </button>
+          <span className="ml-2 text-xs text-gray-500">{isActive ? (field.displayName === "Активен" ? "Да" : "Вкл") : (field.displayName === "Активен" ? "Нет" : "Выкл")}</span>
+          {hasError && <p className="text-red-500 text-xs mt-1">{errorMsg}</p>}
         </div>
       );
     }
 
+    // Обычные текст/числа
     return (
       <div key={field.dbName} className="mb-3">
-        <label className="block text-sm font-medium mb-1">{field.displayName}</label>
+        <label className="block text-sm font-medium mb-1">
+          {field.displayName}
+          {field.required && <span className="text-red-500 ml-1">*</span>}
+        </label>
         <input
-          type={field.dbName.includes("year") || field.dbName.includes("count") ? "number" : "text"}
+          type={isNumericField(field) ? "number" : "text"}
           value={value}
-          onChange={e => handleChange(field.dbName, e.target.value)}
-          className="border border-gray-300 rounded px-3 py-1.5 w-full"
+          onChange={(e) => {
+            if (isNumericField(field)) {
+              const raw = e.target.value;
+              handleChange(field.dbName, raw.trim() === "" ? null : Number(raw));
+            } else {
+              handleChange(field.dbName, e.target.value);
+            }
+          }}
+          className={`border rounded px-3 py-1.5 w-full ${hasError ? "border-red-500" : "border-gray-300"}`}
         />
-        {errors[field.dbName] && <p className="text-red-500 text-xs mt-1">{errors[field.dbName]}</p>}
+        {hasError && <p className="text-red-500 text-xs mt-1">{errorMsg}</p>}
       </div>
     );
   };

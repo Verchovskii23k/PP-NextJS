@@ -391,7 +391,7 @@ await db.delete(settings);
       name: stud.name,
       admissionYear: stud.admissionYear,
       profileId,
-      isInactive: false,
+      isActive: true,
     });
   }
   // Дни недели, пары, недели, роли

@@ -10,7 +10,7 @@ export const profilesRouter = router({
   create: adminProcedure
     .input(z.object({
       name: z.string().min(1),
-      specialtyId: z.number().int(),
+      specialtyId: z.coerce.number().int(),
       letterCode: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
@@ -20,7 +20,7 @@ export const profilesRouter = router({
     .input(z.object({
       id: z.number(),
       name: z.string().min(1).optional(),
-      specialtyId: z.number().int().optional(),
+      specialtyId: z.coerce.number().int().optional(),
       letterCode: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {

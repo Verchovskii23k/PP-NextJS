@@ -104,7 +104,7 @@ export const employees = pgTable("employees", {
   phone: text("phone"),
   email: text("email").unique(),
   authenticationId: integer("authentication_id").unique().references(() => securityCenter.id),
-  isInactive: boolean("is_inactive").default(false),
+  isActive: boolean("is_active").notNull().default(true),
 });
 
 export const studyGroups = pgTable("study_groups", {
@@ -127,7 +127,7 @@ export const students = pgTable("students", {
   phone: text("phone"),
   email: text("email").unique(),
   authenticationId: integer("authentication_id").unique().references(() => securityCenter.id),
-  isInactive: boolean("is_inactive").default(false),
+  isActive: boolean("is_active").notNull().default(true),
 });
 
 export const educationLevels = pgTable("education_levels", {

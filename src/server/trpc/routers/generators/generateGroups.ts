@@ -42,7 +42,7 @@ export const generateGroupsRouter = router({
       .innerJoin(specialties, eq(profiles.specialtyId, specialties.id))
       .innerJoin(departments, eq(specialties.departmentId, departments.id))
       .innerJoin(institutes, eq(departments.instituteId, institutes.id))
-      .where(eq(students.isInactive, false))
+      .where(eq(students.isActive, true))
       .groupBy(
         students.profileId,
         students.admissionYear,

@@ -10,11 +10,11 @@ export const unitTypesRouter = router({
   create: adminProcedure
     .input(z.object({
       name: z.string().min(1),
-      maxSize: z.number().int().optional(),
-      priorityLecture: z.number().int().optional(),
-      priorityWorkshop: z.number().int().optional(),
-      priorityGuidedStudy: z.number().int().optional(),
-      priorityLab: z.number().int().optional(),
+      maxSize: z.coerce.number().int().optional(),
+      priorityLecture: z.coerce.number().int().optional(),
+      priorityWorkshop: z.coerce.number().int().optional(),
+      priorityGuidedStudy: z.coerce.number().int().optional(),
+      priorityLab: z.coerce.number().int().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       return ctx.db.insert(unitTypes).values(input).returning();
@@ -23,11 +23,11 @@ export const unitTypesRouter = router({
     .input(z.object({
       id: z.number(),
       name: z.string().min(1).optional(),
-      maxSize: z.number().int().optional(),
-      priorityLecture: z.number().int().optional(),
-      priorityWorkshop: z.number().int().optional(),
-      priorityGuidedStudy: z.number().int().optional(),
-      priorityLab: z.number().int().optional(),
+      maxSize: z.coerce.number().int().optional(),
+      priorityLecture: z.coerce.number().int().optional(),
+      priorityWorkshop: z.coerce.number().int().optional(),
+      priorityGuidedStudy: z.coerce.number().int().optional(),
+      priorityLab: z.coerce.number().int().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;

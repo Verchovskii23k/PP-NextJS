@@ -11,7 +11,7 @@ export const specialtiesRouter = router({
     .input(z.object({
       code: z.string().min(1),
       name: z.string().min(1),
-      departmentId: z.number().int(),
+      departmentId: z.coerce.number().int(),
     }))
     .mutation(async ({ ctx, input }) => {
       return ctx.db.insert(specialties).values(input).returning();
@@ -21,7 +21,7 @@ export const specialtiesRouter = router({
       id: z.number(),
       code: z.string().min(1).optional(),
       name: z.string().min(1).optional(),
-      departmentId: z.number().int().optional(),
+      departmentId: z.coerce.number().int().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;

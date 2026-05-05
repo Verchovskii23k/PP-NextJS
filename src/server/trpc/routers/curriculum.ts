@@ -13,15 +13,15 @@ export const curriculumRouter = router({
     }),
   create: adminProcedure
     .input(z.object({
-      course: z.number().int(),
-      semester: z.number().int(),
-      disciplineId: z.number().int(),
-      hoursLecture: z.number().int().optional(),
-      hoursGuidedStudy: z.number().int().optional(),
-      hoursWorkshop: z.number().int().optional(),
-      hoursLab: z.number().int().optional(),
-      additionalTaskId: z.number().int().optional(),
-      controlTypeId: z.number().int().optional(),
+      course: z.coerce.number().int(),
+      semester: z.coerce.number().int(),
+      disciplineId: z.coerce.number().int(),
+      hoursLecture: z.coerce.number().int().optional(),
+      hoursGuidedStudy: z.coerce.number().int().optional(),
+      hoursWorkshop: z.coerce.number().int().optional(),
+      hoursLab: z.coerce.number().int().optional(),
+      additionalTaskId: z.coerce.number().int().nullable().optional(),
+      controlTypeId: z.coerce.number().int().nullable().optional(),
     }))
     .mutation(async ({ ctx, input }) => ctx.db.insert(curriculum).values(input).returning()),
   update: adminProcedure
@@ -34,8 +34,8 @@ export const curriculumRouter = router({
       hoursGuidedStudy: z.number().int().optional(),
       hoursWorkshop: z.number().int().optional(),
       hoursLab: z.number().int().optional(),
-      additionalTaskId: z.number().int().optional(),
-      controlTypeId: z.number().int().optional(),
+      additionalTaskId: z.number().int().nullable().optional(),
+      controlTypeId: z.number().int().nullable().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;

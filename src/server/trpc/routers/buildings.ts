@@ -8,14 +8,14 @@ export const buildingsRouter = router({
     return ctx.db.select().from(buildings);
   }),
   create: adminProcedure
-    .input(z.object({ number: z.number().int().positive() }))
+    .input(z.object({ number: z.coerce.number().int().positive() }))
     .mutation(async ({ ctx, input }) => {
       return ctx.db.insert(buildings).values(input).returning();
     }),
   update: adminProcedure
     .input(z.object({
       id: z.number(),
-      number: z.number().int().positive().optional(),
+      number: z.coerce.number().int().positive().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;
