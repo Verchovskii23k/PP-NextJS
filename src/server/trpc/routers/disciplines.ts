@@ -21,7 +21,7 @@ export const disciplinesRouter = router({
     .input(z.object({
       id: z.number(),
       name: z.string().min(1).optional(),
-      abbreviation: z.string().optional(),
+      abbreviation: z.string().min(1),
       departmentId: z.number().int().optional(),
     }))
     .mutation(async ({ ctx, input }) => {

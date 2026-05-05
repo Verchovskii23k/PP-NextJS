@@ -6,7 +6,7 @@ import { eq } from "drizzle-orm";
 const instituteSchema = z.object({
   universityCode: z.number().int().positive(),
   name: z.string().min(1),
-  directorId: z.number().int().optional(), // ссылка на employees_departments.id, пока может быть nullable
+  directorId: z.number().int().optional(), 
 });
 
 export const institutesRouter = router({

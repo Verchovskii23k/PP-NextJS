@@ -19,7 +19,7 @@ export const lessonTypesRouter = router({
     .input(z.object({
       id: z.number(),
       name: z.string().min(1).optional(),
-      abbreviation: z.string().optional(),
+      abbreviation: z.string().min(1),
     }))
     .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;

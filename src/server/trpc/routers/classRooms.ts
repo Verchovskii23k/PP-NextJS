@@ -11,7 +11,7 @@ export const classroomsRouter = router({
     .input(z.object({
       buildingId: z.number().int(),
       roomNumber: z.string().min(1),
-      capacity: z.number().int().optional(),
+      capacity: z.number().int(),
       departmentId: z.number().int().optional(),
       priorityLecture: z.number().int().optional(),
       priorityWorkshop: z.number().int().optional(),
