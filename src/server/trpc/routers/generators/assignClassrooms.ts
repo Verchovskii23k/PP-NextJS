@@ -6,7 +6,7 @@ import {
   disciplines, units, unitRoots,
   studyGroups, unitTypes,
 } from "@/db/schema";
-import { eq, asc, desc, sql } from "drizzle-orm";
+import { eq, asc, desc, sql, and } from "drizzle-orm";
 
 export const assignClassroomsRouter = router({
   assignClassroomsAuto: adminProcedure
@@ -18,7 +18,6 @@ export const assignClassroomsRouter = router({
       let assigned = 0;
 
       for (const lesson of allLessons) {
-        // 1. Тип занятия → приоритетный столбец
         const [lt] = await ctx.db
           .select()
           .from(lessonTypes)
@@ -40,7 +39,6 @@ export const assignClassroomsRouter = router({
             continue;
         }
 
-        // 2. Размер юнита (сумма студентов всех связанных групп)
         let unitSize = 0;
         const [unit] = await ctx.db
           .select({ id: units.id, code: units.code, unitTypeId: units.unitTypeId })
@@ -52,7 +50,6 @@ export const assignClassroomsRouter = router({
           continue;
         }
 
-        // Собираем группы через unitRoots
         const roots = await ctx.db
           .select({ studyGroupId: unitRoots.studyGroupId })
           .from(unitRoots)
@@ -65,7 +62,6 @@ export const assignClassroomsRouter = router({
             .where(sql`${studyGroups.id} IN ${groupIds}`);
           unitSize = groupsData.reduce((sum, g) => sum + (g.studentCount ?? 0), 0);
         } else {
-          // Если связей нет (чего быть не должно), берём maxSize типа юнита
           const [ut] = await ctx.db
             .select({ maxSize: unitTypes.maxSize })
             .from(unitTypes)
@@ -74,7 +70,6 @@ export const assignClassroomsRouter = router({
           unitSize = ut?.maxSize ?? 0;
         }
 
-        // 3. Кафедра дисциплины
         const [disc] = await ctx.db
           .select({ departmentId: disciplines.departmentId })
           .from(disciplines)
@@ -82,26 +77,34 @@ export const assignClassroomsRouter = router({
           .limit(1);
         const deptId = disc?.departmentId ?? null;
 
-        // 4. Поиск подходящей аудитории
         let bestClassroom: typeof classrooms.$inferSelect | null = null;
 
-        // Сначала пытаемся найти среди аудиторий кафедры
         if (deptId) {
           const candidates = await ctx.db
             .select()
             .from(classrooms)
-            .where(sql`${classrooms.departmentId} = ${deptId} AND ${classrooms.capacity} >= ${unitSize}`)
+            .where(
+              and(
+                eq(classrooms.departmentId, deptId),
+                eq(classrooms.isActive, true),          // ← только активные
+                sql`${classrooms.capacity} >= ${unitSize}`
+              )
+            )
             .orderBy(desc(classrooms[priorityColumn]), asc(classrooms.usageMetric), asc(classrooms.id))
             .limit(1);
           if (candidates.length > 0) bestClassroom = candidates[0];
         }
 
-        // Если не нашли, ищем среди любых аудиторий (включая общие)
         if (!bestClassroom) {
           const candidates = await ctx.db
             .select()
             .from(classrooms)
-            .where(sql`${classrooms.capacity} >= ${unitSize}`)
+            .where(
+              and(
+                eq(classrooms.isActive, true),          // ← только активные
+                sql`${classrooms.capacity} >= ${unitSize}`
+              )
+            )
             .orderBy(desc(classrooms[priorityColumn]), asc(classrooms.usageMetric), asc(classrooms.id))
             .limit(1);
           if (candidates.length > 0) bestClassroom = candidates[0];
@@ -112,7 +115,6 @@ export const assignClassroomsRouter = router({
           continue;
         }
 
-        // 5. Назначаем и увеличиваем метрику
         await ctx.db.insert(lessonClassrooms).values({
           lessonId: lesson.id,
           classroomId: bestClassroom.id,

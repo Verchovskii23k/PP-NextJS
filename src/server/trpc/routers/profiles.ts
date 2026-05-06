@@ -11,6 +11,7 @@ export const profilesRouter = router({
         name: profiles.name,
         specialtyId: profiles.specialtyId,
         letterCode: profiles.letterCode,
+        isActive: profiles.isActive,   // ← добавили
         profileDisplay: sql<string>`CONCAT(${profiles.letterCode}, ' (', ${specialties.code}, ' - ', ${specialties.name}, ')')`.as('profile_display'),
       })
       .from(profiles)
@@ -26,6 +27,7 @@ export const profilesRouter = router({
           name: profiles.name,
           specialtyId: profiles.specialtyId,
           letterCode: profiles.letterCode,
+          isActive: profiles.isActive,   // ← добавили
           profileDisplay: sql<string>`CONCAT(${profiles.letterCode}, ' (', ${specialties.code}, ' - ', ${specialties.name}, ')')`.as('profile_display'),
         })
         .from(profiles)

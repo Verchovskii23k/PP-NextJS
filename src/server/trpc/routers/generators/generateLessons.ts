@@ -18,24 +18,24 @@ import { eq, and, inArray, sql } from "drizzle-orm";
 
 export const generateLessonsRouter = router({
   generateLessons: adminProcedure.mutation(async ({ ctx }) => {
-    // 1. Очистка зависимых таблиц
     await ctx.db.transaction(async (tx) => {
       await tx.delete(schedule);
       await tx.delete(lessonClassrooms);
       await tx.delete(lessons);
     });
 
-    // 2. Соответствие "план_час_колонка" → (lesson_type_id, поле приоритета в unitTypes)
-    const mappings = await ctx.db.select().from(hourTypeMapping);
+    const mappings = await ctx.db
+      .select()
+      .from(hourTypeMapping)
+      .where(eq(hourTypeMapping.isActive, true));   // ← только активные маппинги
     const hourTypeMap = new Map<string, { lessonTypeId: number; priorityCol: string }>();
     for (const m of mappings) {
       hourTypeMap.set(m.planHourColumn, {
         lessonTypeId: m.lessonTypeId,
-        priorityCol: m.priorityColumn, // например "priorityLecture"
+        priorityCol: m.priorityColumn,
       });
     }
 
-    // Карта для перевода CamelCase приоритета в snake_case столбца
     const priorityColumnSnake: Record<string, string> = {
       priorityLecture: "priority_lecture",
       priorityWorkshop: "priority_workshop",
@@ -43,12 +43,14 @@ export const generateLessonsRouter = router({
       priorityLab: "priority_lab",
     };
 
-    // 3. Все учебные планы, у которых есть хотя бы один ненулевой тип часов
     const plans = await ctx.db
       .select()
       .from(curriculum)
       .where(
-        sql`${curriculum.hoursLecture} > 0 OR ${curriculum.hoursGuidedStudy} > 0 OR ${curriculum.hoursWorkshop} > 0 OR ${curriculum.hoursLab} > 0`
+        and(
+          eq(curriculum.isActive, true),   // ← только активные учебные планы
+          sql`${curriculum.hoursLecture} > 0 OR ${curriculum.hoursGuidedStudy} > 0 OR ${curriculum.hoursWorkshop} > 0 OR ${curriculum.hoursLab} > 0`
+        )
       );
 
     const problems: Record<string, number> = {};
@@ -60,7 +62,6 @@ export const generateLessonsRouter = router({
       countPerSemester: number;
     }[] = [];
 
-    // 4. Обработка планов
     for (const plan of plans) {
       const { id: planId, disciplineId, course } = plan;
 
@@ -81,10 +82,8 @@ export const generateLessonsRouter = router({
         }
         const { lessonTypeId, priorityCol } = mapping;
 
-        // Количество занятий = ceil(часы / 2)
         const countPerSemester = Math.ceil(field / 2);
 
-        // Профили, связанные с этим планом
         const profileRows = await ctx.db
           .select({ profileId: curriculumProfiles.profileId })
           .from(curriculumProfiles)
@@ -95,7 +94,6 @@ export const generateLessonsRouter = router({
           continue;
         }
 
-        // Группы нужного курса для этих профилей
         const groups = await ctx.db
           .select({ id: studyGroups.id })
           .from(studyGroups)
@@ -111,7 +109,6 @@ export const generateLessonsRouter = router({
           continue;
         }
 
-        // Получаем приоритет для этого типа занятия
         const snakeCol = priorityColumnSnake[priorityCol];
         if (!snakeCol) {
           problems.unknown_priority_column = (problems.unknown_priority_column || 0) + 1;
@@ -119,7 +116,6 @@ export const generateLessonsRouter = router({
         }
         const prioritySql = sql<number>`COALESCE(${sql.identifier(snakeCol)}, 0)`;
 
-        // Все юниты, связанные с найденными группами
         const unitRows = await ctx.db
           .select({
             id: units.id,
@@ -128,14 +124,18 @@ export const generateLessonsRouter = router({
           .from(units)
           .innerJoin(unitRoots, eq(units.code, unitRoots.unitCode))
           .innerJoin(unitTypes, eq(units.unitTypeId, unitTypes.id))
-          .where(inArray(unitRoots.studyGroupId, groupIds));
+          .where(
+            and(
+              inArray(unitRoots.studyGroupId, groupIds),
+              eq(unitTypes.isActive, true)   // ← только активные типы юнитов
+            )
+          );
 
         if (unitRows.length === 0) {
           problems.no_units = (problems.no_units || 0) + 1;
           continue;
         }
 
-        // Фильтр по приоритетам: 1 → только приоритет 1, иначе → 2, остальные пропускаем
         const priority1 = unitRows.filter(u => u.priority === 1);
         const priority2 = unitRows.filter(u => u.priority === 2);
         let unitsToUse: typeof unitRows;
@@ -148,7 +148,6 @@ export const generateLessonsRouter = router({
           continue;
         }
 
-        // Создаём запись для каждого подходящего юнита
         for (const unit of unitsToUse) {
           lessonsToInsert.push({
             curriculumId: planId,
@@ -161,12 +160,10 @@ export const generateLessonsRouter = router({
       }
     }
 
-    // 5. Вставка всех занятий одним INSERT ... VALUES
     if (lessonsToInsert.length > 0) {
       await ctx.db.insert(lessons).values(lessonsToInsert);
     }
 
-    // 6. Назначение преподавателей
     const lessonsWithoutTeacher = await ctx.db
       .select({
         id: lessons.id,
@@ -185,7 +182,8 @@ export const generateLessonsRouter = router({
         .where(
           and(
             eq(disciplineTeachers.disciplineId, l.disciplineId),
-            eq(disciplineTeachers.lessonTypeId, l.lessonTypeId)
+            eq(disciplineTeachers.lessonTypeId, l.lessonTypeId),
+            eq(disciplineTeachers.isActive, true)   // ← только активные преподаватели дисциплин
           )
         );
 
@@ -194,7 +192,6 @@ export const generateLessonsRouter = router({
         continue;
       }
 
-      // Выбираем преподавателя с минимальной нагрузкой
       let chosenId: number | null = null;
       let minLoad = Infinity;
       for (const t of teachers) {
@@ -214,13 +211,11 @@ export const generateLessonsRouter = router({
       }
     }
 
-    // 7. Удалить занятия, которым так и не нашёлся преподаватель
     const deletedNoTeacher = await ctx.db
       .delete(lessons)
       .where(sql`${lessons.teacherId} IS NULL`)
       .returning();
 
-    // 8. Удалить полные дубликаты (если вдруг остались)
     await ctx.db.execute(sql`
       DELETE FROM ${lessons}
       WHERE id NOT IN (
@@ -230,7 +225,6 @@ export const generateLessonsRouter = router({
       )
     `);
 
-    // 9. Финальная статистика
     const [totalLessons] = await ctx.db.select({ cnt: sql<number>`count(*)` }).from(lessons);
     const [uniquePlans] = await ctx.db.select({ cnt: sql<number>`count(distinct curriculum_id)` }).from(lessons);
     const [totalPlans] = await ctx.db.select({ cnt: sql<number>`count(*)` }).from(curriculum);
@@ -249,10 +243,7 @@ export const generateLessonsRouter = router({
       .innerJoin(unitTypes, eq(units.unitTypeId, unitTypes.id));
 
     const typeDistribution = await ctx.db
-      .select({
-        type: lessonTypes.name,
-        count: sql<number>`count(*)`,
-      })
+      .select({ type: lessonTypes.name, count: sql<number>`count(*)` })
       .from(lessons)
       .innerJoin(lessonTypes, eq(lessons.lessonTypeId, lessonTypes.id))
       .groupBy(lessonTypes.name);

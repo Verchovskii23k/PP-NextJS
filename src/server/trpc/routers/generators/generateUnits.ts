@@ -10,7 +10,6 @@ import { eq, and, inArray, sql } from "drizzle-orm";
 
 export const generateUnitsRouter = router({
   generateUnits: adminProcedure.mutation(async ({ ctx }) => {
-    // 1. Очистка всего, что зависит от юнитов
     await ctx.db.transaction(async (tx) => {
       await tx.delete(schedule);
       await tx.delete(lessonClassrooms);
@@ -19,7 +18,6 @@ export const generateUnitsRouter = router({
       await tx.delete(units);
     });
 
-    // 2. Типы юнитов (имена должны совпадать с БД – в seed они ЗАГЛАВНЫЕ)
     const [unitTypeGroup] = await ctx.db
       .select()
       .from(unitTypes)
@@ -40,31 +38,21 @@ export const generateUnitsRouter = router({
       throw new Error("Не все типы юнитов найдены");
     }
 
-    // ПОРОГ ДЕЛЕНИЯ – из свойства maxSize типа «Подгруппа»
     const maxSubgroupSize = unitTypeSubgroup.maxSize;
 
-    // 3. Загружаем учебные группы
     const groups = await ctx.db.select().from(studyGroups);
     if (groups.length === 0) throw new Error("Сначала выполните генерацию групп");
 
-    // Карта: profileId -> (course -> группа)
-    const profileCourseToGroup = new Map<
-      number,
-      Map<number, typeof groups[0]>
-    >();
+    const profileCourseToGroup = new Map<number, Map<number, typeof groups[0]>>();
     for (const g of groups) {
-      if (!profileCourseToGroup.has(g.profileId)) {
-        profileCourseToGroup.set(g.profileId, new Map());
-      }
+      if (!profileCourseToGroup.has(g.profileId)) profileCourseToGroup.set(g.profileId, new Map());
       profileCourseToGroup.get(g.profileId)!.set(g.course, g);
     }
 
     const counters = { groups: 0, subgroups: 0, streams: 0, connections: 0 };
 
-    // 4. Группы и подгруппы
     for (const group of groups) {
-      // --- Юнит группы ---
-      const unitCode = group.code; // код группы (например, 23к)
+      const unitCode = group.code;
       let [existingUnit] = await ctx.db
         .select({ id: units.id })
         .from(units)
@@ -79,21 +67,16 @@ export const generateUnitsRouter = router({
         counters.groups++;
       }
 
-      // Связь с группой
       const [rootExist] = await ctx.db
         .select()
         .from(unitRoots)
         .where(and(eq(unitRoots.unitCode, unitCode), eq(unitRoots.studyGroupId, group.id)))
         .limit(1);
       if (!rootExist) {
-        await ctx.db.insert(unitRoots).values({
-          unitCode: unitCode,       // <-- явно передаём код
-          studyGroupId: group.id,
-        });
+        await ctx.db.insert(unitRoots).values({ unitCode, studyGroupId: group.id });
         counters.connections++;
       }
 
-      // --- Подгруппы ---
       const size = group.studentCount ?? 0;
       if (size > maxSubgroupSize) {
         const numSubgroups = Math.ceil(size / maxSubgroupSize);
@@ -118,17 +101,13 @@ export const generateUnitsRouter = router({
             .where(and(eq(unitRoots.unitCode, subCode), eq(unitRoots.studyGroupId, group.id)))
             .limit(1);
           if (!subRootExist) {
-            await ctx.db.insert(unitRoots).values({
-              unitCode: subCode,    // <-- явно передаём код подгруппы
-              studyGroupId: group.id,
-            });
+            await ctx.db.insert(unitRoots).values({ unitCode: subCode, studyGroupId: group.id });
             counters.connections++;
           }
         }
       }
     }
 
-    // 5. Потоки (алгоритм сохранён)
     const planRows = await ctx.db
       .select({
         disciplineId: curriculum.disciplineId,
@@ -139,7 +118,14 @@ export const generateUnitsRouter = router({
       })
       .from(curriculum)
       .innerJoin(curriculumProfiles, eq(curriculum.id, curriculumProfiles.curriculumId))
-      .where(sql`${curriculum.hoursLecture} > 0`);
+      .innerJoin(profiles, eq(curriculumProfiles.profileId, profiles.id))   // ← добавили
+      .where(
+        and(
+          eq(curriculum.isActive, true),
+          eq(profiles.isActive, true),          // ← только активные профили
+          sql`${curriculum.hoursLecture} > 0`
+        )
+      );
 
     const streamMap = new Map<string, { course: number; profileIds: Set<number> }>();
     for (const row of planRows) {
@@ -159,7 +145,12 @@ export const generateUnitsRouter = router({
       const pData = await ctx.db
         .select({ letterCode: profiles.letterCode })
         .from(profiles)
-        .where(inArray(profiles.id, profArray))
+        .where(
+          and(
+            inArray(profiles.id, profArray),
+            eq(profiles.isActive, true)            // ← только активные профили
+          )
+        )
         .orderBy(profiles.letterCode);
       const codes = pData.map(p => p.letterCode).join("");
 
@@ -186,7 +177,6 @@ export const generateUnitsRouter = router({
         counters.streams++;
       }
 
-      // Связи с группами этого потока
       for (const profId of profArray) {
         const g = profileCourseToGroup.get(profId)?.get(course);
         if (!g) continue;
@@ -196,10 +186,7 @@ export const generateUnitsRouter = router({
           .where(and(eq(unitRoots.unitCode, streamCode), eq(unitRoots.studyGroupId, g.id)))
           .limit(1);
         if (!root) {
-          await ctx.db.insert(unitRoots).values({
-            unitCode: streamCode,   // <-- явно передаём код потока
-            studyGroupId: g.id,
-          });
+          await ctx.db.insert(unitRoots).values({ unitCode: streamCode, studyGroupId: g.id });
           counters.connections++;
         }
       }

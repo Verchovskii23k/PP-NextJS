@@ -17,6 +17,7 @@ export const curriculumRouter = router({
         hoursLab: curriculum.hoursLab,
         additionalTaskId: curriculum.additionalTaskId,
         controlTypeId: curriculum.controlTypeId,
+        isActive: curriculum.isActive,
         display: sql<string>`${curriculum.course} || ' курс, ' || ${curriculum.semester} || ' сем. – ' || ${disciplines.abbreviation}`.as('display'),
       })
       .from(curriculum)
@@ -38,6 +39,7 @@ export const curriculumRouter = router({
           hoursLab: curriculum.hoursLab,
           additionalTaskId: curriculum.additionalTaskId,
           controlTypeId: curriculum.controlTypeId,
+          isActive: curriculum.isActive,
           display: sql<string>`${curriculum.course} || ' курс, ' || ${curriculum.semester} || ' сем. – ' || ${disciplines.abbreviation}`.as('display'),
         })
         .from(curriculum)

@@ -11,6 +11,7 @@ export const specialtiesRouter = router({
         code: specialties.code,
         name: specialties.name,
         departmentId: specialties.departmentId,
+        isActive: specialties.isActive,   // ← добавили
         display: sql<string>`${specialties.code} || ' - ' || ${specialties.name}`.as('display'),
       })
       .from(specialties)
@@ -25,6 +26,7 @@ export const specialtiesRouter = router({
           code: specialties.code,
           name: specialties.name,
           departmentId: specialties.departmentId,
+          isActive: specialties.isActive,   // ← добавили
           display: sql<string>`${specialties.code} || ' - ' || ${specialties.name}`.as('display'),
         })
         .from(specialties)

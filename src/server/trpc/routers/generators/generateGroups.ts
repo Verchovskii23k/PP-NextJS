@@ -9,25 +9,16 @@ import { eq, and, inArray, sql } from "drizzle-orm";
 
 export const generateGroupsRouter = router({
   generateGroups: adminProcedure.mutation(async ({ ctx }) => {
-    // 1. Очистка всех данных, зависящих от групп, в одной транзакции
     await ctx.db.transaction(async (tx) => {
-      // Удаляем расписание и занятия, если они есть
       await tx.delete(schedule);
       await tx.delete(lessonClassrooms);
       await tx.delete(lessons);
-
-      // Удаляем связи юнитов с группами и сами юниты
       await tx.delete(unitRoots);
       await tx.delete(units);
-
-      // Обнуляем привязку студентов к группам
       await tx.update(students).set({ studyGroupId: null, course: null });
-
-      // Теперь безопасно удаляем все группы
       await tx.delete(studyGroups);
     });
 
-    // 2. Получаем сгруппированных студентов с необходимыми данными профиля и института
     const groupsData = await ctx.db
       .select({
         profileId: students.profileId,
@@ -42,7 +33,15 @@ export const generateGroupsRouter = router({
       .innerJoin(specialties, eq(profiles.specialtyId, specialties.id))
       .innerJoin(departments, eq(specialties.departmentId, departments.id))
       .innerJoin(institutes, eq(departments.instituteId, institutes.id))
-      .where(eq(students.isActive, true))
+      .where(
+        and(
+          eq(students.isActive, true),
+          eq(profiles.isActive, true),       // ← только активные профили
+          eq(specialties.isActive, true),    // ← только активные специальности
+          eq(departments.isActive, true),    // ← только активные кафедры
+          eq(institutes.isActive, true)      // ← только активные институты
+        )
+      )
       .groupBy(
         students.profileId,
         students.admissionYear,
@@ -54,9 +53,8 @@ export const generateGroupsRouter = router({
       return { createdGroups: 0, assignedStudents: 0 };
     }
 
-    // 3. Расчёт текущего учебного года
     const now = new Date();
-    const month = now.getMonth() + 1; // 1-12
+    const month = now.getMonth() + 1;
     const currentYear = now.getFullYear();
     let academicYearStart: number;
     if (month >= 9) {
@@ -69,7 +67,6 @@ export const generateGroupsRouter = router({
 
     let createdGroups = 0;
 
-    // 4. Создание групп и привязка студентов
     await ctx.db.transaction(async (tx) => {
       for (const g of groupsData) {
         const { profileId, admissionYear, studentCount, studentIds, letterCode, universityCode } = g;
@@ -103,7 +100,3 @@ export const generateGroupsRouter = router({
     return { createdGroups, assignedStudents };
   }),
 });
-
-
-
-

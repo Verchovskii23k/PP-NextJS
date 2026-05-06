@@ -10,6 +10,7 @@ export const lessonTypesRouter = router({
         id: lessonTypes.id,
         name: lessonTypes.name,
         abbreviation: lessonTypes.abbreviation,
+        isActive: lessonTypes.isActive,   // ← добавили
         display: sql<string>`CASE ${lessonTypes.name}
           WHEN 'lecture' THEN 'лекция'
           WHEN 'workshop' THEN 'практика'
@@ -28,6 +29,7 @@ export const lessonTypesRouter = router({
           id: lessonTypes.id,
           name: lessonTypes.name,
           abbreviation: lessonTypes.abbreviation,
+          isActive: lessonTypes.isActive,   // ← добавили
           display: sql<string>`CASE ${lessonTypes.name}
             WHEN 'lecture' THEN 'лекция'
             WHEN 'workshop' THEN 'практика'
@@ -52,9 +54,9 @@ export const lessonTypesRouter = router({
     .input(z.object({ 
       id: z.number(), 
       name: z.string().min(1).optional(), 
-      abbreviation: z.string().min(1),
+      abbreviation: z.string().optional(),   // ← исправили на optional
       isActive: z.boolean().optional()
-     }))
+    }))
     .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;
       return ctx.db.update(lessonTypes).set(data).where(eq(lessonTypes.id, id)).returning();
