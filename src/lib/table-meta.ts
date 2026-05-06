@@ -53,6 +53,7 @@ export const tablesMeta: Record<string, TableMeta> = {
       { dbName: "abbreviation", displayName: "Аббревиатура", isFK: false, required: true },
       { dbName: "instituteId", displayName: "Институт", isFK: true, references: { table: "institutes", displayField: "name" }, required: true },
       { dbName: "departmentCode", displayName: "Код кафедры", isFK: false, required: true },
+      { dbName: "headId", displayName: "Зав. кафедрой", isFK: true, references: { table: "employees", displayField: "display" } },
       { dbName: "isActive", displayName: "Активен", isFK: false, required: true, inputType: "toggle" }
     ],
   },
@@ -177,6 +178,7 @@ export const tablesMeta: Record<string, TableMeta> = {
       { dbName: "profileId", displayName: "Профиль", isFK: true, references: { table: "profiles", displayField: "profileDisplay" }, required: true },
       { dbName: "course", displayName: "Курс", isFK: false, required: true },
       { dbName: "studentCount", displayName: "Кол-во студентов", isFK: false, required: true },
+      { dbName: "curatorId", displayName: "Куратор", isFK: true, references: { table: "employees", displayField: "display" } }
     ],
   },
   units: {

@@ -50,6 +50,13 @@
       "when": 1778062457708,
       "tag": "0006_moaning_rawhide_kid",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1778088668887,
+      "tag": "0007_quiet_annihilus",
+      "breakpoints": true
     }
   ]
 }

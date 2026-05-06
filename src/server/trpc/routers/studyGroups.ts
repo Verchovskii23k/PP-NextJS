@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { router, adminProcedure } from "../trpc";
-import { studyGroups, profiles } from "@/db/schema";
-import { eq, asc, sql } from "drizzle-orm";
+import { studyGroups, profiles, specialties, employees, employeesDepartments, institutes, departments } from "@/db/schema";
+import { eq, asc, sql, and } from "drizzle-orm";
 
 export const studyGroupsRouter = router({
   list: adminProcedure.query(async ({ ctx }) => {
@@ -14,9 +14,11 @@ export const studyGroupsRouter = router({
         studentCount: studyGroups.studentCount,
         curatorId: studyGroups.curatorId,
         display: sql<string>`${studyGroups.code} || ' (' || ${profiles.letterCode} || '-' || ${profiles.name} || ')'`.as('display'),
+        curatorDisplay: sql<string>`${employees.surname} || ' ' || left(${employees.name},1) || '.' || left(${employees.patronymic},1) || '.'`.as('curator_display'),
       })
       .from(studyGroups)
       .innerJoin(profiles, eq(studyGroups.profileId, profiles.id))
+      .leftJoin(employees, eq(studyGroups.curatorId, employees.id))
       .orderBy(asc(studyGroups.code));
   }),
   get: adminProcedure
@@ -31,9 +33,11 @@ export const studyGroupsRouter = router({
           studentCount: studyGroups.studentCount,
           curatorId: studyGroups.curatorId,
           display: sql<string>`${studyGroups.code} || ' (' || ${profiles.letterCode} || '-' || ${profiles.name} || ')'`.as('display'),
+          curatorDisplay: sql<string>`${employees.surname} || ' ' || left(${employees.name},1) || '.' || left(${employees.patronymic},1) || '.'`.as('curator_display'),
         })
         .from(studyGroups)
         .innerJoin(profiles, eq(studyGroups.profileId, profiles.id))
+        .leftJoin(employees, eq(studyGroups.curatorId, employees.id))
         .where(eq(studyGroups.id, input.id))
         .limit(1);
       return rows[0] ?? null;
@@ -47,6 +51,43 @@ export const studyGroupsRouter = router({
       curatorId: z.coerce.number().int().nullable().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
+      // Проверка, что куратор принадлежит кафедре профиля
+      if (input.curatorId) {
+        // Проверка, что сотрудник не директор и не зав. кафедрой
+          const [isDirector] = await ctx.db
+            .select({ id: institutes.id })
+            .from(institutes)
+            .where(eq(institutes.directorId, input.curatorId))
+            .limit(1);
+          if (isDirector) throw new Error('Этот сотрудник является директором института и не может быть куратором');
+
+          const [isHead] = await ctx.db
+            .select({ id: departments.id })
+            .from(departments)
+            .where(eq(departments.headId, input.curatorId))
+            .limit(1);
+          if (isHead) throw new Error('Этот сотрудник является заведующим кафедрой и не может быть куратором');
+
+        // Проверка, что куратор принадлежит кафедре профиля
+        const [profile] = await ctx.db.select({ specialtyId: profiles.specialtyId })
+          .from(profiles).where(eq(profiles.id, input.profileId)).limit(1);
+        if (profile) {
+          const [specialty] = await ctx.db.select({ departmentId: specialties.departmentId })
+            .from(specialties).where(eq(specialties.id, profile.specialtyId)).limit(1);
+          if (specialty) {
+            const link = await ctx.db.select({ id: employeesDepartments.id })
+              .from(employeesDepartments)
+              .where(and(
+                eq(employeesDepartments.employeeId, input.curatorId),
+                eq(employeesDepartments.departmentId, specialty.departmentId)
+              ))
+              .limit(1);
+            if (link.length === 0) {
+              throw new Error('Выбранный куратор не работает на кафедре этого профиля');
+            }
+          }
+        }
+      }
       return ctx.db.insert(studyGroups).values(input).returning();
     }),
   update: adminProcedure
@@ -59,8 +100,38 @@ export const studyGroupsRouter = router({
       curatorId: z.coerce.number().int().nullable().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const { id, ...data } = input;
-      return ctx.db.update(studyGroups).set(data).where(eq(studyGroups.id, id)).returning();
+      const { id, curatorId, ...data } = input;
+      if (curatorId) {
+        // Проверка, что сотрудник не директор и не зав. кафедрой
+        const [isDirector] = await ctx.db.select({ id: institutes.id }).from(institutes).where(eq(institutes.directorId, curatorId)).limit(1);
+        if (isDirector) throw new Error('Этот сотрудник является директором института и не может быть куратором');
+
+        const [isHead] = await ctx.db.select({ id: departments.id }).from(departments).where(eq(departments.headId, curatorId)).limit(1);
+        if (isHead) throw new Error('Этот сотрудник является заведующим кафедрой и не может быть куратором');
+        // Определяем текущий profileId: если его передали, используем его, иначе берём из БД
+        const currentProfileId = data.profileId ?? (await ctx.db.select({ profileId: studyGroups.profileId }).from(studyGroups).where(eq(studyGroups.id, id)).limit(1))[0]?.profileId;
+        if (currentProfileId) {
+          const [profile] = await ctx.db.select({ specialtyId: profiles.specialtyId })
+            .from(profiles).where(eq(profiles.id, currentProfileId)).limit(1);
+          if (profile) {
+            const [specialty] = await ctx.db.select({ departmentId: specialties.departmentId })
+              .from(specialties).where(eq(specialties.id, profile.specialtyId)).limit(1);
+            if (specialty) {
+              const link = await ctx.db.select({ id: employeesDepartments.id })
+                .from(employeesDepartments)
+                .where(and(
+                  eq(employeesDepartments.employeeId, curatorId),
+                  eq(employeesDepartments.departmentId, specialty.departmentId)
+                ))
+                .limit(1);
+              if (link.length === 0) {
+                throw new Error('Выбранный куратор не работает на кафедре этого профиля');
+              }
+            }
+          }
+        }
+      }
+      return ctx.db.update(studyGroups).set({ ...data, curatorId }).where(eq(studyGroups.id, id)).returning();
     }),
   delete: adminProcedure
     .input(z.object({ id: z.number() }))

@@ -120,12 +120,21 @@ export function RecordForm({ tableName, editId, onClose }: RecordFormProps) {
     if (field.isFK && field.references) {
       const refTable = field.references.table;
       const refRouterKey = tablesMeta[refTable]?.routerKey;
-      const isDirector = field.dbName === "directorId";
-      const input = isDirector ? { instituteId: formValues.universityCode } : undefined;
-      const { data: options, isLoading: optionsLoading } = (trpc as any)[refRouterKey]?.list?.useQuery?.(
-        input,
-        { enabled: !isDirector || formValues.universityCode != null }
-      ) ?? { data: [], isLoading: false };
+      // Определяем параметры запроса для специальных FK
+      let input: any;
+      if (field.dbName === "directorId") {
+        input = formValues.universityCode ? { instituteId: formValues.universityCode } : undefined;
+      } else if (field.dbName === "headId") {
+        // При редактировании фильтруем по кафедре, при создании показываем всех сотрудников
+        input = editId ? { departmentId: editId } : undefined;
+      } else if (field.dbName === "curatorId") {
+        const profileId = editId ? existingData?.profileId : formValues.profileId;
+        input = profileId ? { profileId } : undefined;
+      } else {
+        input = undefined;
+      }
+       const { data: options, isLoading: optionsLoading } = (trpc as any)[refRouterKey]?.list?.useQuery?.(input)
+    ?? { data: [], isLoading: false };
 
       return (
         <div key={field.dbName} className="mb-3">

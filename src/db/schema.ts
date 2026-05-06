@@ -75,7 +75,7 @@ export const departments = pgTable("departments", {
   abbreviation: text("abbreviation").notNull().unique(),
   instituteId: integer("institute_id").notNull().references(() => institutes.id),
   departmentCode: integer("department_code").notNull().unique(),
-  headId: integer("head_id"),
+  headId: integer("head_id").references(() => employees.id),
   isActive: boolean("is_active").notNull().default(true),
 });
 
@@ -122,7 +122,7 @@ export const studyGroups = pgTable("study_groups", {
   profileId: integer("profile_id").notNull().references(() => profiles.id),
   course: integer("course").notNull(),
   studentCount: integer("student_count").notNull(),
-  curatorId: integer("curator_id"),
+  curatorId: integer("curator_id").references(() => employees.id),
 });
 
 export const students = pgTable("students", {

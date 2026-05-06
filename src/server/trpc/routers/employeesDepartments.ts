@@ -7,29 +7,29 @@ export const employeesDepartmentsRouter = router({
   list: adminProcedure
     .input(z.object({ instituteId: z.number().optional() }).optional())
     .query(async ({ ctx, input }) => {
+      // Всегда возвращаем поля самой таблицы employeesDepartments + display
       const query = ctx.db
         .select({
-          id: employees.id,
-          surname: employees.surname,
-          name: employees.name,
-          patronymic: employees.patronymic,
-          phone: employees.phone,
-          email: employees.email,
-          isActive: employees.isActive,
+          id: employeesDepartments.id,
+          employeeId: employeesDepartments.employeeId,
+          departmentId: employeesDepartments.departmentId,
+          employmentType: employeesDepartments.employmentType,
+          position: employeesDepartments.position,
+          isActive: employeesDepartments.isActive,
           display: sql<string>`${employees.surname} || ' ' || left(${employees.name},1) || '.' || left(${employees.patronymic},1) || '.'`.as('display'),
         })
-        .from(employees);
+        .from(employeesDepartments)
+        .innerJoin(employees, eq(employeesDepartments.employeeId, employees.id));
 
       if (input?.instituteId) {
-        // Оставляем только сотрудников, работающих на кафедрах этого института
         query
-          .innerJoin(employeesDepartments, eq(employees.id, employeesDepartments.employeeId))
           .innerJoin(departments, eq(employeesDepartments.departmentId, departments.id))
           .where(eq(departments.instituteId, input.instituteId));
       }
 
-      return query.orderBy(asc(employees.surname));
+      return query.orderBy(asc(sql`display`));
     }),
+  // get, create, update, delete без изменений (оставьте те, что есть сейчас)
   get: adminProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ ctx, input }) => {
@@ -40,6 +40,7 @@ export const employeesDepartmentsRouter = router({
           departmentId: employeesDepartments.departmentId,
           employmentType: employeesDepartments.employmentType,
           position: employeesDepartments.position,
+          isActive: employeesDepartments.isActive,
           display: sql<string>`${employees.surname} || ' ' || left(${employees.name},1) || '.' || left(${employees.patronymic},1) || '.'`.as('display'),
         })
         .from(employeesDepartments)

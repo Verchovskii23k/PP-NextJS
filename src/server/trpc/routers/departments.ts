@@ -1,6 +1,10 @@
+// departments.ts — исправлена деструктуризация, добавлены проверки занятости
 import { z } from "zod";
 import { router, adminProcedure } from "../trpc";
-import { departments, specialties, disciplines, classrooms, employeesDepartments } from "@/db/schema";
+import {
+  departments, specialties, disciplines, classrooms,
+  employeesDepartments, employees, institutes, studyGroups
+} from "@/db/schema";
 import { eq, asc, sql } from "drizzle-orm";
 
 export const departmentsRouter = router({
@@ -15,8 +19,10 @@ export const departmentsRouter = router({
         headId: departments.headId,
         isActive: departments.isActive,
         display: sql<string>`${departments.abbreviation} || ' - ' || ${departments.name}`.as('display'),
+        headDisplay: sql<string>`${employees.surname} || ' ' || left(${employees.name},1) || '.' || left(${employees.patronymic},1) || '.'`.as('head_display'),
       })
       .from(departments)
+      .leftJoin(employees, eq(departments.headId, employees.id))   // прямая связь
       .orderBy(asc(departments.name));
   }),
   get: adminProcedure
@@ -32,8 +38,10 @@ export const departmentsRouter = router({
           headId: departments.headId,
           isActive: departments.isActive,
           display: sql<string>`${departments.abbreviation} || ' - ' || ${departments.name}`.as('display'),
+          headDisplay: sql<string>`${employees.surname} || ' ' || left(${employees.name},1) || '.' || left(${employees.patronymic},1) || '.'`.as('head_display'),
         })
         .from(departments)
+        .leftJoin(employees, eq(departments.headId, employees.id))
         .where(eq(departments.id, input.id))
         .limit(1);
       return rows[0] ?? null;
@@ -59,10 +67,27 @@ export const departmentsRouter = router({
       isActive: z.boolean().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const { id, isActive, ...data } = input;
+      const { id, isActive, headId, ...data } = input;
+
+      if (headId) {
+        // Проверка, что сотрудник не директор
+        const [isDirector] = await ctx.db
+          .select({ id: institutes.id })
+          .from(institutes)
+          .where(eq(institutes.directorId, headId))
+          .limit(1);
+        if (isDirector) throw new Error('Этот сотрудник является директором института и не может быть заведующим кафедрой');
+
+        // Проверка, что сотрудник не куратор
+        const [isCurator] = await ctx.db
+          .select({ id: studyGroups.id })
+          .from(studyGroups)
+          .where(eq(studyGroups.curatorId, headId))
+          .limit(1);
+        if (isCurator) throw new Error('Этот сотрудник является куратором и не может быть заведующим кафедрой');
+      }
 
       if (isActive === false) {
-        // Каскадное отключение подчинённых сущностей
         await ctx.db.update(specialties).set({ isActive: false }).where(eq(specialties.departmentId, id));
         await ctx.db.update(disciplines).set({ isActive: false }).where(eq(disciplines.departmentId, id));
         await ctx.db.update(classrooms).set({ isActive: false }).where(eq(classrooms.departmentId, id));
@@ -71,7 +96,7 @@ export const departmentsRouter = router({
 
       return ctx.db
         .update(departments)
-        .set({ ...data, isActive })
+        .set({ ...data, headId, isActive })
         .where(eq(departments.id, id))
         .returning();
     }),

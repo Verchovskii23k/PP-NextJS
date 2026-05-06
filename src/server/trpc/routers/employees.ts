@@ -1,12 +1,58 @@
 import { z } from "zod";
 import { router, adminProcedure } from "../trpc";
-import { employees, employeesDepartments, departments, disciplineTeachers } from "@/db/schema";
-import { eq, and, asc, sql, inArray } from "drizzle-orm";
+import { employees, employeesDepartments, departments, specialties, profiles } from "@/db/schema";
+import { eq, asc, sql } from "drizzle-orm";
 
 export const employeesRouter = router({
   list: adminProcedure
-    .input(z.object({ instituteId: z.number().optional() }).optional())
+    .input(z.object({
+      instituteId: z.number().optional(),
+      departmentId: z.number().optional(),
+      profileId: z.number().optional(),
+    }).optional())
     .query(async ({ ctx, input }) => {
+      // Фильтр по кафедре профиля (для куратора)
+      if (input?.profileId) {
+        const [profile] = await ctx.db
+          .select({ specialtyId: profiles.specialtyId })
+          .from(profiles)
+          .where(eq(profiles.id, input.profileId))
+          .limit(1);
+        if (profile) {
+          const [specialty] = await ctx.db
+            .select({ departmentId: specialties.departmentId })
+            .from(specialties)
+            .where(eq(specialties.id, profile.specialtyId))
+            .limit(1);
+          if (specialty) {
+            return ctx.db
+              .selectDistinct({
+                id: employees.id,
+                display: sql<string>`${employees.surname} || ' ' || left(${employees.name},1) || '.' || left(${employees.patronymic},1) || '.'`.as('display'),
+              })
+              .from(employees)
+              .innerJoin(employeesDepartments, eq(employees.id, employeesDepartments.employeeId))
+              .where(eq(employeesDepartments.departmentId, specialty.departmentId))
+              .orderBy(asc(sql`display`));
+          }
+        }
+        return []; // если профиль не найден, возвращаем пустой массив
+      }
+
+      // Фильтр по кафедре (для зав. кафедрой)
+      if (input?.departmentId) {
+        return ctx.db
+          .selectDistinct({
+            id: employees.id,
+            display: sql<string>`${employees.surname} || ' ' || left(${employees.name},1) || '.' || left(${employees.patronymic},1) || '.'`.as('display'),
+          })
+          .from(employees)
+          .innerJoin(employeesDepartments, eq(employees.id, employeesDepartments.employeeId))
+          .where(eq(employeesDepartments.departmentId, input.departmentId))
+          .orderBy(asc(sql`display`));
+      }
+
+      // Фильтр по институту (для директора)
       if (input?.instituteId) {
         return ctx.db
           .selectDistinct({
@@ -20,6 +66,7 @@ export const employeesRouter = router({
           .orderBy(asc(sql`display`));
       }
 
+      // Полный список
       return ctx.db
         .select({
           id: employees.id,
@@ -53,6 +100,7 @@ export const employeesRouter = router({
         .limit(1);
       return rows[0] ?? null;
     }),
+  // create, update, delete без изменений
   create: adminProcedure
     .input(z.object({
       surname: z.string().min(1),
@@ -76,24 +124,8 @@ export const employeesRouter = router({
       isActive: z.boolean().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const { id, isActive, ...data } = input;
-
-      if (isActive === false) {
-        // Отключаем все связи сотрудника с кафедрами
-        await ctx.db.update(employeesDepartments).set({ isActive: false }).where(eq(employeesDepartments.employeeId, id));
-
-        // Отключаем все записи преподавателей дисциплин, где использовалась любая из этих связей
-        const deptIds = (await ctx.db.select({ id: employeesDepartments.id }).from(employeesDepartments).where(eq(employeesDepartments.employeeId, id))).map(r => r.id);
-        if (deptIds.length > 0) {
-          await ctx.db.update(disciplineTeachers).set({ isActive: false }).where(inArray(disciplineTeachers.teacherDepartmentId, deptIds));
-        }
-      }
-
-      return ctx.db
-        .update(employees)
-        .set({ ...data, isActive })
-        .where(eq(employees.id, id))
-        .returning();
+      const { id, ...data } = input;
+      return ctx.db.update(employees).set(data).where(eq(employees.id, id)).returning();
     }),
   delete: adminProcedure
     .input(z.object({ id: z.number() }))

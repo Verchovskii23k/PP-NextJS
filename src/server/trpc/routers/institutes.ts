@@ -1,6 +1,7 @@
+// institutes.ts — добавлены проверки занятости
 import { z } from "zod";
 import { router, adminProcedure } from "../trpc";
-import { institutes, departments } from "@/db/schema";
+import { institutes, departments, studyGroups } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
 const instituteCreateSchema = z.object({
@@ -38,6 +39,24 @@ export const institutesRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       const { id, directorId, isActive, ...data } = input;
+
+      if (directorId) {
+        // Проверка, что сотрудник не зав. кафедрой
+        const [isHead] = await ctx.db
+          .select({ id: departments.id })
+          .from(departments)
+          .where(eq(departments.headId, directorId))
+          .limit(1);
+        if (isHead) throw new Error('Этот сотрудник является заведующим кафедрой и не может быть директором');
+
+        // Проверка, что сотрудник не куратор
+        const [isCurator] = await ctx.db
+          .select({ id: studyGroups.id })
+          .from(studyGroups)
+          .where(eq(studyGroups.curatorId, directorId))
+          .limit(1);
+        if (isCurator) throw new Error('Этот сотрудник является куратором и не может быть директором');
+      }
 
       // Каскадное отключение кафедр
       if (isActive === false) {
