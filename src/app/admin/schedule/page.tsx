@@ -666,11 +666,11 @@ export default function AdminSchedulePage() {
             </label>
             <label className="block mb-2">
               <input type="checkbox" checked={flagForm.positionFlag} onChange={(e) => setFlagForm({ ...flagForm, positionFlag: e.target.checked })} />
-              <span className="ml-2">Position flag</span>
+              <span className="ml-2">Закрепить позицию занятия</span>
             </label>
             <label className="block mb-4">
               <input type="checkbox" checked={flagForm.classroomFlag} onChange={(e) => setFlagForm({ ...flagForm, classroomFlag: e.target.checked })} />
-              <span className="ml-2">Classroom flag</span>
+              <span className="ml-2">Закрепить аудиторию</span>
             </label>
             <div className="flex justify-end gap-2">
               <button onClick={() => setSelectedEntry(null)} className="bg-gray-300 px-3 py-1 rounded">Отмена</button>

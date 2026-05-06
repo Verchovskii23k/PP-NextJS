@@ -1,5 +1,6 @@
 // src/app/admin/crud/page.tsx
 "use client";
+import { trpc } from "@/trpc/client"; 
 import { useState, useEffect } from "react";
 import { tableNames } from "@/lib/table-meta";
 import { DataTable } from "./_components/DataTable";
@@ -65,6 +66,7 @@ function SortableItem({
 
 export default function AdminCrudPage() {
   const [selectedTable, setSelectedTable] = useState<string | null>(null);
+  const resetMutation = trpc.generations.resetGeneratedData.useMutation();
   const [order, setOrder] = useState<string[]>([]);
 
   useEffect(() => {
@@ -156,7 +158,27 @@ export default function AdminCrudPage() {
       </aside>
       <main className="flex-1 p-6 overflow-auto">
         {selectedTable ? (
-          <DataTable tableName={selectedTable} />
+          <>
+            <div className="mb-4">
+              <button
+                onClick={async () => {
+                  if (!window.confirm(
+                    'Будут удалены все сгенерированные данные (расписание, занятия, юниты, группы). Справочники останутся без изменений. Продолжить?'
+                  )) return;
+                  try {
+                    await resetMutation.mutateAsync();
+                    alert('Все сгенерированные данные удалены. Запустите генерацию заново.');
+                  } catch (e: any) {
+                    alert('Ошибка при сбросе: ' + e.message);
+                  }
+                }}
+                className="px-3 py-1.5 bg-red-600 text-white rounded text-sm hover:bg-red-700"
+              >
+                Сбросить всё
+              </button>
+            </div>
+            <DataTable tableName={selectedTable} />
+          </>
         ) : (
           <div className="text-gray-500 mt-10 text-center">
             Выберите таблицу для просмотра и редактирования
