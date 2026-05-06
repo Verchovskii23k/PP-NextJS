@@ -13,6 +13,7 @@ import {
   lessonTypes,
   lessonClassrooms,
   schedule,
+  profiles
 } from "@/db/schema";
 import { eq, and, inArray, sql } from "drizzle-orm";
 
@@ -84,10 +85,18 @@ export const generateLessonsRouter = router({
 
         const countPerSemester = Math.ceil(field / 2);
 
+// Профили, связанные с этим планом
         const profileRows = await ctx.db
           .select({ profileId: curriculumProfiles.profileId })
           .from(curriculumProfiles)
-          .where(eq(curriculumProfiles.curriculumId, planId));
+          .innerJoin(profiles, eq(curriculumProfiles.profileId, profiles.id))
+          .where(
+            and(
+              eq(curriculumProfiles.curriculumId, planId),
+              eq(curriculumProfiles.isActive, true),   // ← добавили
+              eq(profiles.isActive, true)
+            )
+          );
         const profileIds = profileRows.map(r => r.profileId);
         if (profileIds.length === 0) {
           problems.no_profiles = (problems.no_profiles || 0) + 1;

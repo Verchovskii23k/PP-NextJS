@@ -1,8 +1,7 @@
 import { z } from "zod";
 import { router, adminProcedure } from "../trpc";
-import { departments } from "@/db/schema";
+import { departments, specialties, disciplines, classrooms, employeesDepartments } from "@/db/schema";
 import { eq, asc, sql } from "drizzle-orm";
-import { de } from "zod/v4/locales";
 
 export const departmentsRouter = router({
   list: adminProcedure.query(async ({ ctx }) => {
@@ -31,6 +30,7 @@ export const departmentsRouter = router({
           instituteId: departments.instituteId,
           departmentCode: departments.departmentCode,
           headId: departments.headId,
+          isActive: departments.isActive,
           display: sql<string>`${departments.abbreviation} || ' - ' || ${departments.name}`.as('display'),
         })
         .from(departments)
@@ -45,7 +45,7 @@ export const departmentsRouter = router({
       instituteId: z.coerce.number().int(),
       departmentCode: z.coerce.number().int().positive(),
       headId: z.coerce.number().int().nullable().optional(),
-      isActive: z.boolean().default(true)
+      isActive: z.boolean().default(true),
     }))
     .mutation(async ({ ctx, input }) => ctx.db.insert(departments).values(input).returning()),
   update: adminProcedure
@@ -56,11 +56,24 @@ export const departmentsRouter = router({
       instituteId: z.number().int().optional(),
       departmentCode: z.number().int().positive().optional(),
       headId: z.number().int().nullable().optional(),
-      isActive: z.boolean().optional()
+      isActive: z.boolean().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const { id, ...data } = input;
-      return ctx.db.update(departments).set(data).where(eq(departments.id, id)).returning();
+      const { id, isActive, ...data } = input;
+
+      if (isActive === false) {
+        // Каскадное отключение подчинённых сущностей
+        await ctx.db.update(specialties).set({ isActive: false }).where(eq(specialties.departmentId, id));
+        await ctx.db.update(disciplines).set({ isActive: false }).where(eq(disciplines.departmentId, id));
+        await ctx.db.update(classrooms).set({ isActive: false }).where(eq(classrooms.departmentId, id));
+        await ctx.db.update(employeesDepartments).set({ isActive: false }).where(eq(employeesDepartments.departmentId, id));
+      }
+
+      return ctx.db
+        .update(departments)
+        .set({ ...data, isActive })
+        .where(eq(departments.id, id))
+        .returning();
     }),
   delete: adminProcedure
     .input(z.object({ id: z.number() }))

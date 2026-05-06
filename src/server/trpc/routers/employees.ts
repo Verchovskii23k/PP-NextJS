@@ -1,14 +1,13 @@
 import { z } from "zod";
 import { router, adminProcedure } from "../trpc";
-import { employees, employeesDepartments, departments } from "@/db/schema";
-import { eq, and, asc, sql, getTableColumns } from "drizzle-orm";
+import { employees, employeesDepartments, departments, disciplineTeachers } from "@/db/schema";
+import { eq, and, asc, sql, inArray } from "drizzle-orm";
 
 export const employeesRouter = router({
   list: adminProcedure
     .input(z.object({ instituteId: z.number().optional() }).optional())
     .query(async ({ ctx, input }) => {
       if (input?.instituteId) {
-        // Для выпадающего списка директора нужны уникальные сотрудники
         return ctx.db
           .selectDistinct({
             id: employees.id,
@@ -21,7 +20,6 @@ export const employeesRouter = router({
           .orderBy(asc(sql`display`));
       }
 
-      // Полный список сотрудников (для других таблиц)
       return ctx.db
         .select({
           id: employees.id,
@@ -78,8 +76,24 @@ export const employeesRouter = router({
       isActive: z.boolean().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const { id, ...data } = input;
-      return ctx.db.update(employees).set(data).where(eq(employees.id, id)).returning();
+      const { id, isActive, ...data } = input;
+
+      if (isActive === false) {
+        // Отключаем все связи сотрудника с кафедрами
+        await ctx.db.update(employeesDepartments).set({ isActive: false }).where(eq(employeesDepartments.employeeId, id));
+
+        // Отключаем все записи преподавателей дисциплин, где использовалась любая из этих связей
+        const deptIds = (await ctx.db.select({ id: employeesDepartments.id }).from(employeesDepartments).where(eq(employeesDepartments.employeeId, id))).map(r => r.id);
+        if (deptIds.length > 0) {
+          await ctx.db.update(disciplineTeachers).set({ isActive: false }).where(inArray(disciplineTeachers.teacherDepartmentId, deptIds));
+        }
+      }
+
+      return ctx.db
+        .update(employees)
+        .set({ ...data, isActive })
+        .where(eq(employees.id, id))
+        .returning();
     }),
   delete: adminProcedure
     .input(z.object({ id: z.number() }))

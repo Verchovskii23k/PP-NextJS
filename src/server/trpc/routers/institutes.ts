@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { router, adminProcedure } from "../trpc";
-import { institutes, employeesDepartments, departments } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { institutes, departments } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 const instituteCreateSchema = z.object({
   universityCode: z.number().int().positive(),
@@ -37,31 +37,21 @@ export const institutesRouter = router({
       isActive: z.boolean().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const { id, directorId, ...data } = input;
+      const { id, directorId, isActive, ...data } = input;
 
-      if (directorId) {
-        const institute = await ctx.db
-          .select({ universityCode: institutes.universityCode })
-          .from(institutes)
-          .where(eq(institutes.id, id))
-          .limit(1);
-        if (institute.length > 0) {
-          const link = await ctx.db
-            .select({ id: employeesDepartments.id })
-            .from(employeesDepartments)
-            .innerJoin(departments, eq(employeesDepartments.departmentId, departments.id))
-            .where(and(
-              eq(employeesDepartments.employeeId, directorId),
-              eq(departments.instituteId, institute[0].universityCode)
-            ))
-            .limit(1);
-          if (link.length === 0) {
-            throw new Error('Выбранный директор не работает на кафедре этого института');
-          }
-        }
+      // Каскадное отключение кафедр
+      if (isActive === false) {
+        await ctx.db
+          .update(departments)
+          .set({ isActive: false })
+          .where(eq(departments.instituteId, id));
       }
 
-      return ctx.db.update(institutes).set({ ...data, directorId }).where(eq(institutes.id, id)).returning();
+      return ctx.db
+        .update(institutes)
+        .set({ ...data, directorId, isActive })
+        .where(eq(institutes.id, id))
+        .returning();
     }),
   delete: adminProcedure
     .input(z.object({ id: z.number() }))

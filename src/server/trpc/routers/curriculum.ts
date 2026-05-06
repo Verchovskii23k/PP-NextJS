@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { router, adminProcedure } from "../trpc";
-import { curriculum, disciplines } from "@/db/schema";
+import { curriculum, disciplines, curriculumProfiles } from "@/db/schema";
 import { eq, asc, sql } from "drizzle-orm";
 
 export const curriculumRouter = router({
@@ -59,7 +59,7 @@ export const curriculumRouter = router({
       hoursLab: z.coerce.number().int().optional(),
       additionalTaskId: z.coerce.number().int().nullable().optional(),
       controlTypeId: z.coerce.number().int().nullable().optional(),
-      isActive: z.boolean().default(true)
+      isActive: z.boolean().default(true),
     }))
     .mutation(async ({ ctx, input }) => ctx.db.insert(curriculum).values(input).returning()),
   update: adminProcedure
@@ -74,11 +74,20 @@ export const curriculumRouter = router({
       hoursLab: z.number().int().optional(),
       additionalTaskId: z.number().int().nullable().optional(),
       controlTypeId: z.number().int().nullable().optional(),
-      isActive: z.boolean().optional()
+      isActive: z.boolean().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const { id, ...data } = input;
-      return ctx.db.update(curriculum).set(data).where(eq(curriculum.id, id)).returning();
+      const { id, isActive, ...data } = input;
+
+      if (isActive === false) {
+        await ctx.db.update(curriculumProfiles).set({ isActive: false }).where(eq(curriculumProfiles.curriculumId, id));
+      }
+
+      return ctx.db
+        .update(curriculum)
+        .set({ ...data, isActive })
+        .where(eq(curriculum.id, id))
+        .returning();
     }),
   delete: adminProcedure
     .input(z.object({ id: z.number() }))

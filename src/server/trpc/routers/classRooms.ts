@@ -18,7 +18,7 @@ export const classroomsRouter = router({
       priorityGuidedStudy: z.coerce.number().int().optional(),
       priorityLab: z.coerce.number().int().optional(),
       usageMetric: z.coerce.number().optional(),
-      isActive: z.boolean().default(true)
+      isActive: z.boolean().default(true),
     }))
     .mutation(async ({ ctx, input }) => {
       return ctx.db.insert(classrooms).values(input).returning();
@@ -35,7 +35,7 @@ export const classroomsRouter = router({
       priorityGuidedStudy: z.number().int().optional(),
       priorityLab: z.number().int().optional(),
       usageMetric: z.number().optional(),
-      isActive: z.boolean().optional()
+      isActive: z.boolean().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;
@@ -45,7 +45,7 @@ export const classroomsRouter = router({
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
       try {
-        await ctx.db.delete(classrooms).where(eq(classrooms.id, input.id));
+        await ctx.db.delete(classrooms).where(eq(classrooms.id, input.id));   // исправлено
         return { success: true };
       } catch (e: any) {
         if (e?.code === '23503' || e?.message?.includes('foreign key') || e?.cause?.code === '23503') {

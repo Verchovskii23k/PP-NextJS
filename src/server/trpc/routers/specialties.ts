@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { router, adminProcedure } from "../trpc";
-import { specialties } from "@/db/schema";
+import { specialties, profiles } from "@/db/schema";
 import { eq, asc, sql } from "drizzle-orm";
 
 export const specialtiesRouter = router({
@@ -11,7 +11,7 @@ export const specialtiesRouter = router({
         code: specialties.code,
         name: specialties.name,
         departmentId: specialties.departmentId,
-        isActive: specialties.isActive,   // ← добавили
+        isActive: specialties.isActive,
         display: sql<string>`${specialties.code} || ' - ' || ${specialties.name}`.as('display'),
       })
       .from(specialties)
@@ -26,7 +26,7 @@ export const specialtiesRouter = router({
           code: specialties.code,
           name: specialties.name,
           departmentId: specialties.departmentId,
-          isActive: specialties.isActive,   // ← добавили
+          isActive: specialties.isActive,
           display: sql<string>`${specialties.code} || ' - ' || ${specialties.name}`.as('display'),
         })
         .from(specialties)
@@ -39,7 +39,7 @@ export const specialtiesRouter = router({
       code: z.string().min(1),
       name: z.string().min(1),
       departmentId: z.coerce.number().int(),
-      isActive: z.boolean().default(true)
+      isActive: z.boolean().default(true),
     }))
     .mutation(async ({ ctx, input }) => ctx.db.insert(specialties).values(input).returning()),
   update: adminProcedure
@@ -48,11 +48,20 @@ export const specialtiesRouter = router({
       code: z.string().min(1).optional(),
       name: z.string().min(1).optional(),
       departmentId: z.coerce.number().int().optional(),
-      isActive: z.boolean().optional()
+      isActive: z.boolean().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const { id, ...data } = input;
-      return ctx.db.update(specialties).set(data).where(eq(specialties.id, id)).returning();
+      const { id, isActive, ...data } = input;
+
+      if (isActive === false) {
+        await ctx.db.update(profiles).set({ isActive: false }).where(eq(profiles.specialtyId, id));
+      }
+
+      return ctx.db
+        .update(specialties)
+        .set({ ...data, isActive })
+        .where(eq(specialties.id, id))
+        .returning();
     }),
   delete: adminProcedure
     .input(z.object({ id: z.number() }))
