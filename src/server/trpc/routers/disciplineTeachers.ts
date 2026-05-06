@@ -16,6 +16,7 @@ export const disciplineTeachersRouter = router({
       lessonTypeId: z.coerce.number().int(),
       disciplineId: z.coerce.number().int(),
       teacherDepartmentId: z.coerce.number().int(),
+      isActive: z.boolean().default(true)
     }))
     .mutation(async ({ ctx, input }) => ctx.db.insert(disciplineTeachers).values(input).returning()),
   update: adminProcedure
@@ -24,6 +25,7 @@ export const disciplineTeachersRouter = router({
       lessonTypeId: z.coerce.number().int().optional(),
       disciplineId: z.coerce.number().int().optional(),
       teacherDepartmentId: z.coerce.number().int().optional(),
+      isActive: z.boolean().optional()
     }))
     .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;
@@ -31,5 +33,15 @@ export const disciplineTeachersRouter = router({
     }),
   delete: adminProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ ctx, input }) => ctx.db.delete(disciplineTeachers).where(eq(disciplineTeachers.id, input.id))),
+    .mutation(async ({ ctx, input }) => {
+      try {
+        await ctx.db.delete(disciplineTeachers).where(eq(disciplineTeachers.id, input.id));
+        return { success: true };
+      } catch (e: any) {
+        if (e?.code === '23503' || e?.message?.includes('foreign key') || e?.cause?.code === '23503') {
+          throw new Error('Невозможно удалить – запись используется в других таблицах');
+        }
+        throw e;
+      }
+    }),
 });

@@ -10,11 +10,26 @@ export const pairsRouter = router({
   .mutation(async ({ ctx, input }) => ctx.db.insert(pairs).values(input).returning()),
 
 update: adminProcedure
-  .input(z.object({ id: z.number(), number: z.number().int().positive() }))
+  .input(z.object({ 
+    id: z.number(), 
+    number: z.number().int().positive(),
+    isActive: z.boolean().default(true)
+   }))
   .mutation(async ({ ctx, input }) => {
     const { id, number } = input;
     return ctx.db.update(pairs).set({ number }).where(eq(pairs.id, id)).returning();
   }),
-  delete: adminProcedure.input(z.object({ id: z.number() }))
-    .mutation(async ({ ctx, input }) => ctx.db.delete(pairs).where(eq(pairs.id, input.id))),
+  delete: adminProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      try {
+        await ctx.db.delete(pairs).where(eq(pairs.id, input.id));
+        return { success: true };
+      } catch (e: any) {
+        if (e?.code === '23503' || e?.message?.includes('foreign key') || e?.cause?.code === '23503') {
+          throw new Error('Невозможно удалить – запись используется в других таблицах');
+        }
+        throw e;
+      }
+    }),
 });

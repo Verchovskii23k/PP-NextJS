@@ -143,11 +143,25 @@ export function DataTable({ tableName }: DataTableProps) {
           >
             Ред.
           </button>
+
+          
           <button
             className="text-red-600 hover:text-red-800 text-sm"
-            onClick={() => {
-              if (window.confirm(`Удалить запись с ID ${row.original.id}?`))
-                deleteMutation?.mutate({ id: row.original.id });
+            onClick={async () => {
+              if (!deleteMutation || !deleteMutation.mutateAsync) {
+                alert('Удаление недоступно');
+                return;
+              }
+              if (!window.confirm(`Удалить запись с ID ${row.original.id}?`)) return;
+              try {
+                await deleteMutation.mutateAsync({ id: row.original.id });
+                // после успешного удаления инвалидируем список
+                (utils as any)[routerKey]?.list?.invalidate?.();
+              } catch (e: any) {
+                alert(e.message);
+                // после неудачного удаления всё равно перезагрузить список, чтобы восстановить состояние
+                (utils as any)[routerKey]?.list?.invalidate?.();
+              }
             }}
           >
             Удалить
@@ -301,3 +315,13 @@ export function DataTable({ tableName }: DataTableProps) {
     </div>
   );
 } 
+
+
+
+
+
+
+
+
+
+

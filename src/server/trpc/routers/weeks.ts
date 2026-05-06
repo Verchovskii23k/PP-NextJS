@@ -6,15 +6,33 @@ import { eq } from "drizzle-orm";
 export const weeksRouter = router({
   list: adminProcedure.query(async ({ ctx }) => ctx.db.select().from(weeks)),
   create: adminProcedure
-  .input(z.object({ type: z.string().min(1) }))
+  .input(z.object({ 
+    type: z.string().min(1),
+    isActive: z.boolean().default(true)
+   }))
   .mutation(async ({ ctx, input }) => ctx.db.insert(weeks).values(input).returning()),
 
 update: adminProcedure
-  .input(z.object({ id: z.number(), type: z.string().min(1) }))
+  .input(z.object({ 
+    id: z.number(), 
+    type: z.string().min(1), 
+    isActive: z.boolean().optional()
+   }))
   .mutation(async ({ ctx, input }) => {
     const { id, type } = input;
     return ctx.db.update(weeks).set({ type }).where(eq(weeks.id, id)).returning();
   }),
-  delete: adminProcedure.input(z.object({ id: z.number() }))
-    .mutation(async ({ ctx, input }) => ctx.db.delete(weeks).where(eq(weeks.id, input.id))),
+  delete: adminProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      try {
+        await ctx.db.delete(weeks).where(eq(weeks.id, input.id));
+        return { success: true };
+      } catch (e: any) {
+        if (e?.code === '23503' || e?.message?.includes('foreign key') || e?.cause?.code === '23503') {
+          throw new Error('Невозможно удалить – запись используется в других таблицах');
+        }
+        throw e;
+      }
+    }),
 });

@@ -95,8 +95,15 @@ await db.delete(settings);
     { name: "lab", abbreviation: "ЛАБ" },
   ]).returning();
   const ltMap = new Map(ltData.map(t => [t.name, t.id]));
-  // Индексы для русского соответствия: 1-lecture, 2-workshop, 3-guidedStudy, 4-lab
-  const ltByIdx = [null, ltMap.get("lecture")!, ltMap.get("workshop")!, ltMap.get("guidedStudy")!, ltMap.get("lab")!];
+
+  // Индексы теперь снова английские
+  const ltByIdx = [
+    null,
+    ltMap.get("lecture")!,
+    ltMap.get("workshop")!,
+    ltMap.get("guidedStudy")!,
+    ltMap.get("lab")!
+  ];
 
   // Контроль
   const controlTypesData = await db.insert(controlTypes).values([
@@ -116,11 +123,16 @@ await db.delete(settings);
   ]).returning();
 
   // Соответствие часов и приоритетов
+  const lectureIdx = ltByIdx[1]!;   // ненулевой оператор
+  const workshopIdx = ltByIdx[2]!;
+  const guidedStudyIdx = ltByIdx[3]!;
+  const labIdx = ltByIdx[4]!;
+
   await db.insert(hourTypeMapping).values([
-    { planHourColumn: "hours_lecture", priorityColumn: "priorityLecture", lessonTypeId: ltByIdx[1] },
-    { planHourColumn: "hours_workshop", priorityColumn: "priorityWorkshop", lessonTypeId: ltByIdx[2] },
-    { planHourColumn: "hours_guided_study", priorityColumn: "priorityGuidedStudy", lessonTypeId: ltByIdx[3] },
-    { planHourColumn: "hours_lab", priorityColumn: "priorityLab", lessonTypeId: ltByIdx[4] },
+      { planHourColumn: "hours_lecture", priorityColumn: "priorityLecture", lessonTypeId: lectureIdx },
+      { planHourColumn: "hours_workshop", priorityColumn: "priorityWorkshop", lessonTypeId: workshopIdx },
+      { planHourColumn: "hours_guided_study", priorityColumn: "priorityGuidedStudy", lessonTypeId: guidedStudyIdx },
+      { planHourColumn: "hours_lab", priorityColumn: "priorityLab", lessonTypeId: labIdx },
   ]);
 
   // Кафедры (используем instMap)
@@ -159,14 +171,14 @@ await db.delete(settings);
 
   // Преподаватели (сотрудники)
   const empData = await db.insert(employees).values([
-    { surname: "АЛЬТМАН", name: "ЕВГЕНИЙ", patronymic: "АНАТОЛЬЕВИЧ", isInactive: false },
-    { surname: "ТИХОНОВА", name: "НАТАЛЬЯ", patronymic: "АЛЕКСЕЕВНА", isInactive: false },
-    { surname: "ПАШКОВА", name: "НАТАЛЬЯ", patronymic: "ВИКТОРОВНА", isInactive: false },
-    { surname: "ЛАВРУХИН", name: "АНДРЕЙ", patronymic: "АЛЕКСАНДРОВИЧ", isInactive: false },
-    { surname: "ОКИШЕВ", name: "АНДРЕЙ", patronymic: "СЕРГЕЕВИЧ", isInactive: false },
-    { surname: "МАЛЮТИН", name: "АНДРЕЙ", patronymic: "ГЕННАДЬЕВИЧ", isInactive: false },
-    { surname: "ЦИРКИН", name: "ВИТАЛИЙ", patronymic: "СТЕПАНОВИЧ", isInactive: false },
-    { surname: "ЕЛИЗАРОВ", name: "ДМИТРИЙ", patronymic: "АЛЕКСАНДРОВИЧ", isInactive: false },
+    { surname: "АЛЬТМАН", name: "ЕВГЕНИЙ", patronymic: "АНАТОЛЬЕВИЧ", isActive: true },
+    { surname: "ТИХОНОВА", name: "НАТАЛЬЯ", patronymic: "АЛЕКСЕЕВНА", isActive: true },
+    { surname: "ПАШКОВА", name: "НАТАЛЬЯ", patronymic: "ВИКТОРОВНА", isActive: true },
+    { surname: "ЛАВРУХИН", name: "АНДРЕЙ", patronymic: "АЛЕКСАНДРОВИЧ", isActive: true },
+    { surname: "ОКИШЕВ", name: "АНДРЕЙ", patronymic: "СЕРГЕЕВИЧ", isActive: true },
+    { surname: "МАЛЮТИН", name: "АНДРЕЙ", patronymic: "ГЕННАДЬЕВИЧ", isActive: true },
+    { surname: "ЦИРКИН", name: "ВИТАЛИЙ", patronymic: "СТЕПАНОВИЧ", isActive: true },
+    { surname: "ЕЛИЗАРОВ", name: "ДМИТРИЙ", patronymic: "АЛЕКСАНДРОВИЧ", isActive: true },
   ]).returning();
 
   // Преподаватели кафедр (employees_departments)
@@ -344,7 +356,7 @@ await db.delete(settings);
   //     name,
   //     admissionYear: studentYears[i],
   //     profileId: studentProfileMap[i],
-  //     isInactive: false,
+  //     isActive: true,
   //   });
   // }
     const studentsList: { surname: string; name: string; admissionYear: number; profileLetter: string }[] = [

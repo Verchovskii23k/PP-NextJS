@@ -29,6 +29,27 @@
       "when": 1778005819790,
       "tag": "0003_melodic_wonder_man",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1778059927352,
+      "tag": "0004_cheerful_katie_power",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1778060401040,
+      "tag": "0005_majestic_sleepwalker",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1778062457708,
+      "tag": "0006_moaning_rawhide_kid",
+      "breakpoints": true
     }
   ]
 }

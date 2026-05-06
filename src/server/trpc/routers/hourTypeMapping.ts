@@ -16,6 +16,7 @@ export const hourTypeMappingRouter = router({
       planHourColumn: z.string().min(1),
       priorityColumn: z.string().min(1),
       lessonTypeId: z.coerce.number().int(),
+      isActive: z.boolean().default(true)
     }))
     .mutation(async ({ ctx, input }) => ctx.db.insert(hourTypeMapping).values(input).returning()),
   update: adminProcedure
@@ -24,6 +25,7 @@ export const hourTypeMappingRouter = router({
       planHourColumn: z.string().min(1).optional(),
       priorityColumn: z.string().min(1).optional(),
       lessonTypeId: z.coerce.number().int().optional(),
+      isActive: z.boolean().optional()
     }))
     .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;
@@ -31,5 +33,15 @@ export const hourTypeMappingRouter = router({
     }),
   delete: adminProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ ctx, input }) => ctx.db.delete(hourTypeMapping).where(eq(hourTypeMapping.id, input.id))),
+    .mutation(async ({ ctx, input }) => {
+      try {
+        await ctx.db.delete(hourTypeMapping).where(eq(hourTypeMapping.id, input.id));
+        return { success: true };
+      } catch (e: any) {
+        if (e?.code === '23503' || e?.message?.includes('foreign key') || e?.cause?.code === '23503') {
+          throw new Error('Невозможно удалить – запись используется в других таблицах');
+        }
+        throw e;
+      }
+    }),
 });

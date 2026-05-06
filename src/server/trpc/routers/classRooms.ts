@@ -18,6 +18,7 @@ export const classroomsRouter = router({
       priorityGuidedStudy: z.coerce.number().int().optional(),
       priorityLab: z.coerce.number().int().optional(),
       usageMetric: z.coerce.number().optional(),
+      isActive: z.boolean().default(true)
     }))
     .mutation(async ({ ctx, input }) => {
       return ctx.db.insert(classrooms).values(input).returning();
@@ -34,6 +35,7 @@ export const classroomsRouter = router({
       priorityGuidedStudy: z.number().int().optional(),
       priorityLab: z.number().int().optional(),
       usageMetric: z.number().optional(),
+      isActive: z.boolean().optional()
     }))
     .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;
@@ -42,7 +44,15 @@ export const classroomsRouter = router({
   delete: adminProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
-      return ctx.db.delete(classrooms).where(eq(classrooms.id, input.id));
+      try {
+        await ctx.db.delete(classrooms).where(eq(classrooms.id, input.id));
+        return { success: true };
+      } catch (e: any) {
+        if (e?.code === '23503' || e?.message?.includes('foreign key') || e?.cause?.code === '23503') {
+          throw new Error('Невозможно удалить – запись используется в других таблицах');
+        }
+        throw e;
+      }
     }),
   get: adminProcedure
   .input(z.object({ id: z.number() }))

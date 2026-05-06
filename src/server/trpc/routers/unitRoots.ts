@@ -29,5 +29,15 @@ export const unitRootsRouter = router({
     }),
   delete: adminProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ ctx, input }) => ctx.db.delete(unitRoots).where(eq(unitRoots.id, input.id))),
+    .mutation(async ({ ctx, input }) => {
+      try {
+        await ctx.db.delete(unitRoots).where(eq(unitRoots.id, input.id));
+        return { success: true };
+      } catch (e: any) {
+        if (e?.code === '23503' || e?.message?.includes('foreign key') || e?.cause?.code === '23503') {
+          throw new Error('Невозможно удалить – запись используется в других таблицах');
+        }
+        throw e;
+      }
+    }),
 });

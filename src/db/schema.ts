@@ -33,12 +33,14 @@ export const institutes = pgTable("institutes", {
   id: serial("id").primaryKey(),
   universityCode: integer("university_code").notNull().unique(),
   name: text("name").notNull(),
-  directorId: integer("director_id"),
+  directorId: integer("director_id").references(() => employees.id),
+  isActive: boolean("is_active").notNull().default(true),
 });
 
 export const buildings = pgTable("buildings", {
   id: serial("id").primaryKey(),
   number: integer("number").notNull().unique(),
+  isActive: boolean("is_active").notNull().default(true),
 });
 
 export const unitTypes = pgTable("unit_types", {
@@ -49,12 +51,14 @@ export const unitTypes = pgTable("unit_types", {
   priorityWorkshop: integer("priority_workshop").notNull().default(3),
   priorityGuidedStudy: integer("priority_guided_study").notNull().default(3),
   priorityLab: integer("priority_lab").notNull().default(3),
+  isActive: boolean("is_active").notNull().default(true),
 });
 
 export const lessonTypes = pgTable("lesson_types", {
   id: serial("id").primaryKey(),
   name: text("name").notNull().unique(),
   abbreviation: text("abbreviation").notNull().unique(),
+  isActive: boolean("is_active").notNull().default(true),
 });
 
 export const hourTypeMapping = pgTable("hour_type_mapping", {
@@ -62,6 +66,7 @@ export const hourTypeMapping = pgTable("hour_type_mapping", {
   planHourColumn: text("plan_hour_column").notNull().unique(),
   priorityColumn: text("priority_column").notNull(),
   lessonTypeId: integer("lesson_type_id").notNull().references(() => lessonTypes.id),
+  isActive: boolean("is_active").notNull().default(true),
 });
 
 export const departments = pgTable("departments", {
@@ -71,6 +76,7 @@ export const departments = pgTable("departments", {
   instituteId: integer("institute_id").notNull().references(() => institutes.id),
   departmentCode: integer("department_code").notNull().unique(),
   headId: integer("head_id"),
+  isActive: boolean("is_active").notNull().default(true),
 });
 
 export const specialties = pgTable("specialties", {
@@ -78,6 +84,7 @@ export const specialties = pgTable("specialties", {
   code: text("code").notNull().unique(),
   name: text("name").notNull(),
   departmentId: integer("department_id").notNull().references(() => departments.id),
+  isActive: boolean("is_active").notNull().default(true),
 });
 
 export const profiles = pgTable("profiles", {
@@ -85,6 +92,7 @@ export const profiles = pgTable("profiles", {
   name: text("name").notNull(),
   specialtyId: integer("specialty_id").notNull().references(() => specialties.id),
   letterCode: text("letter_code").notNull(),
+  isActive: boolean("is_active").notNull().default(true),
 }, (table) => ({
   uniqueProfileCode: unique("unique_profile_code").on(table.letterCode, table.specialtyId),
 }));
@@ -94,6 +102,7 @@ export const disciplines = pgTable("disciplines", {
   name: text("name").notNull(),
   abbreviation: text("abbreviation").notNull(),
   departmentId: integer("department_id").notNull().references(() => departments.id),
+  isActive: boolean("is_active").notNull().default(true),
 });
 
 export const employees = pgTable("employees", {
@@ -134,12 +143,14 @@ export const educationLevels = pgTable("education_levels", {
   id: serial("id").primaryKey(),
   name: text("name").notNull().unique(),
   abbreviation: text("abbreviation"),
+  isActive: boolean("is_active").notNull().default(true),
 });
 
 export const educationForms = pgTable("education_forms", {
   id: serial("id").primaryKey(),
   name: text("name").notNull().unique(),
   abbreviation: text("abbreviation"),
+  isActive: boolean("is_active").notNull().default(true),
 });
 
 export const education = pgTable("education", {
@@ -147,20 +158,24 @@ export const education = pgTable("education", {
   levelId: integer("level_id").notNull().references(() => educationLevels.id),
   formId: integer("form_id").notNull().references(() => educationForms.id),
   durationMonths: integer("duration_months"),
+  isActive: boolean("is_active").notNull().default(true),
 }, (table) => ({
   uniqueCombination: unique().on(table.levelId, table.formId),
+  
 }));
 
 export const academicLoadTypes = pgTable("academic_load_types", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   abbreviation: text("abbreviation"),
+  isActive: boolean("is_active").notNull().default(true),
 });
 
 export const controlTypes = pgTable("control_types", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   abbreviation: text("abbreviation"),
+  isActive: boolean("is_active").notNull().default(true),
 });
 
 export const curriculum = pgTable("curriculum", {
@@ -174,14 +189,17 @@ export const curriculum = pgTable("curriculum", {
   hoursLab: integer("hours_lab").default(0),
   additionalTaskId: integer("additional_task_id").references(() => academicLoadTypes.id),
   controlTypeId: integer("control_type_id").references(() => controlTypes.id),
+  isActive: boolean("is_active").notNull().default(true),
 });
 
 export const curriculumProfiles = pgTable("curriculum_profiles", {
   id: serial("id").primaryKey(),
   curriculumId: integer("curriculum_id").notNull().references(() => curriculum.id),
   profileId: integer("profile_id").notNull().references(() => profiles.id),
+  isActive: boolean("is_active").notNull().default(true),
 }, (table) => ({
   uniqueCurriculumProfile: unique().on(table.curriculumId, table.profileId),
+
 }));
 
 export const employeesDepartments = pgTable("employees_departments", {
@@ -190,6 +208,7 @@ export const employeesDepartments = pgTable("employees_departments", {
   departmentId: integer("department_id").notNull().references(() => departments.id),
   employmentType: text("employment_type"),
   position: text("position"),
+  isActive: boolean("is_active").notNull().default(true),
 }, (table) => ({
   uniqueEmployeeDepartment: unique().on(table.employeeId, table.departmentId),
 }));
@@ -199,6 +218,7 @@ export const disciplineTeachers = pgTable("discipline_teachers", {
   lessonTypeId: integer("lesson_type_id").notNull().references(() => lessonTypes.id),
   disciplineId: integer("discipline_id").notNull().references(() => disciplines.id),
   teacherDepartmentId: integer("teacher_department_id").notNull().references(() => employeesDepartments.id),
+  isActive: boolean("is_active").notNull().default(true),
 });
 
 export const classrooms = pgTable("classrooms", {
@@ -212,6 +232,7 @@ export const classrooms = pgTable("classrooms", {
   priorityGuidedStudy: integer("priority_guided_study").default(3),
   priorityLab: integer("priority_lab").default(3),
   usageMetric: integer("usage_metric").default(0),
+  isActive: boolean("is_active").notNull().default(true),
 });
 
 export const units = pgTable("units", {
@@ -249,16 +270,19 @@ export const lessonClassrooms = pgTable("lesson_classrooms", {
 export const daysOfWeek = pgTable("days_of_week", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
+  isActive: boolean("is_active").notNull().default(true),
 });
 
 export const pairs = pgTable("pairs", {
   id: serial("id").primaryKey(),
   number: integer("number").notNull(),
+  isActive: boolean("is_active").notNull().default(true),
 });
 
 export const weeks = pgTable("weeks", {
   id: serial("id").primaryKey(),
   type: text("type").notNull(),
+  isActive: boolean("is_active").notNull().default(true),
 });
 
 export const schedule = pgTable("schedule", {

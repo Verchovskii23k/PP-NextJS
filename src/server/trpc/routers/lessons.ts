@@ -21,6 +21,7 @@ export const lessonsRouter = router({
       disciplineId: z.coerce.number().int(),
       teacherId: z.coerce.number().int().nullable().optional(),
       countPerSemester: z.coerce.number().int(),
+      isActive: z.boolean().default(true)
     }))
     .mutation(async ({ ctx, input }) => {
       return ctx.db.insert(lessons).values(input).returning();
@@ -34,6 +35,7 @@ export const lessonsRouter = router({
       disciplineId: z.number().int().optional(),
       teacherId: z.number().int().nullable().optional(),
       countPerSemester: z.number().int().optional(),
+      isActive: z.boolean().optional()
     }))
     .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;
@@ -42,6 +44,14 @@ export const lessonsRouter = router({
   delete: adminProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
-      return ctx.db.delete(lessons).where(eq(lessons.id, input.id));
+      try {
+        await ctx.db.delete(lessons).where(eq(lessons.id, input.id));
+        return { success: true };
+      } catch (e: any) {
+        if (e?.code === '23503' || e?.message?.includes('foreign key') || e?.cause?.code === '23503') {
+          throw new Error('Невозможно удалить – запись используется в других таблицах');
+        }
+        throw e;
+      }
     }),
 });

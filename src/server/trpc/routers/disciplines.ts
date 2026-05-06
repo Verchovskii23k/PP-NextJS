@@ -13,6 +13,7 @@ export const disciplinesRouter = router({
       name: z.string().min(1),
       abbreviation: z.string().optional(),
       departmentId: z.coerce.number().int(),
+      isActive: z.boolean().default(true)
     }))
     .mutation(async ({ ctx, input }) => {
       return ctx.db.insert(disciplines).values(input).returning();
@@ -23,6 +24,7 @@ export const disciplinesRouter = router({
       name: z.string().min(1).optional(),
       abbreviation: z.string().min(1),
       departmentId: z.coerce.number().int().optional(),
+      isActive: z.boolean().optional()
     }))
     .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;
@@ -31,7 +33,15 @@ export const disciplinesRouter = router({
   delete: adminProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
-      return ctx.db.delete(disciplines).where(eq(disciplines.id, input.id));
+      try {
+        await ctx.db.delete(disciplines).where(eq(disciplines.id, input.id));
+        return { success: true };
+      } catch (e: any) {
+        if (e?.code === '23503' || e?.message?.includes('foreign key') || e?.cause?.code === '23503') {
+          throw new Error('Невозможно удалить – запись используется в других таблицах');
+        }
+        throw e;
+      }
     }),
   get: adminProcedure
   .input(z.object({ id: z.number() }))

@@ -15,6 +15,7 @@ export const unitTypesRouter = router({
       priorityWorkshop: z.coerce.number().int().optional(),
       priorityGuidedStudy: z.coerce.number().int().optional(),
       priorityLab: z.coerce.number().int().optional(),
+      isActive: z.boolean().default(true)
     }))
     .mutation(async ({ ctx, input }) => {
       return ctx.db.insert(unitTypes).values(input).returning();
@@ -28,6 +29,7 @@ export const unitTypesRouter = router({
       priorityWorkshop: z.coerce.number().int().optional(),
       priorityGuidedStudy: z.coerce.number().int().optional(),
       priorityLab: z.coerce.number().int().optional(),
+      isActive: z.boolean().optional()
     }))
     .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;
@@ -36,7 +38,15 @@ export const unitTypesRouter = router({
   delete: adminProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
-      return ctx.db.delete(unitTypes).where(eq(unitTypes.id, input.id));
+      try {
+        await ctx.db.delete(unitTypes).where(eq(unitTypes.id, input.id));
+        return { success: true };
+      } catch (e: any) {
+        if (e?.code === '23503' || e?.message?.includes('foreign key') || e?.cause?.code === '23503') {
+          throw new Error('Невозможно удалить – запись используется в других таблицах');
+        }
+        throw e;
+      }
     }),
   get: adminProcedure
   .input(z.object({ id: z.number() }))
@@ -45,7 +55,7 @@ export const unitTypesRouter = router({
     return rows[0] ?? null;
   }),
   getByName: adminProcedure
-  .input(z.object({ name: z.string() }))
+  .input(z.object({ name: z.string(), }))
   .query(async ({ ctx, input }) => {
     const rows = await ctx.db.select().from(unitTypes).where(eq(unitTypes.name, input.name)).limit(1);
     return rows[0] ?? null;

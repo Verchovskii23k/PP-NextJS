@@ -110,6 +110,7 @@ export function RecordForm({ tableName, editId, onClose }: RecordFormProps) {
   };
 
   const renderField = (field: FieldMeta) => {
+    if (!editId && field.showInCreate === false) return null;
     if (field.dbName === "id") return null;
     const value = formValues[field.dbName] ?? (field.isFK ? null : "");
     const hasError = !!errors[field.dbName];
@@ -119,8 +120,12 @@ export function RecordForm({ tableName, editId, onClose }: RecordFormProps) {
     if (field.isFK && field.references) {
       const refTable = field.references.table;
       const refRouterKey = tablesMeta[refTable]?.routerKey;
-      const { data: options, isLoading: optionsLoading } =
-        (trpc as any)[refRouterKey]?.list?.useQuery?.() ?? { data: [], isLoading: false };
+      const isDirector = field.dbName === "directorId";
+      const input = isDirector ? { instituteId: formValues.universityCode } : undefined;
+      const { data: options, isLoading: optionsLoading } = (trpc as any)[refRouterKey]?.list?.useQuery?.(
+        input,
+        { enabled: !isDirector || formValues.universityCode != null }
+      ) ?? { data: [], isLoading: false };
 
       return (
         <div key={field.dbName} className="mb-3">

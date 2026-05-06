@@ -1,38 +1,97 @@
-
 import { z } from "zod";
 import { router, adminProcedure } from "../trpc";
-import { employees } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { employees, employeesDepartments, departments } from "@/db/schema";
+import { eq, and, asc, sql, getTableColumns } from "drizzle-orm";
 
 export const employeesRouter = router({
-  list: adminProcedure.query(async ({ ctx }) => {
-    return ctx.db.select().from(employees);
-  }),
-  create: adminProcedure
-  .input(z.object({
-    surname: z.string().min(1),
-    name: z.string().min(1),
-    patronymic: z.string().optional(),
-    phone: z.string().nullable().optional(),
-    email: z.string().email().nullable().optional(),
-    isActive: z.boolean().default(true),         // ← новое поле
-  }))
-  .mutation(async ({ ctx, input }) => {
-    return ctx.db.insert(employees).values(input).returning();
-  }),
+  list: adminProcedure
+    .input(z.object({ instituteId: z.number().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      if (input?.instituteId) {
+        // Для выпадающего списка директора нужны уникальные сотрудники
+        return ctx.db
+          .selectDistinct({
+            id: employees.id,
+            display: sql<string>`${employees.surname} || ' ' || left(${employees.name},1) || '.' || left(${employees.patronymic},1) || '.'`.as('display'),
+          })
+          .from(employees)
+          .innerJoin(employeesDepartments, eq(employees.id, employeesDepartments.employeeId))
+          .innerJoin(departments, eq(employeesDepartments.departmentId, departments.id))
+          .where(eq(departments.instituteId, input.instituteId))
+          .orderBy(asc(sql`display`));
+      }
 
-update: adminProcedure
-  .input(z.object({
-    id: z.number(),
-    surname: z.string().min(1).optional(),
-    name: z.string().min(1).optional(),
-    patronymic: z.string().optional(),
-    phone: z.string().nullable().optional(),
-    email: z.string().email().nullable().optional(),
-    isActive: z.boolean().optional(),           // ← новое поле
-  }))
-  .mutation(async ({ ctx, input }) => {
-    const { id, ...data } = input;
-    return ctx.db.update(employees).set(data).where(eq(employees.id, id)).returning();
-  }),
+      // Полный список сотрудников (для других таблиц)
+      return ctx.db
+        .select({
+          id: employees.id,
+          surname: employees.surname,
+          name: employees.name,
+          patronymic: employees.patronymic,
+          phone: employees.phone,
+          email: employees.email,
+          isActive: employees.isActive,
+          display: sql<string>`${employees.surname} || ' ' || left(${employees.name},1) || '.' || left(${employees.patronymic},1) || '.'`.as('display'),
+        })
+        .from(employees)
+        .orderBy(asc(employees.surname));
+    }),
+  get: adminProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ ctx, input }) => {
+      const rows = await ctx.db
+        .select({
+          id: employees.id,
+          surname: employees.surname,
+          name: employees.name,
+          patronymic: employees.patronymic,
+          phone: employees.phone,
+          email: employees.email,
+          isActive: employees.isActive,
+          display: sql<string>`${employees.surname} || ' ' || left(${employees.name},1) || '.' || left(${employees.patronymic},1) || '.'`.as('display'),
+        })
+        .from(employees)
+        .where(eq(employees.id, input.id))
+        .limit(1);
+      return rows[0] ?? null;
+    }),
+  create: adminProcedure
+    .input(z.object({
+      surname: z.string().min(1),
+      name: z.string().min(1),
+      patronymic: z.string().optional(),
+      phone: z.string().nullable().optional(),
+      email: z.string().email().nullable().optional(),
+      isActive: z.boolean().default(true),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      return ctx.db.insert(employees).values(input).returning();
+    }),
+  update: adminProcedure
+    .input(z.object({
+      id: z.number(),
+      surname: z.string().min(1).optional(),
+      name: z.string().min(1).optional(),
+      patronymic: z.string().optional(),
+      phone: z.string().nullable().optional(),
+      email: z.string().email().nullable().optional(),
+      isActive: z.boolean().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { id, ...data } = input;
+      return ctx.db.update(employees).set(data).where(eq(employees.id, id)).returning();
+    }),
+  delete: adminProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      try {
+        await ctx.db.delete(employees).where(eq(employees.id, input.id));
+        return { success: true };
+      } catch (e: any) {
+        if (e?.code === '23503' || e?.message?.includes('foreign key') || e?.cause?.code === '23503') {
+          throw new Error('Невозможно удалить – запись используется в других таблицах');
+        }
+        throw e;
+      }
+    }),
 });

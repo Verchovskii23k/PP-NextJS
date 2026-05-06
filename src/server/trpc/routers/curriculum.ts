@@ -1,14 +1,49 @@
 import { z } from "zod";
 import { router, adminProcedure } from "../trpc";
-import { curriculum } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { curriculum, disciplines } from "@/db/schema";
+import { eq, asc, sql } from "drizzle-orm";
 
 export const curriculumRouter = router({
-  list: adminProcedure.query(async ({ ctx }) => ctx.db.select().from(curriculum)),
+  list: adminProcedure.query(async ({ ctx }) => {
+    return ctx.db
+      .select({
+        id: curriculum.id,
+        course: curriculum.course,
+        semester: curriculum.semester,
+        disciplineId: curriculum.disciplineId,
+        hoursLecture: curriculum.hoursLecture,
+        hoursGuidedStudy: curriculum.hoursGuidedStudy,
+        hoursWorkshop: curriculum.hoursWorkshop,
+        hoursLab: curriculum.hoursLab,
+        additionalTaskId: curriculum.additionalTaskId,
+        controlTypeId: curriculum.controlTypeId,
+        display: sql<string>`${curriculum.course} || ' курс, ' || ${curriculum.semester} || ' сем. – ' || ${disciplines.abbreviation}`.as('display'),
+      })
+      .from(curriculum)
+      .innerJoin(disciplines, eq(curriculum.disciplineId, disciplines.id))
+      .orderBy(asc(curriculum.course), asc(curriculum.semester));
+  }),
   get: adminProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ ctx, input }) => {
-      const rows = await ctx.db.select().from(curriculum).where(eq(curriculum.id, input.id)).limit(1);
+      const rows = await ctx.db
+        .select({
+          id: curriculum.id,
+          course: curriculum.course,
+          semester: curriculum.semester,
+          disciplineId: curriculum.disciplineId,
+          hoursLecture: curriculum.hoursLecture,
+          hoursGuidedStudy: curriculum.hoursGuidedStudy,
+          hoursWorkshop: curriculum.hoursWorkshop,
+          hoursLab: curriculum.hoursLab,
+          additionalTaskId: curriculum.additionalTaskId,
+          controlTypeId: curriculum.controlTypeId,
+          display: sql<string>`${curriculum.course} || ' курс, ' || ${curriculum.semester} || ' сем. – ' || ${disciplines.abbreviation}`.as('display'),
+        })
+        .from(curriculum)
+        .innerJoin(disciplines, eq(curriculum.disciplineId, disciplines.id))
+        .where(eq(curriculum.id, input.id))
+        .limit(1);
       return rows[0] ?? null;
     }),
   create: adminProcedure
@@ -22,6 +57,7 @@ export const curriculumRouter = router({
       hoursLab: z.coerce.number().int().optional(),
       additionalTaskId: z.coerce.number().int().nullable().optional(),
       controlTypeId: z.coerce.number().int().nullable().optional(),
+      isActive: z.boolean().default(true)
     }))
     .mutation(async ({ ctx, input }) => ctx.db.insert(curriculum).values(input).returning()),
   update: adminProcedure
@@ -36,6 +72,7 @@ export const curriculumRouter = router({
       hoursLab: z.number().int().optional(),
       additionalTaskId: z.number().int().nullable().optional(),
       controlTypeId: z.number().int().nullable().optional(),
+      isActive: z.boolean().optional()
     }))
     .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;
@@ -43,5 +80,15 @@ export const curriculumRouter = router({
     }),
   delete: adminProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ ctx, input }) => ctx.db.delete(curriculum).where(eq(curriculum.id, input.id))),
+    .mutation(async ({ ctx, input }) => {
+      try {
+        await ctx.db.delete(curriculum).where(eq(curriculum.id, input.id));
+        return { success: true };
+      } catch (e: any) {
+        if (e?.code === '23503' || e?.message?.includes('foreign key') || e?.cause?.code === '23503') {
+          throw new Error('Невозможно удалить – запись используется в других таблицах');
+        }
+        throw e;
+      }
+    }),
 });
