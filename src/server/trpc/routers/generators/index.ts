@@ -5,6 +5,8 @@ import { generateLessonsRouter } from "./generateLessons";
 import {assignClassroomsRouter} from "./assignClassrooms"
 import { generateScheduleRouter } from "./generateSchedule";
 import { clearGeneratedData } from "./clearGeneratedData";
+import { generateCredentialsRouter } from "./generateCredentials";
+
 
 export const generationsRouter = router({
   ...generateGroupsRouter._def.procedures,
@@ -12,6 +14,7 @@ export const generationsRouter = router({
   ...generateLessonsRouter._def.procedures,
   ...assignClassroomsRouter._def.procedures,
   ...generateScheduleRouter._def.procedures,
+  ...generateCredentialsRouter._def.procedures,
   resetGeneratedData: adminProcedure.mutation(async () => {
     await clearGeneratedData();
     return { success: true };

@@ -13,7 +13,7 @@ const sections = [
   { title: "Генерации", description: "Запуск генерации расписания", href: "/admin/generations", icon: Cog, available: true },
   { title: "Расписание", description: "Просмотр и экспорт расписания", href: "/admin/schedule", icon: CalendarDays, available: true },
   { title: "Настройки аккаунта", description: "Личные данные и безопасность", href: "#", icon: UserCog, available: false },
-  { title: "Логины и пароли", description: "Генерация учётных записей", href: "#", icon: KeyRound, available: false },
+  { title: "Логины и пароли", description: "Генерация учётных записей", href: "/admin/credentials", icon: KeyRound, available: true },
 ];
 
 export default function AdminDashboard() {
