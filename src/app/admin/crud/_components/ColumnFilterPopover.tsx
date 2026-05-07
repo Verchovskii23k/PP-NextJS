@@ -7,7 +7,7 @@ import { tablesMeta, type FieldMeta } from "@/lib/table-meta";
 interface ColumnFilterPopoverProps {
   field: FieldMeta;
   allValues: any[];
-  currentFilter: any[] | undefined;   // массив исключаемых ID
+  currentFilter: any[] | undefined;
   onFilterChange: (excludedValues: any[] | undefined) => void;
 }
 
@@ -85,18 +85,18 @@ export function ColumnFilterPopover({
       <button
         type="button"
         onClick={handleOpenClick}
-        className="text-gray-400 hover:text-gray-600 text-xs"
+        className="text-muted-foreground hover:text-foreground text-xs"
       >
         🔍
       </button>
       {open && (
         <div
-          className="absolute left-0 top-full mt-1 z-50 w-56 bg-white border border-gray-200 rounded-lg shadow-lg p-2"
+          className="absolute left-0 top-full mt-1 z-50 w-56 bg-background border border-border rounded-lg shadow-lg p-2"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex justify-between items-center mb-1">
-            <span className="text-xs font-medium text-gray-600">Фильтр</span>
-            <button onClick={() => setOpen(false)} className="text-gray-400 hover:text-gray-600 text-xs px-1">
+            <span className="text-xs font-medium text-muted-foreground">Фильтр</span>
+            <button onClick={() => setOpen(false)} className="text-muted-foreground hover:text-foreground text-xs px-1">
               ✕
             </button>
           </div>
@@ -104,11 +104,11 @@ export function ColumnFilterPopover({
             placeholder="Поиск..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="w-full border border-gray-300 rounded px-2 py-1 text-sm mb-2"
+            className="w-full border border-border rounded px-2 py-1 text-sm mb-2 bg-background text-foreground placeholder:text-muted-foreground"
           />
           <div className="max-h-48 overflow-y-auto space-y-1">
             {filteredItems.map(id => (
-              <label key={id} className="flex items-center space-x-2 text-sm cursor-pointer hover:bg-gray-100 px-1 py-0.5 rounded">
+              <label key={id} className="flex items-center space-x-2 text-sm cursor-pointer hover:bg-muted/50 px-1 py-0.5 rounded text-foreground">
                 <input
                   type="checkbox"
                   checked={!excludedSet.has(id)}
@@ -118,17 +118,17 @@ export function ColumnFilterPopover({
               </label>
             ))}
             {filteredItems.length === 0 && (
-              <div className="text-sm text-gray-500">Нет значений</div>
+              <div className="text-sm text-muted-foreground">Нет значений</div>
             )}
           </div>
           <div className="flex justify-between mt-2">
             <button
               onClick={handleReset}
-              className="text-xs text-blue-600 hover:text-blue-800"
+              className="text-xs text-primary hover:text-primary/90"
             >
               Сбросить все
             </button>
-            <span className="text-xs text-gray-400">
+            <span className="text-xs text-muted-foreground">
               {uniqueIds.length - excludedSet.size} / {uniqueIds.length}
             </span>
           </div>

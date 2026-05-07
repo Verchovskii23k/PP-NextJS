@@ -84,10 +84,12 @@ function SortableItem({
       {...attributes}
       {...listeners}
       className={`flex items-center gap-2 px-3 py-2 rounded cursor-grab ${
-        isActive ? "bg-blue-500 text-white" : "hover:bg-gray-200"
+        isActive
+          ? "bg-primary text-white"
+          : "hover:bg-muted/70 text-foreground"
       }`}
     >
-      <span className="text-gray-400 cursor-grab select-none">⠿</span>
+      <span className="text-muted-foreground cursor-grab select-none">⠿</span>
       {icon && <span className="text-base leading-none">{icon}</span>}
       <button
         onClick={(e) => {
@@ -171,8 +173,8 @@ export default function AdminCrudPage() {
 
   return (
     <div className="flex h-screen">
-      <aside className="w-64 bg-gray-100 p-4 overflow-y-auto border-r">
-        <h2 className="text-lg font-semibold mb-4">Таблицы</h2>
+      <aside className="w-64 bg-muted p-4 overflow-y-auto border-r border-border">
+        <h2 className="text-lg font-semibold mb-4 text-foreground">Таблицы</h2>
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
@@ -197,7 +199,7 @@ export default function AdminCrudPage() {
           </SortableContext>
         </DndContext>
       </aside>
-      <main className="flex-1 p-6 overflow-auto">
+      <main className="flex-1 p-6 overflow-auto bg-background">
         {selectedTable ? (
           <>
             <div className="mb-4">
@@ -224,7 +226,7 @@ export default function AdminCrudPage() {
             <DataTable tableName={selectedTable} />
           </>
         ) : (
-          <div className="text-gray-500 mt-10 text-center">
+          <div className="text-muted-foreground mt-10 text-center">
             Выберите таблицу для просмотра и редактирования
           </div>
         )}

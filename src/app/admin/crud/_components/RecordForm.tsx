@@ -20,6 +20,12 @@ function isNumericField(field: FieldMeta): boolean {
   );
 }
 
+interface RecordFormProps {
+  tableName: string;
+  editId: number | null;
+  onClose: () => void;
+}
+
 export function RecordForm({ tableName, editId, onClose }: RecordFormProps) {
   const meta = tablesMeta[tableName];
   if (!meta) return null;
@@ -44,7 +50,6 @@ export function RecordForm({ tableName, editId, onClose }: RecordFormProps) {
         if (f.isFK) {
           initial[f.dbName] = null;
         } else if (TOGGLE_FIELDS.has(f.dbName)) {
-          // Значение по умолчанию для isActive = true, для флагов = false
           initial[f.dbName] = f.dbName === "isActive" ? true : false;
         } else if (isNumericField(f)) {
           initial[f.dbName] = null;
@@ -120,12 +125,10 @@ export function RecordForm({ tableName, editId, onClose }: RecordFormProps) {
     if (field.isFK && field.references) {
       const refTable = field.references.table;
       const refRouterKey = tablesMeta[refTable]?.routerKey;
-      // Определяем параметры запроса для специальных FK
       let input: any;
       if (field.dbName === "directorId") {
         input = formValues.universityCode ? { instituteId: formValues.universityCode } : undefined;
       } else if (field.dbName === "headId") {
-        // При редактировании фильтруем по кафедре, при создании показываем всех сотрудников
         input = editId ? { departmentId: editId } : undefined;
       } else if (field.dbName === "curatorId") {
         const profileId = editId ? existingData?.profileId : formValues.profileId;
@@ -133,24 +136,27 @@ export function RecordForm({ tableName, editId, onClose }: RecordFormProps) {
       } else {
         input = undefined;
       }
-       const { data: options, isLoading: optionsLoading } = (trpc as any)[refRouterKey]?.list?.useQuery?.(input)
-    ?? { data: [], isLoading: false };
+      const { data: options, isLoading: optionsLoading } = (trpc as any)[refRouterKey]?.list?.useQuery?.(input) ?? { data: [], isLoading: false };
 
       return (
         <div key={field.dbName} className="mb-3">
-          <label className="block text-sm font-medium mb-1">
+          <label className="block text-sm font-medium mb-1 text-foreground">
             {field.displayName}
             {field.required && <span className="text-red-500 ml-1">*</span>}
           </label>
           <select
             value={value ?? ""}
             onChange={(e) => handleChange(field.dbName, e.target.value === "" ? null : Number(e.target.value))}
-            className={`border rounded px-3 py-1.5 w-full ${hasError ? "border-red-500" : "border-gray-300"}`}
+            className={`border rounded px-3 py-1.5 w-full bg-background text-foreground ${
+              hasError ? "border-red-500" : "border-border"
+            }`}
             disabled={optionsLoading}
           >
             <option value="">-- Не выбрано --</option>
             {options?.map((opt: any) => (
-              <option key={opt.id} value={opt.id}>{opt[field.references!.displayField] ?? opt.id}</option>
+              <option key={opt.id} value={opt.id}>
+                {opt[field.references!.displayField] ?? opt.id}
+              </option>
             ))}
           </select>
           {hasError && <p className="text-red-500 text-xs mt-1">{errorMsg}</p>}
@@ -163,14 +169,14 @@ export function RecordForm({ tableName, editId, onClose }: RecordFormProps) {
       const isActive = !!value;
       return (
         <div key={field.dbName} className="mb-3">
-          <label className="block text-sm font-medium mb-1">
+          <label className="block text-sm font-medium mb-1 text-foreground">
             {field.displayName}
             {field.required && <span className="text-red-500 ml-1">*</span>}
           </label>
           <button
             type="button"
             className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
-              isActive ? "bg-blue-600" : "bg-gray-300"
+              isActive ? "bg-primary" : "bg-gray-300 dark:bg-gray-600"
             }`}
             onClick={() => handleChange(field.dbName, !isActive)}
           >
@@ -180,7 +186,9 @@ export function RecordForm({ tableName, editId, onClose }: RecordFormProps) {
               }`}
             />
           </button>
-          <span className="ml-2 text-xs text-gray-500">{isActive ? (field.displayName === "Активен" ? "Да" : "Вкл") : (field.displayName === "Активен" ? "Нет" : "Выкл")}</span>
+          <span className="ml-2 text-xs text-muted-foreground">
+            {isActive ? (field.displayName === "Активен" ? "Да" : "Вкл") : (field.displayName === "Активен" ? "Нет" : "Выкл")}
+          </span>
           {hasError && <p className="text-red-500 text-xs mt-1">{errorMsg}</p>}
         </div>
       );
@@ -189,7 +197,7 @@ export function RecordForm({ tableName, editId, onClose }: RecordFormProps) {
     // Обычные текст/числа
     return (
       <div key={field.dbName} className="mb-3">
-        <label className="block text-sm font-medium mb-1">
+        <label className="block text-sm font-medium mb-1 text-foreground">
           {field.displayName}
           {field.required && <span className="text-red-500 ml-1">*</span>}
         </label>
@@ -204,7 +212,9 @@ export function RecordForm({ tableName, editId, onClose }: RecordFormProps) {
               handleChange(field.dbName, e.target.value);
             }
           }}
-          className={`border rounded px-3 py-1.5 w-full ${hasError ? "border-red-500" : "border-gray-300"}`}
+          className={`border rounded px-3 py-1.5 w-full bg-background text-foreground ${
+            hasError ? "border-red-500" : "border-border"
+          }`}
         />
         {hasError && <p className="text-red-500 text-xs mt-1">{errorMsg}</p>}
       </div>
@@ -215,16 +225,27 @@ export function RecordForm({ tableName, editId, onClose }: RecordFormProps) {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <h2 className="text-lg font-semibold mb-4">
+      <div className="bg-background border border-border rounded-lg shadow-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <h2 className="text-lg font-semibold mb-4 text-foreground">
           {editId ? `Редактировать запись (ID: ${editId})` : `Создать запись в таблице «${meta.nameRu}»`}
         </h2>
         <form onSubmit={handleSubmit}>
           {meta.fields.map(renderField)}
           {errors._form && <p className="text-red-500 text-sm mb-3">{errors._form}</p>}
           <div className="flex justify-end gap-2 mt-4">
-            <button type="button" onClick={onClose} className="px-4 py-1.5 border border-gray-300 rounded text-sm" disabled={isPending}>Отмена</button>
-            <button type="submit" className="px-4 py-1.5 bg-blue-500 text-white rounded text-sm hover:bg-blue-600" disabled={isPending}>
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-1.5 border border-border bg-background text-foreground rounded text-sm hover:bg-muted/50"
+              disabled={isPending}
+            >
+              Отмена
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-1.5 bg-primary text-white rounded text-sm hover:bg-primary/90"
+              disabled={isPending}
+            >
               {isPending ? "Сохранение..." : "Сохранить"}
             </button>
           </div>

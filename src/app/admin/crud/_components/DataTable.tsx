@@ -1,4 +1,4 @@
-// src/app/admin/crud/_components/DataTable.tsx (окончательная версия)
+// src/app/admin/crud/_components/DataTable.tsx (адаптирован под тему)
 "use client";
 import * as React from "react";
 import {
@@ -72,7 +72,7 @@ export function DataTable({ tableName }: DataTableProps) {
           const visibleRows = table.getRowModel().rows;
           const rowIndex = visibleRows.findIndex(r => r.id === row.id);
           return (
-            <span className="text-gray-500 text-xs">
+            <span className="text-muted-foreground text-xs">
               {pagination.pageIndex * pagination.pageSize + rowIndex + 1}
             </span>
           );
@@ -133,7 +133,7 @@ export function DataTable({ tableName }: DataTableProps) {
       cell: ({ row }: any) => (
         <div className="flex gap-2">
           <button
-            className="text-blue-600 hover:text-blue-800 text-sm"
+            className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm"
             onClick={() => {
               setEditId(row.original.id);
               setShowForm(true);
@@ -143,7 +143,7 @@ export function DataTable({ tableName }: DataTableProps) {
           </button>
 
           <button
-            className="text-red-600 hover:text-red-800 text-sm"
+            className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 text-sm"
             onClick={async () => {
               if (!deleteMutation || !deleteMutation.mutateAsync) {
                 alert('Удаление недоступно');
@@ -204,10 +204,10 @@ export function DataTable({ tableName }: DataTableProps) {
           placeholder="Поиск по всем полям..."
           value={globalFilter}
           onChange={e => setGlobalFilter(e.target.value)}
-          className="border border-gray-300 rounded px-3 py-1.5 text-sm max-w-sm"
+          className="border border-border rounded px-3 py-1.5 text-sm max-w-sm bg-background text-foreground placeholder:text-muted-foreground"
         />
         <button
-          className="px-3 py-1.5 bg-blue-500 text-white rounded text-sm hover:bg-blue-600"
+          className="px-3 py-1.5 bg-primary text-white rounded text-sm hover:bg-primary/90"
           onClick={() => {
             setEditId(null);
             setShowForm(true);
@@ -216,18 +216,18 @@ export function DataTable({ tableName }: DataTableProps) {
           Добавить
         </button>
       </div>
-      <div className="overflow-x-auto rounded border border-gray-200">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
+      <div className="overflow-x-auto rounded border border-border">
+        <table className="min-w-full divide-y divide-border">
+          <thead className="bg-muted">
             {table.getHeaderGroups().map(headerGroup => (
               <tr key={headerGroup.id}>
                 {headerGroup.headers.map(header => (
                   <th
                     key={header.id}
                     colSpan={header.colSpan}
-                    className={`px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ${
+                    className={`px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground ${
                       header.column.getCanSort()
-                        ? "cursor-pointer select-none hover:bg-gray-100"
+                        ? "cursor-pointer select-none hover:bg-muted/70"
                         : ""
                     }`}
                     onClick={header.column.getToggleSortingHandler()}
@@ -243,12 +243,12 @@ export function DataTable({ tableName }: DataTableProps) {
               </tr>
             ))}
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200 min-h-[300px]">
+          <tbody className="bg-background divide-y divide-border min-h-[300px]">
             {table.getRowModel().rows.length === 0 ? (
               <tr>
                 <td
                   colSpan={columns.length}
-                  className="px-4 py-4 text-center text-sm text-gray-500 align-middle"
+                  className="px-4 py-4 text-center text-sm text-muted-foreground align-middle"
                 >
                   <div className="flex items-center justify-center h-full min-h-[250px]">
                     Нет данных
@@ -259,14 +259,14 @@ export function DataTable({ tableName }: DataTableProps) {
               table.getRowModel().rows.map(row => (
                 <tr
                   key={row.id}
-                  className={`hover:bg-gray-50 ${
-                    row.original.isActive === false ? "bg-red-100" : ""
+                  className={`hover:bg-muted/50 ${
+                    row.original.isActive === false ? "bg-red-50 dark:bg-red-900/20" : ""
                   }`}
                 >
                   {row.getVisibleCells().map(cell => (
                     <td
                       key={cell.id}
-                      className="px-4 py-2 whitespace-nowrap text-sm text-gray-700"
+                      className="px-4 py-2 whitespace-nowrap text-sm text-foreground"
                     >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </td>
@@ -279,19 +279,19 @@ export function DataTable({ tableName }: DataTableProps) {
       </div>
       {table.getPageCount() > 1 && (
         <div className="flex items-center justify-between mt-4">
-          <div className="text-sm text-gray-600">
+          <div className="text-sm text-muted-foreground">
             Страница {pagination.pageIndex + 1} из {table.getPageCount()}
           </div>
           <div className="flex gap-2">
             <button
-              className="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50"
+              className="px-3 py-1 border border-border bg-background text-foreground rounded text-sm disabled:opacity-50"
               onClick={() => table.previousPage()}
               disabled={!table.getCanPreviousPage()}
             >
               Назад
             </button>
             <button
-              className="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50"
+              className="px-3 py-1 border border-border bg-background text-foreground rounded text-sm disabled:opacity-50"
               onClick={() => table.nextPage()}
               disabled={!table.getCanNextPage()}
             >

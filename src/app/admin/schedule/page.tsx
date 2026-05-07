@@ -45,7 +45,7 @@ function DraggableLesson({ entry, isEditMode }: { entry: ScheduleRow; isEditMode
       {...attributes}
       className={`text-xs p-1 rounded leading-tight cursor-default ${isDragging ? "opacity-50" : ""} ${
         isEditMode ? "hover:ring-2 hover:ring-blue-300 cursor-grab" : ""
-      }`}
+      } bg-card dark:bg-gray-700 text-foreground`}
       style={style}
     >
       {entry.displayText}
@@ -68,20 +68,22 @@ function DroppableArea({ week, dayId, pairId, unitCode, entry, isEditMode, statu
 
   let bg = "";
   if (isEditMode) {
-    if (status === "free") bg = "bg-green-100";
-    else if (status === "conflict") bg = "bg-red-100";
-    else if (status === "swap") bg = "bg-blue-100";
+    if (status === "free") bg = "bg-green-100 dark:bg-green-900/20";
+    else if (status === "conflict") bg = "bg-red-100 dark:bg-red-900/20";
+    else if (status === "swap") bg = "bg-blue-100 dark:bg-blue-900/20";
     if (isOver) bg += " ring-2 ring-blue-500";
   } else {
     if (entry) {
-      bg = week % 2 === 1 ? "bg-green-100" : "bg-amber-100";
+      bg = week % 2 === 1
+        ? "bg-green-100 dark:bg-green-900/20"
+        : "bg-amber-100 dark:bg-amber-900/20";
     }
   }
 
   const entryBg = entry
     ? week % 2 === 1
-      ? "bg-green-100 border border-green-200"
-      : "bg-amber-100 border border-amber-200"
+      ? "bg-green-100 dark:bg-green-900/20 border border-green-200 dark:border-green-800"
+      : "bg-amber-100 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800"
     : "";
 
   return (
@@ -93,11 +95,13 @@ function DroppableArea({ week, dayId, pairId, unitCode, entry, isEditMode, statu
     >
       {entry ? (
         <div className={`flex items-center gap-1 p-1 rounded ${entryBg}`}>
-          <span className="text-gray-500 font-mono text-[10px]">{week % 2 === 1 ? "н." : "ч."}</span>
+          <span className="text-muted-foreground font-mono text-[10px]">
+            {week % 2 === 1 ? "н." : "ч."}
+          </span>
           <DraggableLesson entry={entry} isEditMode={isEditMode} />
         </div>
       ) : (
-        <span className="text-gray-300 text-xs">—</span>
+        <span className="text-muted-foreground text-xs">—</span>
       )}
     </div>
   );
@@ -114,12 +118,12 @@ function BufferEntry({ entry }: { entry: ScheduleRow }) {
       ref={setNodeRef}
       {...listeners}
       {...attributes}
-      className={`flex items-center gap-1 text-xs p-1 bg-amber-50 border border-amber-200 rounded mb-1 cursor-grab ${
+      className={`flex items-center gap-1 text-xs p-1 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded mb-1 cursor-grab ${
         isDragging ? "opacity-50" : ""
       }`}
       style={style}
     >
-      <span className="truncate">{entry.displayText}</span>
+      <span className="truncate text-foreground">{entry.displayText}</span>
     </div>
   );
 }
@@ -134,15 +138,15 @@ function BufferZone({ entries, isEditMode }: { entries: ScheduleRow[]; isEditMod
   return (
     <div
       ref={setNodeRef}
-      className={`border border-dashed border-gray-400 bg-gray-50 p-2 w-56 flex-shrink-0 overflow-y-auto rounded h-full ${
-        isOver ? "bg-blue-50 ring-2 ring-blue-300" : ""
+      className={`border border-dashed border-border bg-muted p-2 w-56 flex-shrink-0 overflow-y-auto rounded h-full ${
+        isOver ? "bg-blue-50 dark:bg-blue-900/30 ring-2 ring-blue-500" : ""
       }`}
     >
-      <div className="text-xs font-bold mb-2 sticky top-0 bg-gray-50 py-1">Буфер</div>
+      <div className="text-xs font-bold mb-2 sticky top-0 bg-muted py-1 text-foreground">Буфер</div>
       {entries.map(entry => (
         <BufferEntry key={entry.id} entry={entry} />
       ))}
-      {entries.length === 0 && <div className="text-xs text-gray-400">Пусто</div>}
+      {entries.length === 0 && <div className="text-xs text-muted-foreground">Пусто</div>}
     </div>
   );
 }
@@ -455,26 +459,44 @@ export default function AdminSchedulePage() {
   const bufferEntries = bufferData || [];
 
   return (
-    <div className="p-4">
+    <div className="p-4 bg-background text-foreground">
       <h1 className="text-xl font-bold mb-4">Расписание</h1>
 
-      <div className="flex flex-wrap gap-4 mb-4 p-3 bg-gray-50 rounded border text-sm">
-        <div className="flex items-center gap-2"><span className="inline-block w-4 h-4 rounded bg-green-100 border border-green-200"></span> Нечётная неделя</div>
-        <div className="flex items-center gap-2"><span className="inline-block w-4 h-4 rounded bg-amber-100 border border-amber-200"></span> Чётная неделя</div>
+      <div className="flex flex-wrap gap-4 mb-4 p-3 bg-muted rounded border border-border text-sm">
+        <div className="flex items-center gap-2">
+          <span className="inline-block w-4 h-4 rounded bg-green-100 dark:bg-green-900/20 border border-green-200 dark:border-green-800"></span> Нечётная неделя
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="inline-block w-4 h-4 rounded bg-amber-100 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800"></span> Чётная неделя
+        </div>
         {editMode && (
           <>
-            <div className="flex items-center gap-2"><span className="inline-block w-4 h-4 rounded bg-green-300 border border-green-400"></span> Свободно</div>
-            <div className="flex items-center gap-2"><span className="inline-block w-4 h-4 rounded bg-red-300 border border-red-400"></span> Конфликт</div>
-            <div className="flex items-center gap-2"><span className="inline-block w-4 h-4 rounded bg-blue-300 border border-blue-400"></span> Обмен</div>
+            <div className="flex items-center gap-2">
+              <span className="inline-block w-4 h-4 rounded bg-green-300 dark:bg-green-900/20 border border-green-400 dark:border-green-800"></span> Свободно
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="inline-block w-4 h-4 rounded bg-red-300 dark:bg-red-900/20 border border-red-400 dark:border-red-800"></span> Конфликт
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="inline-block w-4 h-4 rounded bg-blue-300 dark:bg-blue-900/20 border border-blue-400 dark:border-blue-800"></span> Обмен
+            </div>
           </>
         )}
       </div>
 
       <div className="flex gap-4 mb-4">
-        <button onClick={() => setViewMode("units")} className={viewMode === "units" ? "font-bold border-b-2 border-blue-500" : ""}>По юнитам</button>
-        <button onClick={() => setViewMode("groups")} className={viewMode === "groups" ? "font-bold border-b-2 border-blue-500" : ""}>По группам</button>
-        <button onClick={handlePrint} className="bg-blue-600 text-white px-3 py-1 rounded ml-2">🖨️ Печать</button>
-        <button onClick={handleCSV} className="bg-green-600 text-white px-3 py-1 rounded ml-2">📥 CSV</button>
+        <button onClick={() => setViewMode("units")} className={viewMode === "units" ? "font-bold border-b-2 border-blue-500" : ""}>
+          По юнитам
+        </button>
+        <button onClick={() => setViewMode("groups")} className={viewMode === "groups" ? "font-bold border-b-2 border-blue-500" : ""}>
+          По группам
+        </button>
+        <button onClick={handlePrint} className="bg-blue-600 text-white px-3 py-1 rounded ml-2 hover:bg-blue-700">
+          🖨️ Печать
+        </button>
+        <button onClick={handleCSV} className="bg-green-600 text-white px-3 py-1 rounded ml-2 hover:bg-green-700">
+          📥 CSV
+        </button>
 
         <button
           onClick={() => {
@@ -491,7 +513,7 @@ export default function AdminSchedulePage() {
         </button>
 
         {viewMode === "units" && (
-          <button onClick={() => setEditMode(!editMode)} className="ml-auto bg-blue-500 text-white px-3 py-1 rounded">
+          <button onClick={() => setEditMode(!editMode)} className="ml-auto bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600">
             {editMode ? "Завершить редактирование" : "Редактировать"}
           </button>
         )}
@@ -505,14 +527,23 @@ export default function AdminSchedulePage() {
 
           <div className="flex-1 overflow-auto" id="schedule-table">
             {viewMode === "units" && unitsData && (
-              <div className="overflow-x-auto border border-gray-300 rounded-md">
+              <div className="overflow-x-auto border border-border rounded-md">
                 <table className="border-collapse text-sm w-full">
                   <thead>
-                    <tr className="bg-gray-100">
-                      <th className="sticky left-0 z-20 bg-gray-100 border border-gray-400 p-2 w-[70px] min-w-[70px]">День</th>
-                      <th className="sticky left-[70px] z-20 bg-gray-100 border border-gray-400 p-2 w-[50px] min-w-[50px]">Пара</th>
+                    <tr className="bg-muted">
+                      <th className="sticky left-0 z-20 bg-muted border border-border p-2 w-[70px] min-w-[70px] text-foreground">
+                        День
+                      </th>
+                      <th className="sticky left-[70px] z-20 bg-muted border border-border p-2 w-[50px] min-w-[50px] text-foreground">
+                        Пара
+                      </th>
                       {Array.from(new Set(unitsData.rows.map((r) => r.unitCode))).sort().map((code) => (
-                        <th key={code} className="border border-gray-400 p-2 bg-blue-50 whitespace-nowrap min-w-[180px]">{code}</th>
+                        <th
+                          key={code}
+                          className="border border-border p-2 bg-blue-50 dark:bg-blue-900/30 text-foreground whitespace-nowrap min-w-[180px]"
+                        >
+                          {code}
+                        </th>
                       ))}
                     </tr>
                   </thead>
@@ -523,11 +554,16 @@ export default function AdminSchedulePage() {
                         return (
                           <tr key={`${day.id}-${pair.id}`}>
                             {isFirstPairOfDay && (
-                              <td rowSpan={unitsData.pairs.length} className="sticky left-0 z-10 bg-white border border-gray-400 p-2 font-medium text-center align-top" style={{ backgroundColor: "#fff" }}>
+                              <td
+                                rowSpan={unitsData.pairs.length}
+                                className="sticky left-0 z-10 bg-background border border-border p-2 font-medium text-center align-top"
+                              >
                                 {day.name}
                               </td>
                             )}
-                            <td className="sticky left-[70px] z-10 bg-white border border-gray-400 p-2 text-center align-top">{pair.number}</td>
+                            <td className="sticky left-[70px] z-10 bg-background border border-border p-2 text-center align-top">
+                              {pair.number}
+                            </td>
                             {Array.from(new Set(unitsData.rows.map((r) => r.unitCode))).sort().map((code) => {
                               const oddEntry = unitsData.rows.find(
                                 (r) => r.unitCode === code && r.dayOfWeekId === day.id && r.pairNumberId === pair.id && r.weekNumber === weekBase
@@ -536,9 +572,9 @@ export default function AdminSchedulePage() {
                                 (r) => r.unitCode === code && r.dayOfWeekId === day.id && r.pairNumberId === pair.id && r.weekNumber === weekBase + 1
                               );
                               return (
-                                <td key={`${day.id}-${pair.id}-${code}`} className="border border-gray-300 p-1 min-w-[180px] align-top">
+                                <td key={`${day.id}-${pair.id}-${code}`} className="border border-border p-1 min-w-[180px] align-top">
                                   <div className="flex flex-col">
-                                    <div className="border-b border-dashed border-gray-300 pb-1 mb-1">
+                                    <div className="border-b border-dashed border-border pb-1 mb-1">
                                       <DroppableArea
                                         week={weekBase}
                                         dayId={day.id}
@@ -576,14 +612,23 @@ export default function AdminSchedulePage() {
             )}
 
             {viewMode === "groups" && groupsData && (
-              <div className="overflow-x-auto border border-gray-300 rounded-md">
+              <div className="overflow-x-auto border border-border rounded-md">
                 <table className="border-collapse text-sm w-full">
                   <thead>
-                    <tr className="bg-gray-100">
-                      <th className="sticky left-0 z-20 bg-gray-100 border border-gray-400 p-2 w-[70px] min-w-[70px]">День</th>
-                      <th className="sticky left-[70px] z-20 bg-gray-100 border border-gray-400 p-2 w-[50px] min-w-[50px]">Пара</th>
+                    <tr className="bg-muted">
+                      <th className="sticky left-0 z-20 bg-muted border border-border p-2 w-[70px] min-w-[70px] text-foreground">
+                        День
+                      </th>
+                      <th className="sticky left-[70px] z-20 bg-muted border border-border p-2 w-[50px] min-w-[50px] text-foreground">
+                        Пара
+                      </th>
                       {Array.from(new Set(groupsData.rows.map((r: any) => r.studyGroupCode))).sort().map((code) => (
-                        <th key={code} className="border border-gray-400 p-2 bg-blue-50 whitespace-nowrap min-w-[180px]">{code}</th>
+                        <th
+                          key={code}
+                          className="border border-border p-2 bg-blue-50 dark:bg-blue-900/30 text-foreground whitespace-nowrap min-w-[180px]"
+                        >
+                          {code}
+                        </th>
                       ))}
                     </tr>
                   </thead>
@@ -594,11 +639,16 @@ export default function AdminSchedulePage() {
                         return (
                           <tr key={`${day.id}-${pair.id}`}>
                             {isFirstPairOfDay && (
-                              <td rowSpan={groupsData.pairs.length} className="sticky left-0 z-10 bg-white border border-gray-400 p-2 font-medium text-center align-top" style={{ backgroundColor: "#fff" }}>
+                              <td
+                                rowSpan={groupsData.pairs.length}
+                                className="sticky left-0 z-10 bg-background border border-border p-2 font-medium text-center align-top"
+                              >
                                 {day.name}
                               </td>
                             )}
-                            <td className="sticky left-[70px] z-10 bg-white border border-gray-400 p-2 text-center align-top">{pair.number}</td>
+                            <td className="sticky left-[70px] z-10 bg-background border border-border p-2 text-center align-top">
+                              {pair.number}
+                            </td>
                             {Array.from(new Set(groupsData.rows.map((r: any) => r.studyGroupCode))).sort().map((code) => {
                               const oddEntry = groupsData.rows.find(
                                 (r: any) => r.studyGroupCode === code && r.dayOfWeekId === day.id && r.pairNumberId === pair.id && r.weekNumber === weekBase
@@ -607,29 +657,41 @@ export default function AdminSchedulePage() {
                                 (r: any) => r.studyGroupCode === code && r.dayOfWeekId === day.id && r.pairNumberId === pair.id && r.weekNumber === weekBase + 1
                               );
                               return (
-                                <td key={code} className="border border-gray-300 p-1 min-w-[180px] align-top">
+                                <td key={code} className="border border-border p-1 min-w-[180px] align-top">
                                   <div className="flex flex-col">
-                                    <div data-week="odd" className="border-b border-dashed border-gray-300 pb-1 mb-1">
-                                      <div className={`text-xs p-1 rounded leading-tight border ${oddEntry ? "bg-green-100 border-green-200" : "border-dashed border-gray-200"}`}>
+                                    <div data-week="odd" className="border-b border-dashed border-border pb-1 mb-1">
+                                      <div
+                                        className={`text-xs p-1 rounded leading-tight border ${
+                                          oddEntry
+                                            ? "bg-green-100 dark:bg-green-900/20 border-green-200 dark:border-green-800"
+                                            : "border-dashed border-border"
+                                        }`}
+                                      >
                                         {oddEntry ? (
                                           <div className="flex items-center gap-1">
-                                            <span className="text-gray-500 font-mono text-[10px]">н.</span>
-                                            <span className="truncate">{oddEntry.displayText}</span>
+                                            <span className="text-muted-foreground font-mono text-[10px]">н.</span>
+                                            <span className="truncate text-foreground">{oddEntry.displayText}</span>
                                           </div>
                                         ) : (
-                                          <span className="text-gray-300">—</span>
+                                          <span className="text-muted-foreground">—</span>
                                         )}
                                       </div>
                                     </div>
                                     <div data-week="even" className="pt-1">
-                                      <div className={`text-xs p-1 rounded leading-tight border ${evenEntry ? "bg-amber-100 border-amber-200" : "border-dashed border-gray-200"}`}>
+                                      <div
+                                        className={`text-xs p-1 rounded leading-tight border ${
+                                          evenEntry
+                                            ? "bg-amber-100 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800"
+                                            : "border-dashed border-border"
+                                        }`}
+                                      >
                                         {evenEntry ? (
                                           <div className="flex items-center gap-1">
-                                            <span className="text-gray-500 font-mono text-[10px]">ч.</span>
-                                            <span className="truncate">{evenEntry.displayText}</span>
+                                            <span className="text-muted-foreground font-mono text-[10px]">ч.</span>
+                                            <span className="truncate text-foreground">{evenEntry.displayText}</span>
                                           </div>
                                         ) : (
-                                          <span className="text-gray-300">—</span>
+                                          <span className="text-muted-foreground">—</span>
                                         )}
                                       </div>
                                     </div>
@@ -650,31 +712,42 @@ export default function AdminSchedulePage() {
 
         <DragOverlay>
           {activeDragEntry ? (
-            <div className="bg-white border shadow p-2 rounded text-xs">{activeDragEntry.displayText}</div>
+            <div className="bg-background border border-border shadow p-2 rounded text-xs text-foreground">
+              {activeDragEntry.displayText}
+            </div>
           ) : null}
         </DragOverlay>
       </DndContext>
 
       {selectedEntry && (
         <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded shadow-lg w-80">
-            <h2 className="font-bold mb-4">Редактирование занятия</h2>
-            <div className="text-sm mb-2">{selectedEntry.displayText}</div>
-            <label className="block mb-2">
+          <div className="bg-background p-6 rounded shadow-lg w-80 border border-border">
+            <h2 className="font-bold mb-4 text-foreground">Редактирование занятия</h2>
+            <div className="text-sm mb-2 text-foreground">{selectedEntry.displayText}</div>
+            <label className="block mb-2 text-foreground">
               Номер слияния:
-              <input type="number" value={flagForm.mergeNumber} onChange={(e) => setFlagForm({ ...flagForm, mergeNumber: +e.target.value })} className="border rounded px-2 py-1 w-full" />
+              <input
+                type="number"
+                value={flagForm.mergeNumber}
+                onChange={(e) => setFlagForm({ ...flagForm, mergeNumber: +e.target.value })}
+                className="border border-border rounded px-2 py-1 w-full bg-background text-foreground"
+              />
             </label>
-            <label className="block mb-2">
+            <label className="block mb-2 text-foreground">
               <input type="checkbox" checked={flagForm.positionFlag} onChange={(e) => setFlagForm({ ...flagForm, positionFlag: e.target.checked })} />
               <span className="ml-2">Закрепить позицию занятия</span>
             </label>
-            <label className="block mb-4">
+            <label className="block mb-4 text-foreground">
               <input type="checkbox" checked={flagForm.classroomFlag} onChange={(e) => setFlagForm({ ...flagForm, classroomFlag: e.target.checked })} />
               <span className="ml-2">Закрепить аудиторию</span>
             </label>
             <div className="flex justify-end gap-2">
-              <button onClick={() => setSelectedEntry(null)} className="bg-gray-300 px-3 py-1 rounded">Отмена</button>
-              <button onClick={saveFlags} className="bg-blue-500 text-white px-3 py-1 rounded">Сохранить</button>
+              <button onClick={() => setSelectedEntry(null)} className="bg-muted text-foreground px-3 py-1 rounded hover:bg-muted/70">
+                Отмена
+              </button>
+              <button onClick={saveFlags} className="bg-primary text-white px-3 py-1 rounded hover:bg-primary/90">
+                Сохранить
+              </button>
             </div>
           </div>
         </div>
@@ -682,11 +755,10 @@ export default function AdminSchedulePage() {
 
       {showRegenDialog && (
         <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded shadow-lg w-96">
-            <h2 className="font-bold mb-4">Перегенерация расписания</h2>
-            <p className="text-sm mb-4">
-              В буфере находится {bufferEntries.length} занятий.
-              Выберите вариант перегенерации:
+          <div className="bg-background p-6 rounded shadow-lg w-96 border border-border">
+            <h2 className="font-bold mb-4 text-foreground">Перегенерация расписания</h2>
+            <p className="text-sm mb-4 text-foreground">
+              В буфере находится {bufferEntries.length} занятий. Выберите вариант перегенерации:
             </p>
             <div className="flex gap-2 justify-end">
               <button
@@ -703,11 +775,11 @@ export default function AdminSchedulePage() {
                   setShowRegenDialog(false);
                   handleRegenerate(true);
                 }}
-                className="bg-blue-500 text-white px-3 py-1 rounded"
+                className="bg-primary text-white px-3 py-1 rounded"
               >
                 С буфером
               </button>
-              <button onClick={() => setShowRegenDialog(false)} className="bg-gray-300 px-3 py-1 rounded">
+              <button onClick={() => setShowRegenDialog(false)} className="bg-muted text-foreground px-3 py-1 rounded">
                 Отмена
               </button>
             </div>

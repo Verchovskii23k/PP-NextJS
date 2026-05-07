@@ -1,10 +1,11 @@
-import { TRPCProvider } from "@/trpc/provider";
+import Providers from "@/components/Providers";
 import "./globals.css";
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="ru">
+    <html lang="ru" suppressHydrationWarning>
       <body>
-        <TRPCProvider>{children}</TRPCProvider>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

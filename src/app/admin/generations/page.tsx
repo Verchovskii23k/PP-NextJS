@@ -1,4 +1,3 @@
-// src/app/admin/generations/page.tsx
 "use client";
 import { trpc } from "@/trpc/client";
 import { useState, useEffect } from "react";
@@ -116,22 +115,22 @@ export default function GenerationsPage() {
   });
 
   // ---------- Рендер ----------
-  if (thresholdLoading || weeksLoading) return <div className="p-6">Загрузка настроек...</div>;
+  if (thresholdLoading || weeksLoading) return <div className="p-6 text-foreground">Загрузка настроек...</div>;
 
   return (
-    <div className="p-6 max-w-3xl mx-auto">
+    <div className="p-6 max-w-3xl mx-auto bg-background text-foreground">
       <h1 className="text-2xl font-bold mb-6">Системные генераторы</h1>
       {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+        <div className="bg-red-100 dark:bg-red-900/20 border border-red-400 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded mb-4">
           {error}
         </div>
       )}
 
       {/* Карточка: Группы */}
-      <div className="bg-white rounded-lg shadow p-4 mb-4">
+      <div className="bg-background border border-border rounded-lg shadow-sm p-4 mb-4">
         <h2 className="text-lg font-semibold mb-2">1. Учебные группы</h2>
         <button
-          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded disabled:opacity-50"
+          className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded disabled:opacity-50"
           onClick={() => groups.mutate()}
           disabled={groups.isPending}
         >
@@ -139,46 +138,45 @@ export default function GenerationsPage() {
         </button>
       </div>
 
-      {/* Карточка: Юниты + порог подгруппы */}
-      <div className="bg-white rounded-lg shadow p-4 mb-4">
+      {/* Карточка: Юниты + порог подгруппы + семестр */}
+      <div className="bg-background border border-border rounded-lg shadow-sm p-4 mb-4">
         <h2 className="text-lg font-semibold mb-2">2. Юниты</h2>
         <div className="flex flex-wrap items-center gap-3">
-          <label className="text-sm text-gray-600">Макс. размер подгруппы:</label>
+          <label className="text-sm text-muted-foreground">Макс. размер подгруппы:</label>
           <input
             type="number"
             value={threshold ?? ""}
             onChange={(e) => setThreshold(Number(e.target.value))}
-            className="border border-gray-300 rounded px-2 py-1 w-24"
-            placeholder="Загрузка..."
+            className="border border-border rounded px-2 py-1 w-24 bg-background text-foreground placeholder:text-muted-foreground"
+            placeholder="..."
           />
           <button
-            className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm"
+            className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm"
             onClick={handleSaveThreshold}
             disabled={updateThreshold.isPending}
           >
             {updateThreshold.isPending ? "..." : "ОК"}
           </button>
           <button
-            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded disabled:opacity-50"
+            className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded disabled:opacity-50"
             onClick={() => units.mutate()}
             disabled={units.isPending}
           >
             {units.isPending ? "Генерация..." : "Сгенерировать юниты"}
           </button>
-          {/* Блок: Текущий семестр */}
           <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-600">Текущий семестр:</label>
+            <label className="text-sm text-muted-foreground">Текущий семестр:</label>
             <input
               type="number"
               min={1}
               max={12}
               value={semesterInput ?? ""}
               onChange={(e) => setSemesterInput(Number(e.target.value))}
-              className="border border-gray-300 rounded px-2 py-1 w-20"
+              className="border border-border rounded px-2 py-1 w-20 bg-background text-foreground placeholder:text-muted-foreground"
               placeholder="1"
             />
             <button
-              className="bg-green-500 hover:bg-green-600 text-white px-2 py-1 rounded text-sm"
+              className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-sm"
               onClick={handleSaveSemester}
               disabled={updateSemester.isPending}
             >
@@ -189,10 +187,10 @@ export default function GenerationsPage() {
       </div>
 
       {/* Карточка: Занятия */}
-      <div className="bg-white rounded-lg shadow p-4 mb-4">
+      <div className="bg-background border border-border rounded-lg shadow-sm p-4 mb-4">
         <h2 className="text-lg font-semibold mb-2">3. Занятия</h2>
         <button
-          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded disabled:opacity-50"
+          className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded disabled:opacity-50"
           onClick={() => lessons.mutate({ currentSemester: semesterInput })}
           disabled={lessons.isPending}
         >
@@ -201,10 +199,10 @@ export default function GenerationsPage() {
       </div>
 
       {/* Карточка: Аудитории */}
-      <div className="bg-white rounded-lg shadow p-4 mb-4">
+      <div className="bg-background border border-border rounded-lg shadow-sm p-4 mb-4">
         <h2 className="text-lg font-semibold mb-2">4. Аудиторные назначения</h2>
         <button
-          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded disabled:opacity-50"
+          className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded disabled:opacity-50"
           onClick={() => classrooms.mutate()}
           disabled={classrooms.isPending}
         >
@@ -213,32 +211,29 @@ export default function GenerationsPage() {
       </div>
 
       {/* Карточка: Расписание + настройки */}
-      <div className="bg-white rounded-lg shadow p-4 mb-4">
+      <div className="bg-background border border-border rounded-lg shadow-sm p-4 mb-4">
         <h2 className="text-lg font-semibold mb-2">5. Расписание</h2>
         <div className="flex flex-wrap items-center gap-4 mb-3">
-          {/* Блок: Всего недель */}
           <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-600">Всего недель:</label>
+            <label className="text-sm text-muted-foreground">Всего недель:</label>
             <input
               type="number"
               value={totalWeeksInput ?? ""}
               onChange={(e) => setTotalWeeksInput(Number(e.target.value))}
-              className="border border-gray-300 rounded px-2 py-1 w-20"
+              className="border border-border rounded px-2 py-1 w-20 bg-background text-foreground placeholder:text-muted-foreground"
               placeholder="18"
             />
             <button
-              className="bg-green-500 hover:bg-green-600 text-white px-2 py-1 rounded text-sm"
+              className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-sm"
               onClick={handleSaveTotalWeeks}
               disabled={updateTotalWeeks.isPending}
             >
               {updateTotalWeeks.isPending ? "..." : "OK"}
             </button>
           </div>
-
-          
         </div>
         <button
-          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded disabled:opacity-50"
+          className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded disabled:opacity-50"
           onClick={() =>
             schedule.mutate({
               totalWeeks: totalWeeksInput ?? 18,
