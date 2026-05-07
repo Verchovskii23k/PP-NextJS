@@ -5,6 +5,8 @@ import { eq, and } from "drizzle-orm";
 import { hashPassword, verifyPassword } from "@/server/auth/password";
 import { createSession, deleteSession } from "@/server/auth/session";
 import { cookies } from "next/headers";
+import { sendPasswordResetEmail } from "@/server/email";
+import { randomBytes } from "crypto";
 
 export const authRouter = router({
   setup: publicProcedure
@@ -252,6 +254,138 @@ export const authRouter = router({
         .update(securityCenter)
         .set({ passwordHash: newHash, passwordChangedAt: new Date() })
         .where(eq(securityCenter.id, userId));
+
+      return { success: true };
+    }),
+
+
+forgotPassword: publicProcedure
+  .input(
+    z.object({
+      login: z.string().optional(),
+      email: z.string().email().optional(),
+    }).refine(data => data.login || data.email, {
+      message: "Укажите логин или email",
+    })
+  )
+  .mutation(async ({ ctx, input }) => {
+    let user: { id: number; login: string } | undefined;
+
+    if (input.login) {
+      [user] = await ctx.db
+        .select({ id: securityCenter.id, login: securityCenter.login })
+        .from(securityCenter)
+        .where(eq(securityCenter.login, input.login))
+        .limit(1);
+    } else if (input.email) {
+      // Ищем по email среди сотрудников
+      const [emp] = await ctx.db
+        .select({ authenticationId: employees.authenticationId })
+        .from(employees)
+        .where(eq(employees.email, input.email))
+        .limit(1);
+      if (emp?.authenticationId) {
+        [user] = await ctx.db
+          .select({ id: securityCenter.id, login: securityCenter.login })
+          .from(securityCenter)
+          .where(eq(securityCenter.id, emp.authenticationId))
+          .limit(1);
+      }
+      // Если не нашли среди сотрудников – ищем студента
+      if (!user) {
+        const [stu] = await ctx.db
+          .select({ authenticationId: students.authenticationId })
+          .from(students)
+          .where(eq(students.email, input.email))
+          .limit(1);
+        if (stu?.authenticationId) {
+          [user] = await ctx.db
+            .select({ id: securityCenter.id, login: securityCenter.login })
+            .from(securityCenter)
+            .where(eq(securityCenter.id, stu.authenticationId))
+            .limit(1);
+        }
+      }
+    }
+
+    if (!user) {
+      throw new Error("Если учётная запись с такими данными существует, инструкция отправлена.");
+    }
+
+    const token = randomBytes(32).toString("hex");
+    const expires = new Date(Date.now() + 1000 * 60 * 60); // 1 час
+
+    await ctx.db
+      .update(securityCenter)
+      .set({ resetToken: token, resetTokenExpires: expires })
+      .where(eq(securityCenter.id, user.id));
+
+    // Проверяем email сотрудника / студента
+    const [emp] = await ctx.db
+      .select({ email: employees.email })
+      .from(employees)
+      .where(eq(employees.authenticationId, user.id))
+      .limit(1);
+    if (emp?.email) {
+      try {
+        const sent = await sendPasswordResetEmail(emp.email, user.login, token, false);
+        if (sent) return { message: "Инструкция отправлена на ваш email" };
+      } catch (e) {
+        console.error("Email sending failed, falling back to token", e);
+      }
+    }
+
+    const [stu] = await ctx.db
+      .select({ email: students.email })
+      .from(students)
+      .where(eq(students.authenticationId, user.id))
+      .limit(1);
+    if (stu?.email) {
+      try {
+        const sent = await sendPasswordResetEmail(stu.email, user.login, token, false);
+        if (sent) return { message: "Инструкция отправлена на ваш email" };
+      } catch (e) {
+        console.error("Email sending failed, falling back to token", e);
+      }
+    }
+
+    return { token };
+  }),
+
+  resetPassword: publicProcedure
+    .input(z.object({
+      token: z.string(),
+      newPassword: z.string().min(6),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const [user] = await ctx.db
+        .select({ id: securityCenter.id })
+        .from(securityCenter)
+        .where(eq(securityCenter.resetToken, input.token))
+        .limit(1);
+
+      if (!user) throw new Error("Токен недействителен или истёк");
+
+      // Проверим срок действия (можно было бы и в запросе, но так нагляднее)
+      const [fullUser] = await ctx.db
+        .select({ resetTokenExpires: securityCenter.resetTokenExpires })
+        .from(securityCenter)
+        .where(eq(securityCenter.id, user.id))
+        .limit(1);
+      if (!fullUser?.resetTokenExpires || fullUser.resetTokenExpires < new Date()) {
+        throw new Error("Токен истёк");
+      }
+
+      const newHash = await hashPassword(input.newPassword);
+      await ctx.db
+        .update(securityCenter)
+        .set({
+          passwordHash: newHash,
+          resetToken: null,
+          resetTokenExpires: null,
+          passwordChangedAt: new Date(),
+        })
+        .where(eq(securityCenter.id, user.id));
 
       return { success: true };
     }),

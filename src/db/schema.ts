@@ -27,6 +27,8 @@ export const securityCenter = pgTable("security_center", {
   lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
   failedLoginAttempts: integer("failed_login_attempts").default(0),
   lockedUntil: timestamp("locked_until", { withTimezone: true }),
+  resetToken: text("reset_token"),                                          // ← новое
+  resetTokenExpires: timestamp("reset_token_expires", { withTimezone: true }), // ← новое
 }, (table) => ({
   uniqueLoginPassword: unique("unique_login_password").on(table.login, table.passwordHash),
 }));
