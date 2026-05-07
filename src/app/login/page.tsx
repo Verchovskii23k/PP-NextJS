@@ -1,18 +1,18 @@
 "use client";
 import { useState } from "react";
 import { trpc } from "@/trpc/client";
-import { useRouter } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react";
-import Link from "next/link";   // ← добавить для ссылки навигации
+import Link from "next/link";
 
 export default function LoginPage() {
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const router = useRouter();
   const loginMut = trpc.auth.login.useMutation({
-    onSuccess: () => router.push("/admin"),
+    onSuccess: () => {
+      window.location.href = "/admin";
+    },
     onError: (e) => setError(e.message),
   });
 
@@ -31,6 +31,7 @@ export default function LoginPage() {
           placeholder="Логин"
           value={login}
           onChange={(e) => setLogin(e.target.value)}
+          autoComplete="off"
         />
         <div className="relative mb-4">
           <input
@@ -57,10 +58,10 @@ export default function LoginPage() {
           {loginMut.isPending ? "Вход..." : "Войти"}
         </button>
         <p className="mt-4 text-sm text-center text-muted-foreground">
-        <Link href="/forgot-password" className="hover:underline">
-          Забыли пароль?
-        </Link>
-      </p>
+          <Link href="/forgot-password" className="hover:underline">
+            Забыли пароль?
+          </Link>
+        </p>
       </form>
     </div>
   );

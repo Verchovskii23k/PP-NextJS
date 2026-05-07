@@ -32,6 +32,17 @@ export const securityCenter = pgTable("security_center", {
 }, (table) => ({
   uniqueLoginPassword: unique("unique_login_password").on(table.login, table.passwordHash),
 }));
+export const sessions = pgTable("sessions", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id")
+    .notNull()
+    .references(() => securityCenter.id, { onDelete: "cascade" }),
+  token: text("token").notNull().unique(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+});
 
 export const institutes = pgTable("institutes", {
   id: serial("id").primaryKey(),

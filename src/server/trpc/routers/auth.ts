@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { router, publicProcedure, protectedProcedure } from "../trpc";
 import { securityCenter, roles, employees, students } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { hashPassword, verifyPassword } from "@/server/auth/password";
 import { createSession, deleteSession } from "@/server/auth/session";
 import { cookies } from "next/headers";
@@ -269,83 +269,97 @@ forgotPassword: publicProcedure
     })
   )
   .mutation(async ({ ctx, input }) => {
-    let user: { id: number; login: string } | undefined;
+    let userId: number | undefined;
+    let userLogin: string | undefined;
+    let userEmail: string | null = null;
 
+    // 1. Поиск пользователя
     if (input.login) {
-      [user] = await ctx.db
+      const [u] = await ctx.db
         .select({ id: securityCenter.id, login: securityCenter.login })
         .from(securityCenter)
         .where(eq(securityCenter.login, input.login))
         .limit(1);
+      if (u) {
+        userId = u.id;
+        userLogin = u.login;
+      }
     } else if (input.email) {
-      // Ищем по email среди сотрудников
+      // Поиск по email (регистронезависимый) среди сотрудников
       const [emp] = await ctx.db
         .select({ authenticationId: employees.authenticationId })
         .from(employees)
-        .where(eq(employees.email, input.email))
+        .where(sql`lower(${employees.email}) = ${input.email.toLowerCase()}`)
         .limit(1);
       if (emp?.authenticationId) {
-        [user] = await ctx.db
+        const [u] = await ctx.db
           .select({ id: securityCenter.id, login: securityCenter.login })
           .from(securityCenter)
           .where(eq(securityCenter.id, emp.authenticationId))
           .limit(1);
+        if (u) {
+          userId = u.id;
+          userLogin = u.login;
+        }
       }
       // Если не нашли среди сотрудников – ищем студента
-      if (!user) {
+      if (!userId) {
         const [stu] = await ctx.db
           .select({ authenticationId: students.authenticationId })
           .from(students)
-          .where(eq(students.email, input.email))
+          .where(sql`lower(${students.email}) = ${input.email.toLowerCase()}`)
           .limit(1);
         if (stu?.authenticationId) {
-          [user] = await ctx.db
+          const [u] = await ctx.db
             .select({ id: securityCenter.id, login: securityCenter.login })
             .from(securityCenter)
             .where(eq(securityCenter.id, stu.authenticationId))
             .limit(1);
+          if (u) {
+            userId = u.id;
+            userLogin = u.login;
+          }
         }
       }
     }
 
-    if (!user) {
-      throw new Error("Если учётная запись с такими данными существует, инструкция отправлена.");
+    // 2. Если пользователь не найден – универсальное сообщение
+    if (!userId) {
+      return { message: "Если учётная запись с такими данными существует, инструкция отправлена." };
     }
 
+    // 3. Генерируем токен и сохраняем
     const token = randomBytes(32).toString("hex");
     const expires = new Date(Date.now() + 1000 * 60 * 60); // 1 час
-
     await ctx.db
       .update(securityCenter)
       .set({ resetToken: token, resetTokenExpires: expires })
-      .where(eq(securityCenter.id, user.id));
+      .where(eq(securityCenter.id, userId));
 
-    // Проверяем email сотрудника / студента
-    const [emp] = await ctx.db
+    // 4. Находим email пользователя (точный, какой есть в базе)
+    const [empEmail] = await ctx.db
       .select({ email: employees.email })
       .from(employees)
-      .where(eq(employees.authenticationId, user.id))
+      .where(eq(employees.authenticationId, userId))
       .limit(1);
-    if (emp?.email) {
-      try {
-        const sent = await sendPasswordResetEmail(emp.email, user.login, token, false);
-        if (sent) return { message: "Инструкция отправлена на ваш email" };
-      } catch (e) {
-        console.error("Email sending failed, falling back to token", e);
-      }
+    if (empEmail?.email) userEmail = empEmail.email;
+
+    if (!userEmail) {
+      const [stuEmail] = await ctx.db
+        .select({ email: students.email })
+        .from(students)
+        .where(eq(students.authenticationId, userId))
+        .limit(1);
+      if (stuEmail?.email) userEmail = stuEmail.email;
     }
 
-    const [stu] = await ctx.db
-      .select({ email: students.email })
-      .from(students)
-      .where(eq(students.authenticationId, user.id))
-      .limit(1);
-    if (stu?.email) {
+    // 5. Пытаемся отправить письмо или возвращаем токен
+    if (userEmail) {
       try {
-        const sent = await sendPasswordResetEmail(stu.email, user.login, token, false);
+        const sent = await sendPasswordResetEmail(userEmail, userLogin!, token, false);
         if (sent) return { message: "Инструкция отправлена на ваш email" };
       } catch (e) {
-        console.error("Email sending failed, falling back to token", e);
+        console.error("Email sending failed, falling back to token:", e);
       }
     }
 

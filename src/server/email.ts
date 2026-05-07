@@ -34,6 +34,7 @@ export async function sendPasswordResetEmail(
   }
 
   try {
+    console.log("Attempting to send email to", email, "via", process.env.SMTP_HOST, process.env.SMTP_PORT);
     await transporter.sendMail({
       from: process.env.SMTP_FROM || '"Расписание" <noreply@university.ru>',
       to: email,
