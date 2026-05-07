@@ -1,25 +1,28 @@
 import { z } from "zod";
 import { router, adminProcedure } from "../trpc";
-import { employeesDepartments, employees, departments } from "@/db/schema";
+import { employeesDepartments, employees, departments, employmentTypes, positions } from "@/db/schema";
 import { eq, asc, sql } from "drizzle-orm";
 
 export const employeesDepartmentsRouter = router({
   list: adminProcedure
     .input(z.object({ instituteId: z.number().optional() }).optional())
     .query(async ({ ctx, input }) => {
-      // Всегда возвращаем поля самой таблицы employeesDepartments + display
       const query = ctx.db
         .select({
           id: employeesDepartments.id,
           employeeId: employeesDepartments.employeeId,
           departmentId: employeesDepartments.departmentId,
-          employmentType: employeesDepartments.employmentType,
-          position: employeesDepartments.position,
+          employmentTypeId: employeesDepartments.employmentTypeId,
+          positionId: employeesDepartments.positionId,
           isActive: employeesDepartments.isActive,
           display: sql<string>`${employees.surname} || ' ' || left(${employees.name},1) || '.' || left(${employees.patronymic},1) || '.'`.as('display'),
+          employmentTypeDisplay: employmentTypes.name,
+          positionDisplay: positions.name,
         })
         .from(employeesDepartments)
-        .innerJoin(employees, eq(employeesDepartments.employeeId, employees.id));
+        .innerJoin(employees, eq(employeesDepartments.employeeId, employees.id))
+        .leftJoin(employmentTypes, eq(employeesDepartments.employmentTypeId, employmentTypes.id))
+        .leftJoin(positions, eq(employeesDepartments.positionId, positions.id));
 
       if (input?.instituteId) {
         query
@@ -29,7 +32,6 @@ export const employeesDepartmentsRouter = router({
 
       return query.orderBy(asc(sql`display`));
     }),
-  // get, create, update, delete без изменений (оставьте те, что есть сейчас)
   get: adminProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ ctx, input }) => {
@@ -38,13 +40,17 @@ export const employeesDepartmentsRouter = router({
           id: employeesDepartments.id,
           employeeId: employeesDepartments.employeeId,
           departmentId: employeesDepartments.departmentId,
-          employmentType: employeesDepartments.employmentType,
-          position: employeesDepartments.position,
+          employmentTypeId: employeesDepartments.employmentTypeId,
+          positionId: employeesDepartments.positionId,
           isActive: employeesDepartments.isActive,
           display: sql<string>`${employees.surname} || ' ' || left(${employees.name},1) || '.' || left(${employees.patronymic},1) || '.'`.as('display'),
+          employmentTypeDisplay: employmentTypes.name,
+          positionDisplay: positions.name,
         })
         .from(employeesDepartments)
         .innerJoin(employees, eq(employeesDepartments.employeeId, employees.id))
+        .leftJoin(employmentTypes, eq(employeesDepartments.employmentTypeId, employmentTypes.id))
+        .leftJoin(positions, eq(employeesDepartments.positionId, positions.id))
         .where(eq(employeesDepartments.id, input.id))
         .limit(1);
       return rows[0] ?? null;
@@ -53,8 +59,8 @@ export const employeesDepartmentsRouter = router({
     .input(z.object({
       employeeId: z.coerce.number().int(),
       departmentId: z.coerce.number().int(),
-      employmentType: z.coerce.string().nullable().optional(),
-      position: z.coerce.string().nullable().optional(),
+      employmentTypeId: z.coerce.number().int().nullable().optional(),
+      positionId: z.coerce.number().int().nullable().optional(),
       isActive: z.boolean().default(true),
     }))
     .mutation(async ({ ctx, input }) => ctx.db.insert(employeesDepartments).values(input).returning()),
@@ -63,8 +69,8 @@ export const employeesDepartmentsRouter = router({
       id: z.number(),
       employeeId: z.coerce.number().int().optional(),
       departmentId: z.coerce.number().int().optional(),
-      employmentType: z.coerce.string().nullable().optional(),
-      position: z.coerce.string().nullable().optional(),
+      employmentTypeId: z.coerce.number().int().nullable().optional(),
+      positionId: z.coerce.number().int().nullable().optional(),
       isActive: z.boolean().optional(),
     }))
     .mutation(async ({ ctx, input }) => {

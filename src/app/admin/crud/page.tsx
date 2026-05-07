@@ -1,6 +1,6 @@
 // src/app/admin/crud/page.tsx
 "use client";
-import { trpc } from "@/trpc/client"; 
+import { trpc } from "@/trpc/client";
 import { useState, useEffect } from "react";
 import { tableNames } from "@/lib/table-meta";
 import { DataTable } from "./_components/DataTable";
@@ -20,15 +20,52 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
+// Иконки для таблиц (можно эмодзи или текст)
+const TABLE_ICONS: Record<string, string> = {
+  institutes: "🏛️",
+  buildings: "🏗️",
+  departments: "🏢",
+  specialties: "🦾",
+  profiles: "👤",
+  disciplines: "📚",
+  unitTypes: "📊",
+  lessonTypes: "🎓",
+  classrooms: "🚪",
+  employees: "👨‍🏫",
+  students: "👩‍🎓",
+  studyGroups: "👥",
+  units: "📦",
+  lessons: "📝",
+  curriculum: "📅",
+  lessonClassrooms: "🔗",
+  unitRoots: "🌱",
+  curriculumProfiles: "📋",
+  academicLoadTypes: "⚖️",
+  controlTypes: "✅",
+  hourTypeMapping: "🔄",
+  employeesDepartments: "👔",
+  disciplineTeachers: "👩‍🏫",
+  daysOfWeek: "📆",
+  pairs: "🔢",
+  weeks: "📅",
+  educationLevels: "📈",
+  educationForms: "📒",
+  education: "📜",
+  positions: "💼",
+  employmentTypes: "🕒",
+};
+
 // Компонент одного пункта списка
 function SortableItem({
   id,
   label,
+  icon,
   isActive,
   onClick,
 }: {
   id: string;
   label: string;
+  icon?: string;
   isActive: boolean;
   onClick: () => void;
 }) {
@@ -51,6 +88,7 @@ function SortableItem({
       }`}
     >
       <span className="text-gray-400 cursor-grab select-none">⠿</span>
+      {icon && <span className="text-base leading-none">{icon}</span>}
       <button
         onClick={(e) => {
           e.stopPropagation();
@@ -121,9 +159,11 @@ export default function AdminCrudPage() {
   const sortedTableList = order
     .map(key => {
       const meta = tableNames.find(t => t.key === key);
-      return meta ? { key, label: meta.label } : null;
+      return meta
+        ? { key, label: meta.label, icon: TABLE_ICONS[key] || "📄" }
+        : null;
     })
-    .filter(Boolean) as { key: string; label: string }[];
+    .filter(Boolean) as { key: string; label: string; icon?: string }[];
 
   const handleSelectTable = (tableKey: string) => {
     setSelectedTable(tableKey);
@@ -148,6 +188,7 @@ export default function AdminCrudPage() {
                   key={t.key}
                   id={t.key}
                   label={t.label}
+                  icon={t.icon}
                   isActive={selectedTable === t.key}
                   onClick={() => handleSelectTable(t.key)}
                 />
@@ -162,14 +203,17 @@ export default function AdminCrudPage() {
             <div className="mb-4">
               <button
                 onClick={async () => {
-                  if (!window.confirm(
-                    'Будут удалены все сгенерированные данные (расписание, занятия, юниты, группы). Справочники останутся без изменений. Продолжить?'
-                  )) return;
+                  if (
+                    !window.confirm(
+                      "Будут удалены все сгенерированные данные (расписание, занятия, юниты, группы). Справочники останутся без изменений. Продолжить?"
+                    )
+                  )
+                    return;
                   try {
                     await resetMutation.mutateAsync();
-                    alert('Все сгенерированные данные удалены. Запустите генерацию заново.');
+                    alert("Все сгенерированные данные удалены. Запустите генерацию заново.");
                   } catch (e: any) {
-                    alert('Ошибка при сбросе: ' + e.message);
+                    alert("Ошибка при сбросе: " + e.message);
                   }
                 }}
                 className="px-3 py-1.5 bg-red-600 text-white rounded text-sm hover:bg-red-700"

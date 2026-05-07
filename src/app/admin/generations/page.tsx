@@ -52,6 +52,26 @@ export default function GenerationsPage() {
     updateTotalWeeks.mutate({ key: "total_weeks", value: String(totalWeeksInput) });
   };
 
+  // ---------- Текущий семестр (из settings) ----------
+  const { data: semesterSetting } = trpc.settings.get.useQuery({ key: "current_semester" });
+  const updateSemester = trpc.settings.update.useMutation({
+    onSuccess: () => utils.settings.get.invalidate({ key: "current_semester" }),
+    onError: (e) => setError(e.message),
+  });
+  const [semesterInput, setSemesterInput] = useState<number | undefined>(undefined);
+
+  useEffect(() => {
+    if (semesterSetting?.value) {
+      const num = Number(semesterSetting.value);
+      if (!isNaN(num)) setSemesterInput(num);
+    }
+  }, [semesterSetting]);
+
+  const handleSaveSemester = () => {
+    if (semesterInput === undefined || isNaN(semesterInput)) return;
+    updateSemester.mutate({ key: "current_semester", value: String(semesterInput) });
+  };
+
   // ---------- Мутации генераций ----------
   const groups = trpc.generations.generateGroups.useMutation({
     onSuccess: (data) => {
@@ -96,95 +116,129 @@ export default function GenerationsPage() {
   });
 
   // ---------- Рендер ----------
-  if (thresholdLoading || weeksLoading) return <div>Загрузка настроек...</div>;
+  if (thresholdLoading || weeksLoading) return <div className="p-6">Загрузка настроек...</div>;
 
   return (
-    <div className="p-6 space-y-6">
-      <h1 className="text-2xl font-bold">Генерации</h1>
+    <div className="p-6 max-w-3xl mx-auto">
+      <h1 className="text-2xl font-bold mb-6">Системные генераторы</h1>
       {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
           {error}
         </div>
       )}
 
-      {/* 1. Группы */}
-      <div className="space-y-2">
+      {/* Карточка: Группы */}
+      <div className="bg-white rounded-lg shadow p-4 mb-4">
+        <h2 className="text-lg font-semibold mb-2">1. Учебные группы</h2>
         <button
-          className="bg-blue-500 text-white px-4 py-2 rounded disabled:opacity-50"
+          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded disabled:opacity-50"
           onClick={() => groups.mutate()}
           disabled={groups.isPending}
         >
-          {groups.isPending ? "..." : "1. Сгенерировать учебные группы"}
+          {groups.isPending ? "Генерация..." : "Сгенерировать группы"}
         </button>
       </div>
 
-      {/* 2. Юниты + порог */}
-      <div className="space-y-2">
-        <label className="mr-2">Макс. размер подгруппы:</label>
-        <input
-          type="number"
-          value={threshold ?? ""}
-          onChange={(e) => setThreshold(Number(e.target.value))}
-          className="border p-1 w-24"
-          placeholder="Загрузка..."
-        />
-        <button
-          className="bg-green-500 text-white px-3 py-1 rounded text-sm ml-2"
-          onClick={handleSaveThreshold}
-          disabled={updateThreshold.isPending}
-        >
-          {updateThreshold.isPending ? "Сохранение..." : "Сохранить порог"}
-        </button>
-        <button
-          className="bg-blue-500 text-white px-4 py-2 rounded disabled:opacity-50 ml-2"
-          onClick={() => units.mutate()}
-          disabled={units.isPending}
-        >
-          {units.isPending ? "..." : "2. Сгенерировать юниты"}
-        </button>
-      </div>  
+      {/* Карточка: Юниты + порог подгруппы */}
+      <div className="bg-white rounded-lg shadow p-4 mb-4">
+        <h2 className="text-lg font-semibold mb-2">2. Юниты</h2>
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="text-sm text-gray-600">Макс. размер подгруппы:</label>
+          <input
+            type="number"
+            value={threshold ?? ""}
+            onChange={(e) => setThreshold(Number(e.target.value))}
+            className="border border-gray-300 rounded px-2 py-1 w-24"
+            placeholder="Загрузка..."
+          />
+          <button
+            className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm"
+            onClick={handleSaveThreshold}
+            disabled={updateThreshold.isPending}
+          >
+            {updateThreshold.isPending ? "..." : "ОК"}
+          </button>
+          <button
+            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded disabled:opacity-50"
+            onClick={() => units.mutate()}
+            disabled={units.isPending}
+          >
+            {units.isPending ? "Генерация..." : "Сгенерировать юниты"}
+          </button>
+          {/* Блок: Текущий семестр */}
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-gray-600">Текущий семестр:</label>
+            <input
+              type="number"
+              min={1}
+              max={12}
+              value={semesterInput ?? ""}
+              onChange={(e) => setSemesterInput(Number(e.target.value))}
+              className="border border-gray-300 rounded px-2 py-1 w-20"
+              placeholder="1"
+            />
+            <button
+              className="bg-green-500 hover:bg-green-600 text-white px-2 py-1 rounded text-sm"
+              onClick={handleSaveSemester}
+              disabled={updateSemester.isPending}
+            >
+              {updateSemester.isPending ? "..." : "OK"}
+            </button>
+          </div>
+        </div>
+      </div>
 
-      {/* 3. Занятия */}
-      <div className="space-y-2">
+      {/* Карточка: Занятия */}
+      <div className="bg-white rounded-lg shadow p-4 mb-4">
+        <h2 className="text-lg font-semibold mb-2">3. Занятия</h2>
         <button
-          className="bg-blue-500 text-white px-4 py-2 rounded disabled:opacity-50"
-          onClick={() => lessons.mutate()}
+          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded disabled:opacity-50"
+          onClick={() => lessons.mutate({ currentSemester: semesterInput })}
           disabled={lessons.isPending}
         >
-          {lessons.isPending ? "..." : "3. Сгенерировать занятия"}
+          {lessons.isPending ? "Генерация..." : "Сгенерировать занятия"}
         </button>
       </div>
 
-      {/* 4. Аудитории */}
-      <div className="space-y-2">
+      {/* Карточка: Аудитории */}
+      <div className="bg-white rounded-lg shadow p-4 mb-4">
+        <h2 className="text-lg font-semibold mb-2">4. Аудиторные назначения</h2>
         <button
-          className="bg-blue-500 text-white px-4 py-2 rounded disabled:opacity-50"
+          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded disabled:opacity-50"
           onClick={() => classrooms.mutate()}
           disabled={classrooms.isPending}
         >
-          {classrooms.isPending ? "..." : "4. Назначить аудитории автоматически"}
+          {classrooms.isPending ? "Назначение..." : "Назначить аудитории"}
         </button>
       </div>
 
-      {/* 5. Расписание */}
-      <div className="space-y-2">
-        <label>Всего недель: </label>
-        <input
-          type="number"
-          value={totalWeeksInput ?? ""}
-          onChange={(e) => setTotalWeeksInput(Number(e.target.value))}
-          className="border p-1 w-24"
-          placeholder="18"
-        />
+      {/* Карточка: Расписание + настройки */}
+      <div className="bg-white rounded-lg shadow p-4 mb-4">
+        <h2 className="text-lg font-semibold mb-2">5. Расписание</h2>
+        <div className="flex flex-wrap items-center gap-4 mb-3">
+          {/* Блок: Всего недель */}
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-gray-600">Всего недель:</label>
+            <input
+              type="number"
+              value={totalWeeksInput ?? ""}
+              onChange={(e) => setTotalWeeksInput(Number(e.target.value))}
+              className="border border-gray-300 rounded px-2 py-1 w-20"
+              placeholder="18"
+            />
+            <button
+              className="bg-green-500 hover:bg-green-600 text-white px-2 py-1 rounded text-sm"
+              onClick={handleSaveTotalWeeks}
+              disabled={updateTotalWeeks.isPending}
+            >
+              {updateTotalWeeks.isPending ? "..." : "OK"}
+            </button>
+          </div>
+
+          
+        </div>
         <button
-          className="bg-green-500 text-white px-3 py-1 rounded text-sm ml-2"
-          onClick={handleSaveTotalWeeks}
-          disabled={updateTotalWeeks.isPending}
-        >
-          {updateTotalWeeks.isPending ? "Сохранение..." : "Сохранить недели"}
-        </button>
-        <button
-          className="bg-blue-500 text-white px-4 py-2 rounded disabled:opacity-50 ml-2"
+          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded disabled:opacity-50"
           onClick={() =>
             schedule.mutate({
               totalWeeks: totalWeeksInput ?? 18,
@@ -192,7 +246,7 @@ export default function GenerationsPage() {
           }
           disabled={schedule.isPending}
         >
-          {schedule.isPending ? "..." : "5. Сгенерировать расписание"}
+          {schedule.isPending ? "Генерация..." : "Сгенерировать расписание"}
         </button>
       </div>
     </div>

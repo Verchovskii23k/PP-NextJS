@@ -32,6 +32,11 @@ import { controlTypesRouter } from "./routers/controlTypes";
 import { hourTypeMappingRouter } from "./routers/hourTypeMapping";
 import { employeesDepartmentsRouter } from "./routers/employeesDepartments";
 import { disciplineTeachersRouter } from "./routers/disciplineTeachers";
+import { educationLevelsRouter } from "./routers/educationLevels";
+import { educationFormsRouter } from "./routers/educationForms";
+import { educationRouter } from "./routers/education";
+import { employmentTypesRouter } from "./routers/employmentTypes";
+import { positionsRouter } from "./routers/positions";
 
 export const appRouter = router({
   auth: authRouter,
@@ -66,6 +71,11 @@ export const appRouter = router({
   hourTypeMapping: hourTypeMappingRouter,
   employeesDepartments: employeesDepartmentsRouter,
   disciplineTeachers: disciplineTeachersRouter,
+  educationLevels: educationLevelsRouter,
+  educationForms: educationFormsRouter,
+  education: educationRouter,
+  positions: positionsRouter,
+  employmentTypes: employmentTypesRouter
 });
 
 export type AppRouter = typeof appRouter;

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { router, adminProcedure } from '../trpc';
 import { settings } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 
 export const settingsRouter = router({
   get: adminProcedure
@@ -18,10 +18,21 @@ export const settingsRouter = router({
   update: adminProcedure
     .input(z.object({ key: z.string(), value: z.string() }))
     .mutation(async ({ ctx, input }) => {
+      // Пытаемся вставить, если конфликт по ключу – обновить
       await ctx.db
-        .update(settings)
-        .set({ value: input.value, updatedAt: new Date() })
-        .where(eq(settings.key, input.key));
+        .insert(settings)
+        .values({
+          key: input.key,
+          value: input.value,
+          updatedAt: new Date(),
+        })
+        .onConflictDoUpdate({
+          target: settings.key,
+          set: {
+            value: input.value,
+            updatedAt: new Date(),
+          },
+        });
       return { success: true };
     }),
 });

@@ -200,7 +200,7 @@ await db.delete(settings);
   for (const r of empDeptRelations) {
     const empId = empData[r.emp].id;
     const deptId = deptMap.get(r.deptCode)!;
-    empDeptData.push({ employeeId: empId, departmentId: deptId, employmentType: "1", position: "1" });
+    empDeptData.push({ employeeId: empId, departmentId: deptId, employmentType: 1, position: 1 });
   }
   const insertedEmpDepts = await db.insert(employeesDepartments).values(empDeptData).returning();
 
@@ -430,6 +430,10 @@ await db.delete(settings);
   const existingSettings = await db.select().from(settings).where(eq(settings.key, 'total_weeks'));
   if (existingSettings.length === 0) {
     await db.insert(settings).values({ key: 'total_weeks', value: '16' });
+  }
+  const semesterExists = await db.select().from(settings).where(eq(settings.key, 'current_semester'));
+  if (semesterExists.length === 0) {
+    await db.insert(settings).values({ key: 'current_semester', value: '1' });
   }
   console.log("Готово! Данные загружены.");
 }

@@ -92,6 +92,7 @@ export const profiles = pgTable("profiles", {
   name: text("name").notNull(),
   specialtyId: integer("specialty_id").notNull().references(() => specialties.id),
   letterCode: text("letter_code").notNull(),
+  educationId: integer("education_id").references(() => education.id),
   isActive: boolean("is_active").notNull().default(true),
 }, (table) => ({
   uniqueProfileCode: unique("unique_profile_code").on(table.letterCode, table.specialtyId),
@@ -161,7 +162,6 @@ export const education = pgTable("education", {
   isActive: boolean("is_active").notNull().default(true),
 }, (table) => ({
   uniqueCombination: unique().on(table.levelId, table.formId),
-  
 }));
 
 export const academicLoadTypes = pgTable("academic_load_types", {
@@ -206,8 +206,8 @@ export const employeesDepartments = pgTable("employees_departments", {
   id: serial("id").primaryKey(),
   employeeId: integer("employee_id").notNull().references(() => employees.id),
   departmentId: integer("department_id").notNull().references(() => departments.id),
-  employmentType: text("employment_type"),
-  position: text("position"),
+  employmentTypeId: integer("employment_type_id").references(() => employmentTypes.id),
+  positionId: integer("position_id").references(() => positions.id),
   isActive: boolean("is_active").notNull().default(true),
 }, (table) => ({
   uniqueEmployeeDepartment: unique().on(table.employeeId, table.departmentId),
@@ -313,7 +313,20 @@ export const scheduleDisplay = pgTable("schedule_display", {
 export const settings = pgTable('settings', {
   id: serial('id').primaryKey(),
   key: text('key').unique().notNull(),
-  value: text('value').notNull(),
+  value: integer('value').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+export const positions = pgTable("positions", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  abbreviation: text("abbreviation"),
+  isActive: boolean("is_active").notNull().default(true),
+});
+
+export const employmentTypes = pgTable("employment_types", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  abbreviation: text("abbreviation"),
+  isActive: boolean("is_active").notNull().default(true),
 });

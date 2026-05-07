@@ -21,7 +21,6 @@ import { ForeignKeyCell } from "./ForeignKeyCell";
 import { ColumnFilterPopover } from "./ColumnFilterPopover";
 
 const arrayFilterFn: FilterFn<any> = (row, columnId, filterValue: any[]) => {
-  // filterValue – массив значений, которые нужно ИСКЛЮЧИТЬ
   if (!filterValue || filterValue.length === 0) return true;
   const cellValue = row.getValue(columnId);
   return !filterValue.includes(cellValue);
@@ -35,7 +34,6 @@ export function DataTable({ tableName }: DataTableProps) {
   const meta = tablesMeta[tableName];
   if (!meta) return <div>Таблица не найдена</div>;
 
-  // При смене таблицы сбрасываем все фильтры, сортировку и поиск
   React.useEffect(() => {
     setSorting([]);
     setPagination({ pageIndex: 0, pageSize: 10000 });
@@ -144,7 +142,6 @@ export function DataTable({ tableName }: DataTableProps) {
             Ред.
           </button>
 
-          
           <button
             className="text-red-600 hover:text-red-800 text-sm"
             onClick={async () => {
@@ -155,11 +152,9 @@ export function DataTable({ tableName }: DataTableProps) {
               if (!window.confirm(`Удалить запись с ID ${row.original.id}?`)) return;
               try {
                 await deleteMutation.mutateAsync({ id: row.original.id });
-                // после успешного удаления инвалидируем список
                 (utils as any)[routerKey]?.list?.invalidate?.();
               } catch (e: any) {
                 alert(e.message);
-                // после неудачного удаления всё равно перезагрузить список, чтобы восстановить состояние
                 (utils as any)[routerKey]?.list?.invalidate?.();
               }
             }}
@@ -173,7 +168,6 @@ export function DataTable({ tableName }: DataTableProps) {
     return cols;
   }, [meta, rows, columnFilters, pagination.pageIndex, pagination.pageSize, deleteMutation]);
 
-  // Удаляем некорректные фильтры, если вдруг остались
   React.useEffect(() => {
     const validIds = new Set(columns.map(col => col.id));
     const filtered = columnFilters.filter(f => validIds.has(f.id));
@@ -250,32 +244,37 @@ export function DataTable({ tableName }: DataTableProps) {
             ))}
           </thead>
           <tbody className="bg-white divide-y divide-gray-200 min-h-[300px]">
-          {table.getRowModel().rows.length === 0 ? (
-            <tr>
-              <td
-                colSpan={columns.length}
-                className="px-4 py-4 text-center text-sm text-gray-500 align-middle"
-              >
-                <div className="flex items-center justify-center h-full min-h-[250px]">
-                  Нет данных
-                </div>
-              </td>
-            </tr>
-          ) : (
-            table.getRowModel().rows.map(row => (
-              <tr key={row.id} className="hover:bg-gray-50">
-                {row.getVisibleCells().map(cell => (
-                  <td
-                    key={cell.id}
-                    className="px-4 py-2 whitespace-nowrap text-sm text-gray-700"
-                  >
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </td>
-                ))}
+            {table.getRowModel().rows.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={columns.length}
+                  className="px-4 py-4 text-center text-sm text-gray-500 align-middle"
+                >
+                  <div className="flex items-center justify-center h-full min-h-[250px]">
+                    Нет данных
+                  </div>
+                </td>
               </tr>
-            ))
-          )}
-        </tbody>
+            ) : (
+              table.getRowModel().rows.map(row => (
+                <tr
+                  key={row.id}
+                  className={`hover:bg-gray-50 ${
+                    row.original.isActive === false ? "bg-red-100" : ""
+                  }`}
+                >
+                  {row.getVisibleCells().map(cell => (
+                    <td
+                      key={cell.id}
+                      className="px-4 py-2 whitespace-nowrap text-sm text-gray-700"
+                    >
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </td>
+                  ))}
+                </tr>
+              ))
+            )}
+          </tbody>
         </table>
       </div>
       {table.getPageCount() > 1 && (
@@ -314,14 +313,4 @@ export function DataTable({ tableName }: DataTableProps) {
       )}
     </div>
   );
-} 
-
-
-
-
-
-
-
-
-
-
+}

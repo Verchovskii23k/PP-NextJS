@@ -1,5 +1,5 @@
 {
-  "id": "f2d089eb-94ab-4e72-be79-da96744b0c4d",
+  "id": "153ecfaf-3c96-4020-895e-1e3b6e3dc150",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -25,6 +25,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
         }
       },
       "indexes": {},
@@ -50,6 +57,13 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
         }
       },
       "indexes": {},
@@ -136,6 +150,13 @@
           "primaryKey": false,
           "notNull": false,
           "default": 0
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
         }
       },
       "indexes": {},
@@ -194,6 +215,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
         }
       },
       "indexes": {},
@@ -271,6 +299,13 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": false
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
         }
       },
       "indexes": {},
@@ -342,6 +377,13 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
         }
       },
       "indexes": {},
@@ -403,6 +445,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
         }
       },
       "indexes": {},
@@ -452,6 +501,13 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": false
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
         }
       },
       "indexes": {},
@@ -462,6 +518,19 @@
           "tableTo": "institutes",
           "columnsFrom": [
             "institute_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "departments_head_id_employees_id_fk": {
+          "name": "departments_head_id_employees_id_fk",
+          "tableFrom": "departments",
+          "tableTo": "employees",
+          "columnsFrom": [
+            "head_id"
           ],
           "columnsTo": [
             "id"
@@ -518,6 +587,13 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
         }
       },
       "indexes": {},
@@ -595,6 +671,13 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
         }
       },
       "indexes": {},
@@ -646,6 +729,13 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": false
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
         }
       },
       "indexes": {},
@@ -713,6 +803,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
         }
       },
       "indexes": {},
@@ -752,6 +849,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
         }
       },
       "indexes": {},
@@ -816,12 +920,12 @@
           "primaryKey": false,
           "notNull": false
         },
-        "is_inactive": {
-          "name": "is_inactive",
+        "is_active": {
+          "name": "is_active",
           "type": "boolean",
           "primaryKey": false,
-          "notNull": false,
-          "default": false
+          "notNull": true,
+          "default": true
         }
       },
       "indexes": {},
@@ -883,17 +987,24 @@
           "primaryKey": false,
           "notNull": true
         },
-        "employment_type": {
-          "name": "employment_type",
-          "type": "text",
+        "employment_type_id": {
+          "name": "employment_type_id",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false
         },
-        "position": {
-          "name": "position",
-          "type": "text",
+        "position_id": {
+          "name": "position_id",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
         }
       },
       "indexes": {},
@@ -923,6 +1034,32 @@
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
+        },
+        "employees_departments_employment_type_id_employment_types_id_fk": {
+          "name": "employees_departments_employment_type_id_employment_types_id_fk",
+          "tableFrom": "employees_departments",
+          "tableTo": "employment_types",
+          "columnsFrom": [
+            "employment_type_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "employees_departments_position_id_positions_id_fk": {
+          "name": "employees_departments_position_id_positions_id_fk",
+          "tableFrom": "employees_departments",
+          "tableTo": "positions",
+          "columnsFrom": [
+            "position_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -933,6 +1070,52 @@
           "columns": [
             "employee_id",
             "department_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.employment_types": {
+      "name": "employment_types",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "abbreviation": {
+          "name": "abbreviation",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "employment_types_name_unique": {
+          "name": "employment_types_name_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "name"
           ]
         }
       },
@@ -967,6 +1150,13 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
         }
       },
       "indexes": {},
@@ -1026,10 +1216,31 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": false
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
         }
       },
       "indexes": {},
-      "foreignKeys": {},
+      "foreignKeys": {
+        "institutes_director_id_employees_id_fk": {
+          "name": "institutes_director_id_employees_id_fk",
+          "tableFrom": "institutes",
+          "tableTo": "employees",
+          "columnsFrom": [
+            "director_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "institutes_university_code_unique": {
@@ -1132,6 +1343,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
         }
       },
       "indexes": {},
@@ -1195,7 +1413,7 @@
           "name": "teacher_id",
           "type": "integer",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "count_per_semester": {
           "name": "count_per_semester",
@@ -1293,12 +1511,65 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
         }
       },
       "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.positions": {
+      "name": "positions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "abbreviation": {
+          "name": "abbreviation",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "positions_name_unique": {
+          "name": "positions_name_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "name"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -1330,6 +1601,19 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "education_id": {
+          "name": "education_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
         }
       },
       "indexes": {},
@@ -1340,6 +1624,19 @@
           "tableTo": "specialties",
           "columnsFrom": [
             "specialty_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "profiles_education_id_education_id_fk": {
+          "name": "profiles_education_id_education_id_fk",
+          "tableFrom": "profiles",
+          "tableTo": "education",
+          "columnsFrom": [
+            "education_id"
           ],
           "columnsTo": [
             "id"
@@ -1522,6 +1819,129 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.schedule_display": {
+      "name": "schedule_display",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "lesson_id": {
+          "name": "lesson_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "week_number": {
+          "name": "week_number",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "day_of_week_id": {
+          "name": "day_of_week_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pair_number_id": {
+          "name": "pair_number_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "unit_code": {
+          "name": "unit_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "display_text": {
+          "name": "display_text",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "merge_number": {
+          "name": "merge_number",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "position_flag": {
+          "name": "position_flag",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "classroom_flag": {
+          "name": "classroom_flag",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "is_buffered": {
+          "name": "is_buffered",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "schedule_display_lesson_id_lessons_id_fk": {
+          "name": "schedule_display_lesson_id_lessons_id_fk",
+          "tableFrom": "schedule_display",
+          "tableTo": "lessons",
+          "columnsFrom": [
+            "lesson_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "schedule_display_day_of_week_id_days_of_week_id_fk": {
+          "name": "schedule_display_day_of_week_id_days_of_week_id_fk",
+          "tableFrom": "schedule_display",
+          "tableTo": "days_of_week",
+          "columnsFrom": [
+            "day_of_week_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "schedule_display_pair_number_id_pairs_id_fk": {
+          "name": "schedule_display_pair_number_id_pairs_id_fk",
+          "tableFrom": "schedule_display",
+          "tableTo": "pairs",
+          "columnsFrom": [
+            "pair_number_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.security_center": {
       "name": "security_center",
       "schema": "",
@@ -1606,6 +2026,59 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.settings": {
+      "name": "settings",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "key": {
+          "name": "key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "value": {
+          "name": "value",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "settings_key_unique": {
+          "name": "settings_key_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "key"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.specialties": {
       "name": "specialties",
       "schema": "",
@@ -1633,6 +2106,13 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
         }
       },
       "indexes": {},
@@ -1729,12 +2209,12 @@
           "primaryKey": false,
           "notNull": false
         },
-        "is_inactive": {
-          "name": "is_inactive",
+        "is_active": {
+          "name": "is_active",
           "type": "boolean",
           "primaryKey": false,
-          "notNull": false,
-          "default": false
+          "notNull": true,
+          "default": true
         }
       },
       "indexes": {},
@@ -1849,6 +2329,19 @@
           "tableTo": "profiles",
           "columnsFrom": [
             "profile_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "study_groups_curator_id_employees_id_fk": {
+          "name": "study_groups_curator_id_employees_id_fk",
+          "tableFrom": "study_groups",
+          "tableTo": "employees",
+          "columnsFrom": [
+            "curator_id"
           ],
           "columnsTo": [
             "id"
@@ -1987,6 +2480,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": 3
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
         }
       },
       "indexes": {},
@@ -2073,6 +2573,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
         }
       },
       "indexes": {},

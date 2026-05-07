@@ -30,7 +30,8 @@ export const lookupRouter = router({
         "employees_departments", "lesson_classrooms", "unit_roots",
         "curriculum_profiles", "academic_load_types", "control_types",
         "hour_type_mapping", "discipline_teachers", "settings",
-        "days_of_week", "pairs", "weeks",
+        "days_of_week", "pairs", "weeks", "education_levels",
+        "education_forms", "education", "positions", "employmentTypes"
       ];
       if (!allowedTables.includes(input.tableName)) {
         throw new Error(`Таблица "${input.tableName}" не разрешена`);

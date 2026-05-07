@@ -2,7 +2,7 @@
 import { router, adminProcedure } from "../../trpc";
 import {
   units, unitTypes, unitRoots,
-  studyGroups, profiles,
+  studyGroups, profiles, settings,
   curriculum, curriculumProfiles,
   lessons, lessonClassrooms, schedule,
 } from "@/db/schema";
@@ -108,6 +108,14 @@ export const generateUnitsRouter = router({
       }
     }
 
+    // Получаем текущий семестр из настроек
+    const [semesterSetting] = await ctx.db
+      .select({ value: settings.value })
+      .from(settings)
+      .where(eq(settings.key, "current_semester"))
+      .limit(1);
+    const currentSemester = semesterSetting ? parseInt(semesterSetting.value, 10) : 1;
+
     const planRows = await ctx.db
       .select({
         disciplineId: curriculum.disciplineId,
@@ -118,11 +126,12 @@ export const generateUnitsRouter = router({
       })
       .from(curriculum)
       .innerJoin(curriculumProfiles, eq(curriculum.id, curriculumProfiles.curriculumId))
-      .innerJoin(profiles, eq(curriculumProfiles.profileId, profiles.id))   // ← добавили
+      .innerJoin(profiles, eq(curriculumProfiles.profileId, profiles.id))
       .where(
         and(
           eq(curriculum.isActive, true),
-          eq(profiles.isActive, true),          // ← только активные профили
+          eq(profiles.isActive, true),
+          eq(curriculum.semester, currentSemester),   // ← фильтр по семестру
           sql`${curriculum.hoursLecture} > 0`
         )
       );

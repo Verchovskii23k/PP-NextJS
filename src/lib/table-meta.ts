@@ -78,6 +78,7 @@ export const tablesMeta: Record<string, TableMeta> = {
       { dbName: "name", displayName: "Название", isFK: false, required: true },
       { dbName: "specialtyId", displayName: "Специальность", isFK: true, references: { table: "specialties", displayField: "display" }, required: true },
       { dbName: "letterCode", displayName: "Буквенный код", isFK: false, required: true },
+      { dbName: "educationId", displayName: "Образование", isFK: true, references: { table: "education", displayField: "display" } },
       { dbName: "isActive", displayName: "Активен", isFK: false, required: true, inputType: "toggle" }
     ],
   },
@@ -135,6 +136,28 @@ export const tablesMeta: Record<string, TableMeta> = {
       { dbName: "priorityLab", displayName: "Приоритет лаб.", isFK: false },
       { dbName: "usageMetric", displayName: "Метрика использования", isFK: false },
       { dbName: "isActive", displayName: "Активен", isFK: false, required: true, inputType: "toggle" }
+    ],
+  },
+    positions: {
+    nameRu: "Должности",
+    routerKey: "positions",
+    dbTableName: "positions",
+    fields: [
+      { dbName: "id", displayName: "ID", isFK: false },
+      { dbName: "name", displayName: "Название", isFK: false, required: true },
+      { dbName: "abbreviation", displayName: "Сокращение", isFK: false },
+      { dbName: "isActive", displayName: "Активен", isFK: false, required: true, inputType: "toggle" },
+    ],
+  },
+  employmentTypes: {
+    nameRu: "Типы занятости",
+    routerKey: "employmentTypes",
+    dbTableName: "employment_types",
+    fields: [
+      { dbName: "id", displayName: "ID", isFK: false },
+      { dbName: "name", displayName: "Название", isFK: false, required: true },
+      { dbName: "abbreviation", displayName: "Сокращение", isFK: false },
+      { dbName: "isActive", displayName: "Активен", isFK: false, required: true, inputType: "toggle" },
     ],
   },
   employees: {
@@ -244,7 +267,7 @@ export const tablesMeta: Record<string, TableMeta> = {
     ],
   },
   curriculumProfiles: {
-    nameRu: "Профили учебных планов",
+    nameRu: "Учебные планы по профилям",
     routerKey: "curriculumProfiles",
     dbTableName: "curriculum_profiles",
     fields: [
@@ -296,9 +319,9 @@ export const tablesMeta: Record<string, TableMeta> = {
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "employeeId", displayName: "Сотрудник", isFK: true, references: { table: "employees", displayField: "display" }, required: true },
       { dbName: "departmentId", displayName: "Кафедра", isFK: true, references: { table: "departments", displayField: "display" }, required: true },
-      { dbName: "employmentType", displayName: "Тип занятости", isFK: false },
-      { dbName: "position", displayName: "Должность", isFK: false },
-      { dbName: "isActive", displayName: "Активен", isFK: false, required: true, inputType: "toggle" }
+      { dbName: "employmentTypeId", displayName: "Тип занятости", isFK: true, references: { table: "employmentTypes", displayField: "name" } },
+      { dbName: "positionId", displayName: "Должность", isFK: true, references: { table: "positions", displayField: "name" } },
+      { dbName: "isActive", displayName: "Активен", isFK: false, required: true, inputType: "toggle" },
     ],
   },
   disciplineTeachers: {
@@ -341,6 +364,40 @@ export const tablesMeta: Record<string, TableMeta> = {
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "type", displayName: "Тип", isFK: false, required: true },
       { dbName: "isActive", displayName: "Активен", isFK: false, required: true, inputType: "toggle" }
+    ],
+  },
+    educationLevels: {
+    nameRu: "Уровни образования",
+    routerKey: "educationLevels",
+    dbTableName: "education_levels",
+    fields: [
+      { dbName: "id", displayName: "ID", isFK: false },
+      { dbName: "name", displayName: "Название", isFK: false, required: true },
+      { dbName: "abbreviation", displayName: "Аббревиатура", isFK: false },
+      { dbName: "isActive", displayName: "Активен", isFK: false, required: true, inputType: "toggle" },
+    ],
+  },
+  educationForms: {
+    nameRu: "Формы обучения",
+    routerKey: "educationForms",
+    dbTableName: "education_forms",
+    fields: [
+      { dbName: "id", displayName: "ID", isFK: false },
+      { dbName: "name", displayName: "Название", isFK: false, required: true },
+      { dbName: "abbreviation", displayName: "Аббревиатура", isFK: false },
+      { dbName: "isActive", displayName: "Активен", isFK: false, required: true, inputType: "toggle" },
+    ],
+  },
+  education: {
+    nameRu: "Образование",
+    routerKey: "education",
+    dbTableName: "education",
+    fields: [
+      { dbName: "id", displayName: "ID", isFK: false },
+      { dbName: "levelId", displayName: "Уровень", isFK: true, references: { table: "educationLevels", displayField: "name" }, required: true },
+      { dbName: "formId", displayName: "Форма", isFK: true, references: { table: "educationForms", displayField: "name" }, required: true },
+      { dbName: "durationMonths", displayName: "Длительность (мес.)", isFK: false },
+      { dbName: "isActive", displayName: "Активен", isFK: false, required: true, inputType: "toggle" },
     ],
   },
 };

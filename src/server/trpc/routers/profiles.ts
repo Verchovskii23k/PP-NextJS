@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { router, adminProcedure } from "../trpc";
-import { profiles, specialties } from "@/db/schema";
+import { profiles, specialties, education, educationLevels, educationForms } from "@/db/schema";
 import { eq, asc, sql } from "drizzle-orm";
 
 export const profilesRouter = router({
@@ -11,11 +11,16 @@ export const profilesRouter = router({
         name: profiles.name,
         specialtyId: profiles.specialtyId,
         letterCode: profiles.letterCode,
-        isActive: profiles.isActive,   // ← добавили
+        educationId: profiles.educationId,
+        isActive: profiles.isActive,
         profileDisplay: sql<string>`CONCAT(${profiles.letterCode}, ' (', ${specialties.code}, ' - ', ${specialties.name}, ')')`.as('profile_display'),
+        educationDisplay: sql<string>`${educationLevels.abbreviation} || ', ' || ${educationForms.abbreviation} || ' (' || ${education.durationMonths} || ' мес.)'`.as('education_display'),
       })
       .from(profiles)
       .innerJoin(specialties, eq(profiles.specialtyId, specialties.id))
+      .leftJoin(education, eq(profiles.educationId, education.id))
+      .leftJoin(educationLevels, eq(education.levelId, educationLevels.id))
+      .leftJoin(educationForms, eq(education.formId, educationForms.id))
       .orderBy(asc(profiles.letterCode));
   }),
   get: adminProcedure
@@ -27,11 +32,16 @@ export const profilesRouter = router({
           name: profiles.name,
           specialtyId: profiles.specialtyId,
           letterCode: profiles.letterCode,
-          isActive: profiles.isActive,   // ← добавили
+          educationId: profiles.educationId,
+          isActive: profiles.isActive,
           profileDisplay: sql<string>`CONCAT(${profiles.letterCode}, ' (', ${specialties.code}, ' - ', ${specialties.name}, ')')`.as('profile_display'),
+          educationDisplay: sql<string>`${educationLevels.abbreviation} || ', ' || ${educationForms.abbreviation} || ' (' || ${education.durationMonths} || ' мес.)'`.as('education_display'),
         })
         .from(profiles)
         .innerJoin(specialties, eq(profiles.specialtyId, specialties.id))
+        .leftJoin(education, eq(profiles.educationId, education.id))
+        .leftJoin(educationLevels, eq(education.levelId, educationLevels.id))
+        .leftJoin(educationForms, eq(education.formId, educationForms.id))
         .where(eq(profiles.id, input.id))
         .limit(1);
       return rows[0] ?? null;
@@ -41,7 +51,8 @@ export const profilesRouter = router({
       name: z.string().min(1),
       specialtyId: z.coerce.number().int(),
       letterCode: z.string().optional(),
-      isActive: z.boolean().default(true)
+      educationId: z.coerce.number().int().nullable().optional(),
+      isActive: z.boolean().default(true),
     }))
     .mutation(async ({ ctx, input }) => ctx.db.insert(profiles).values(input).returning()),
   update: adminProcedure
@@ -50,7 +61,8 @@ export const profilesRouter = router({
       name: z.string().min(1).optional(),
       specialtyId: z.coerce.number().int().optional(),
       letterCode: z.string().optional(),
-      isActive: z.boolean().optional()
+      educationId: z.coerce.number().int().nullable().optional(),
+      isActive: z.boolean().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;

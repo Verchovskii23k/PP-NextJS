@@ -1,1 +1,0 @@
-ALTER TABLE "institutes" ADD CONSTRAINT "institutes_director_id_employees_departments_id_fk" FOREIGN KEY ("director_id") REFERENCES "public"."employees_departments"("id") ON DELETE no action ON UPDATE no action;
