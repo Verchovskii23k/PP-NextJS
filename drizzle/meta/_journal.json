@@ -15,6 +15,34 @@
       "when": 1778133042384,
       "tag": "0001_milky_charles_xavier",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1778158941030,
+      "tag": "0002_thick_lila_cheney",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1778159251500,
+      "tag": "0003_burly_harpoon",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1778171344559,
+      "tag": "0004_sharp_sir_ram",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1778175044629,
+      "tag": "0005_shiny_the_enforcers",
+      "breakpoints": true
     }
   ]
 }

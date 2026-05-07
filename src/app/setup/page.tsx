@@ -5,15 +5,28 @@ import { CheckCircle, Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
 
 export default function SetupPage() {
-  const [login, setLogin] = useState("");
-  const [password, setPassword] = useState("");
+  const [form, setForm] = useState({
+    surname: "",
+    name: "",
+    patronymic: "",
+    phone: "",
+    email: "",
+    login: "",
+    password: "",
+  });
+  const [showPassword, setShowPassword] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
+
   const setupMutation = trpc.auth.setup.useMutation({
     onSuccess: () => setDone(true),
     onError: (e) => setError(e.message),
   });
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  };
 
   if (done) {
     return (
@@ -45,22 +58,85 @@ export default function SetupPage() {
         onSubmit={(e) => {
           e.preventDefault();
           setError("");
-          setupMutation.mutate({ login, password });
+          setupMutation.mutate({
+            surname: form.surname,
+            name: form.name,
+            patronymic: form.patronymic || undefined,
+            phone: form.phone || undefined,
+            email: form.email || undefined,
+            login: form.login,
+            password: form.password,
+          });
         }}
       >
         <input
           className="border border-border rounded px-3 py-2 w-full mb-3 bg-background text-foreground placeholder:text-muted-foreground"
-          placeholder="Логин"
-          value={login}
-          onChange={(e) => setLogin(e.target.value)}
+          placeholder="Фамилия *"
+          name="surname"
+          value={form.surname}
+          onChange={handleChange}
+          required
         />
+        <input
+          className="border border-border rounded px-3 py-2 w-full mb-3 bg-background text-foreground placeholder:text-muted-foreground"
+          placeholder="Имя *"
+          name="name"
+          value={form.name}
+          onChange={handleChange}
+          required
+        />
+        <input
+          className="border border-border rounded px-3 py-2 w-full mb-3 bg-background text-foreground placeholder:text-muted-foreground"
+          placeholder="Отчество (необязательно)"
+          name="patronymic"
+          value={form.patronymic}
+          onChange={handleChange}
+        />
+        <input
+          className="border border-border rounded px-3 py-2 w-full mb-3 bg-background text-foreground placeholder:text-muted-foreground"
+          placeholder="Телефон (необязательно)"
+          name="phone"
+          value={form.phone}
+          onChange={handleChange}
+        />
+        <input
+          className="border border-border rounded px-3 py-2 w-full mb-3 bg-background text-foreground placeholder:text-muted-foreground"
+          placeholder="Email (необязательно)"
+          name="email"
+          type="email"
+          value={form.email}
+          onChange={handleChange}
+        />
+        {/* Логин с глазком */}
+        <div className="relative mb-3">
+          <input
+            className="border border-border rounded px-3 py-2 w-full bg-background text-foreground placeholder:text-muted-foreground pr-10"
+            type={showLogin ? "text" : "password"}
+            placeholder="Логин *"
+            name="login"
+            value={form.login}
+            onChange={handleChange}
+            required
+          />
+          <button
+            type="button"
+            onClick={() => setShowLogin(!showLogin)}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            aria-label="Показать логин"
+          >
+            {showLogin ? <EyeOff size={20} /> : <Eye size={20} />}
+          </button>
+        </div>
+        {/* Пароль с глазком */}
         <div className="relative mb-4">
           <input
             className="border border-border rounded px-3 py-2 w-full bg-background text-foreground placeholder:text-muted-foreground pr-10"
             type={showPassword ? "text" : "password"}
-            placeholder="Пароль"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Пароль *"
+            name="password"
+            value={form.password}
+            onChange={handleChange}
+            required
           />
           <button
             type="button"

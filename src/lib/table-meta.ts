@@ -182,6 +182,7 @@ export const tablesMeta: Record<string, TableMeta> = {
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "surname", displayName: "Фамилия", isFK: false, required: true },
       { dbName: "name", displayName: "Имя", isFK: false, required: true },
+      { dbName: "patronymic", displayName: "Отчество", isFK: false },
       { dbName: "admissionYear", displayName: "Год поступления", isFK: false, required: true },
       { dbName: "profileId", displayName: "Профиль", isFK: true, references: { table: "profiles", displayField: "profileDisplay" }, required: true },
       { dbName: "studyGroupId", displayName: "Учебная группа", isFK: true, references: { table: "studyGroups", displayField: "display" } },

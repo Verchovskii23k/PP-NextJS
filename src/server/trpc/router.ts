@@ -37,6 +37,7 @@ import { educationFormsRouter } from "./routers/educationForms";
 import { educationRouter } from "./routers/education";
 import { employmentTypesRouter } from "./routers/employmentTypes";
 import { positionsRouter } from "./routers/positions";
+import { adminManagementRouter } from "./routers/adminManagement";
 
 export const appRouter = router({
   auth: authRouter,
@@ -75,7 +76,8 @@ export const appRouter = router({
   educationForms: educationFormsRouter,
   education: educationRouter,
   positions: positionsRouter,
-  employmentTypes: employmentTypesRouter
+  employmentTypes: employmentTypesRouter,
+  adminManagement: adminManagementRouter,
 });
 
 export type AppRouter = typeof appRouter;

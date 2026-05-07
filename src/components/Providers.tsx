@@ -21,24 +21,55 @@ function HeaderContent() {
     },
   });
 
+  const homePath =
+    user?.role === "admin"
+      ? "/admin"
+      : user?.role === "teacher"
+      ? "/teacher"
+      : user?.role === "student"
+      ? "/student"
+      : "/login";
+
+  const roleLabel = (role: string) => {
+    switch (role) {
+      case "admin": return "Администратор";
+      case "teacher": return "Преподаватель";
+      case "student": return "Студент";
+      default: return role;
+    }
+  };
+
   return (
     <header className="border-b border-border bg-muted">
       <div className="max-w-7xl mx-auto flex items-center justify-between px-4 h-12">
-        {/* Кнопка домой (скрыта на публичных страницах) */}
-        {!isPublicPage && (
-          <Link
-            href="/admin"
-            className="flex items-center gap-1.5 text-foreground hover:text-primary transition-colors"
-            aria-label="На главную"
-          >
-            <Home size={20} />
-            <span className="text-sm font-medium hidden sm:inline">Главная</span>
-          </Link>
-        )}
-        {isPublicPage && <div />}
+        {/* Левая группа: домик + ФИО/роль */}
+        <div className="flex items-center gap-4">
+          {!isPublicPage && (
+            <Link
+              href={homePath}
+              className="flex items-center gap-1.5 text-foreground hover:text-primary transition-colors"
+              aria-label="На главную"
+            >
+              <Home size={20} />
+              <span className="text-sm font-medium hidden sm:inline">Главная</span>
+            </Link>
+          )}
+          {isPublicPage && <div />}
+          
+          {!isPublicPage && user && (
+            <div>
+              <div className="text-sm font-medium leading-tight text-foreground">
+                {user.fullName}
+              </div>
+              <div className="text-xs text-muted-foreground leading-tight">
+                {roleLabel(user.role)}
+              </div>
+            </div>
+          )}
+        </div>
 
-        {/* Правая группа: тема + выход (выход только если авторизованы и не на публичной странице) */}
-        <div className="flex items-center gap-2">
+        {/* Правая группа: тема + выход */}
+        <div className="flex items-center gap-4">
           <ThemeToggle />
           {!isPublicPage && user && (
             <button

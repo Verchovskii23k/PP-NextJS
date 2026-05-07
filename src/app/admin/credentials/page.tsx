@@ -19,7 +19,13 @@ export default function CredentialsPage() {
     onSuccess: (data) => setCredResult(data),
     onError: (e) => setError(e.message),
   });
-
+  // Очистка всех учётных записей
+  const clearAllMut = trpc.adminManagement.clearAllCredentials.useMutation({
+    onSuccess: () => {
+      window.location.href = '/setup';
+    },
+    onError: (e) => setError(e.message),
+  });
   const downloadCredentials = () => {
     if (!credResult) return;
     const header = "ФИО;Логин;Пароль;Роль\n";
@@ -149,6 +155,20 @@ export default function CredentialsPage() {
             </button>
           </div>
         )}
+      </div>
+      <div className="bg-background border border-border rounded-lg shadow-sm p-4 mt-4">
+        <h2 className="text-lg font-semibold mb-2 text-red-600">Опасная зона</h2>
+        <button
+          onClick={() => {
+            if (window.confirm("Удалить ВСЕ учётные записи (логины/пароли) студентов и сотрудников? Это действие нельзя отменить!")) {
+              clearAllMut.mutate();
+            }
+          }}
+          disabled={clearAllMut.isPending}
+          className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded disabled:opacity-50"
+        >
+          {clearAllMut.isPending ? "Удаление..." : "Сбросить все учётные записи"}
+        </button>
       </div>
     </div>
   );

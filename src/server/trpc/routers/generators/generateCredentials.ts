@@ -54,38 +54,16 @@ function generateRandomPassword(): string {
   return password;
 }
 
-function makeLogin(base: string, prefix: string, checkUnique: (login: string) => Promise<boolean>): Promise<string> {
-  return (async () => {
-    let login = prefix + base;
-    // Обрезаем до 16 символов
-    if (login.length > 16) login = login.slice(0, 16);
-    let counter = 1;
-    while (!(await checkUnique(login))) {
-      counter++;
-      const suffix = String(counter);
-      const truncated = login.slice(0, 16 - suffix.length - 1);
-      login = truncated + suffix;
-      if (counter > 100) {
-        // fallback: добавим случайный хвост
-        const randomPart = Math.random().toString(36).slice(2, 6);
-        login = (prefix + base).slice(0, 12) + '_' + randomPart;
-        break;
-      }
-    }
-    return login;
-  })();
+// ---------- Вспомогательные функции (без проверок уникальности) ----------
+
+function makeLogin(base: string, prefix: string): string {
+  let login = prefix + base;
+  if (login.length > 16) login = login.slice(0, 16);
+  return login;
 }
 
-function randomLogin(length: number, charset: string, checkUnique: (login: string) => Promise<boolean>): Promise<string> {
-  return (async () => {
-    for (let i = 0; i < 100; i++) {
-      const login = Array.from({ length }, () => charset[Math.floor(Math.random() * charset.length)]).join('');
-      if (await checkUnique(login)) return login;
-    }
-    // последняя попытка с таймстемпом
-    const ts = String(Date.now()).slice(-4);
-    return Array.from({ length: length - 4 }, () => charset[Math.floor(Math.random() * charset.length)]).join('') + ts;
-  })();
+function randomLogin(length: number, charset: string): string {
+  return Array.from({ length }, () => charset[Math.floor(Math.random() * charset.length)]).join('');
 }
 
 // ---------- Роутер ----------
@@ -108,60 +86,52 @@ export const generateCredentialsRouter = router({
         role: string;
       }[] = [];
 
-      // Получаем роли
+      // Получаем все роли
       const roleRecords = await ctx.db.select().from(roles);
       const teacherRole = roleRecords.find(r => r.name === "teacher");
       const studentRole = roleRecords.find(r => r.name === "student");
-      if (!teacherRole || !studentRole) throw new Error("Роли 'teacher' и 'student' должны существовать");
+      const adminRole = roleRecords.find(r => r.name === "admin");
+      if (!teacherRole || !studentRole || !adminRole) throw new Error("Роли 'teacher', 'student' и 'admin' должны существовать");
 
-      // Функция проверки уникальности логина в security_center
-      const isLoginUnique = async (login: string) => {
-        const [row] = await ctx.db
-          .select({ id: securityCenter.id })
-          .from(securityCenter)
-          .where(eq(securityCenter.login, login))
-          .limit(1);
-        return !row; // true если нет записи
-      };
+      const isLoginUnique = async () => true;
 
-      // Функция генерации для одной персоны
       const processPerson = async (
-        person: { id: number; surname: string; name: string; patronymic?: string | null },
+        person: { id: number; surname: string; name: string; patronymic?: string | null; isAdmin?: boolean },
         type: "employee" | "student"
       ) => {
         const fullName = [person.surname, person.name, person.patronymic].filter(Boolean).join(" ");
         const base = transliterate(person.surname);
 
-        // Генерация логина в зависимости от уровня
         let login: string;
         if (securityLevel === "low") {
           const prefix = type === "student" ? "s_" : "t_";
-          login = await makeLogin(base || "user", prefix, isLoginUnique);
+          login = makeLogin(base || "user", prefix);
         } else if (securityLevel === "medium") {
-          const len = Math.floor(Math.random() * 5) + 8; // 8-12
+          const len = Math.floor(Math.random() * 5) + 8;
           const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-          login = await randomLogin(len, charset, isLoginUnique);
+          login = randomLogin(len, charset);
         } else {
-          // high
           const len = loginLength || 16;
           const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
-          login = await randomLogin(len, charset, isLoginUnique);
+          login = randomLogin(len, charset);
         }
 
         const password = generateRandomPassword();
         const hashed = await hashPassword(password);
 
-        // Вставляем в security_center
+        const roleId = type === "student"
+          ? studentRole.id
+          : (person.isAdmin ? adminRole.id : teacherRole.id);
+
         const [newSec] = await ctx.db
           .insert(securityCenter)
           .values({
             login,
             passwordHash: hashed,
-            roleId: type === "student" ? studentRole.id : teacherRole.id,
+            roleId,
           })
           .returning({ id: securityCenter.id });
 
-        // Обновляем соответствующую таблицу
         if (type === "student") {
           await ctx.db
             .update(students)
@@ -178,13 +148,11 @@ export const generateCredentialsRouter = router({
           fullName,
           login,
           password,
-          role: type === "student" ? "Студент" : "Преподаватель",
+          role: type === "student" ? "Студент" : (person.isAdmin ? "Администратор" : "Преподаватель"),
         });
       };
 
-      // Транзакция
       await ctx.db.transaction(async (tx) => {
-        // Обработка сотрудников
         if (generateFor.includes("employees")) {
           const employeeList = await tx
             .select({
@@ -192,6 +160,7 @@ export const generateCredentialsRouter = router({
               surname: employees.surname,
               name: employees.name,
               patronymic: employees.patronymic,
+              isAdmin: employees.isAdmin, // важно
             })
             .from(employees)
             .where(and(eq(employees.isActive, true), isNull(employees.authenticationId)));
@@ -201,7 +170,6 @@ export const generateCredentialsRouter = router({
           }
         }
 
-        // Обработка студентов
         if (generateFor.includes("students")) {
           const studentList = await tx
             .select({
@@ -214,7 +182,7 @@ export const generateCredentialsRouter = router({
             .where(and(eq(students.isActive, true), isNull(students.authenticationId)));
 
           for (const st of studentList) {
-            await processPerson({ ...st, patronymic: null }, "student");
+            await processPerson({ ...st, patronymic: null, isAdmin: false }, "student");
           }
         }
       });

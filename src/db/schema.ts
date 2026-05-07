@@ -20,14 +20,16 @@ export const roles = pgTable("roles", {
 
 export const securityCenter = pgTable("security_center", {
   id: serial("id").primaryKey(),
-  login: text("login").notNull().unique(),
+  login: text("login").notNull(),   // больше не unique
   passwordHash: text("password_hash").notNull(),
   roleId: integer("role_id").notNull().references(() => roles.id),
   passwordChangedAt: timestamp("password_changed_at", { withTimezone: true }),
   lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
   failedLoginAttempts: integer("failed_login_attempts").default(0),
   lockedUntil: timestamp("locked_until", { withTimezone: true }),
-});
+}, (table) => ({
+  uniqueLoginPassword: unique("unique_login_password").on(table.login, table.passwordHash),
+}));
 
 export const institutes = pgTable("institutes", {
   id: serial("id").primaryKey(),
@@ -115,6 +117,7 @@ export const employees = pgTable("employees", {
   email: text("email").unique(),
   authenticationId: integer("authentication_id").unique().references(() => securityCenter.id),
   isActive: boolean("is_active").notNull().default(true),
+  isAdmin: boolean("is_admin").default(false).notNull(),
 });
 
 export const studyGroups = pgTable("study_groups", {
@@ -130,6 +133,7 @@ export const students = pgTable("students", {
   id: serial("id").primaryKey(),
   surname: text("surname").notNull(),
   name: text("name").notNull(),
+  patronymic: text("patronymic"),
   admissionYear: integer("admission_year").notNull(),
   profileId: integer("profile_id").notNull().references(() => profiles.id),
   studyGroupId: integer("study_group_id").references(() => studyGroups.id),
@@ -313,7 +317,7 @@ export const scheduleDisplay = pgTable("schedule_display", {
 export const settings = pgTable('settings', {
   id: serial('id').primaryKey(),
   key: text('key').unique().notNull(),
-  value: integer('value').notNull(),
+  value: text('value').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
