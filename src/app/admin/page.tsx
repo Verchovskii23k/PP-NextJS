@@ -8,16 +8,18 @@ import {
   KeyRound,
   Shield,
   Users,
+  Sliders
 } from "lucide-react";
 
 const sections = [
   { title: "CRUD", description: "Управление справочниками и данными", href: "/admin/crud", icon: Database, available: true },
-  { title: "Генерации", description: "Запуск генерации расписания", href: "/admin/generations", icon: Cog, available: true },
-  { title: "Расписание", description: "Просмотр и экспорт расписания", href: "/admin/schedule", icon: CalendarDays, available: true },
-  { title: "Настройки аккаунта", description: "Личные данные и безопасность", href: "/admin/account", icon: UserCog, available: true },
+  { title: "Генерации", description: "Запуск генераторов данных", href: "/admin/generations", icon: Cog, available: true },
+  { title: "Расписание", description: "Просмотр, оптимизация и экспорт расписания", href: "/admin/schedule", icon: CalendarDays, available: true },
+  { title: "Настройки аккаунта", description: "Личные данные и безопасность аккаунта", href: "/admin/account", icon: UserCog, available: true },
   { title: "Логины и пароли", description: "Генерация учётных записей", href: "/admin/credentials", icon: KeyRound, available: true },
   { title: "Администраторы", description: "Управление администраторами", href: "/admin/administrators", icon: Shield, available: true },
-  { title: "Пользователи", description: "Сброс логинов и паролей", href: "/admin/users", icon: Users, available: true },
+  { title: "Пользователи", description: "Выборочный сброс логинов и паролей", href: "/admin/users", icon: Users, available: true },
+  { title: "Параметры оптимизации", description: "Настройка весов локального поиска", href: "/admin/optimization-settings", icon: Sliders, available: true },
 ];
 
 export default function AdminDashboard() {

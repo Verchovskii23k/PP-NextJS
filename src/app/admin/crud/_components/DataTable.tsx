@@ -1,6 +1,7 @@
-// src/app/admin/crud/_components/DataTable.tsx (адаптирован под тему)
+// src/app/admin/crud/_components/DataTable.tsx
 "use client";
 import * as React from "react";
+import { useRef } from "react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -60,6 +61,58 @@ export function DataTable({ tableName }: DataTableProps) {
       (utils as any)[routerKey]?.list?.invalidate?.();
     },
   });
+
+  // ---------- JSON импорт/экспорт ----------
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  const exportQuery = trpc.crudImportExport.exportAll.useQuery(
+    { tableName },
+    { enabled: false } // не запускаем автоматически
+  );
+  const importMutation = trpc.crudImportExport.importData.useMutation();
+
+  const handleExport = async () => {
+    try {
+      const result = await exportQuery.refetch();
+      if (result.data) {
+        const jsonStr = JSON.stringify(result.data, null, 2);
+        const blob = new Blob([jsonStr], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${tableName}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+      } else {
+        alert("Нет данных для экспорта");
+      }
+    } catch (err: any) {
+      alert("Ошибка экспорта: " + err.message);
+    }
+  };
+
+  const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const content = e.target?.result as string;
+        const json = JSON.parse(content);
+        if (!Array.isArray(json)) throw new Error("Файл должен содержать массив объектов");
+        const result = await importMutation.mutateAsync({ tableName, data: json });
+        alert(`Импорт завершён:\nВсего: ${result.total}\nВставлено: ${result.inserted}\nОбновлено: ${result.updated}\nПропущено (совпадают): ${result.skipped}\nОшибок: ${result.errors.length}\n${result.errors.slice(0, 5).join("\n")}`);
+        // Обновляем таблицу
+        (utils as any)[routerKey]?.list?.invalidate?.();
+      } catch (err: any) {
+        alert("Ошибка импорта: " + err.message);
+      } finally {
+        if (fileInputRef.current) fileInputRef.current.value = "";
+      }
+    };
+    reader.readAsText(file);
+  };
+  // -----------------------------------------
 
   const rows = (data as any[]) ?? [];
 
@@ -214,6 +267,27 @@ export function DataTable({ tableName }: DataTableProps) {
           }}
         >
           Добавить
+        </button>
+        <button
+          className="px-3 py-1.5 bg-green-600 text-white rounded text-sm hover:bg-green-700"
+          onClick={handleExport}
+          disabled={exportQuery.isFetching}
+        >
+          {exportQuery.isFetching ? "..." : "JSON-экспорт"}
+        </button>
+        <input
+          type="file"
+          accept=".json"
+          ref={fileInputRef}
+          className="hidden"
+          onChange={handleImport}
+        />
+        <button
+          className="px-3 py-1.5 bg-yellow-600 text-white rounded text-sm hover:bg-yellow-700"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={importMutation.isPending}
+        >
+          {importMutation.isPending ? "..." : "JSON-импорт"}
         </button>
       </div>
       <div className="overflow-x-auto rounded border border-border">
