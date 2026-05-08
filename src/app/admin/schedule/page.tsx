@@ -190,22 +190,7 @@ export default function AdminSchedulePage() {
     },
     onError: (e) => alert(e.message),
   });
-  
-  const optimizeScheduleMut = trpc.scheduleDisplay.optimizeSchedule.useMutation({
-  onSuccess: (data) => {
-    const res = (data as any)?.result?.data || data;   // ← добавить эту строку
-    alert(`Оптимизация завершена. Итераций: ${res.iterations}, улучшение: с ${res.initialScore} до ${res.finalScore}`);
-      if (viewMode === "units") {
-        utils.scheduleDisplay.getForWeekPair.invalidate({ weekBase });
-        utils.scheduleDisplay.getForWeekPair.refetch({ weekBase });
-      } else {
-        utils.scheduleDisplay.getByStudyGroups.invalidate({ weekBase });
-        utils.scheduleDisplay.getByStudyGroups.refetch({ weekBase });
-      }
-      utils.scheduleDisplay.getBuffer.invalidate();
-    },
-    onError: (e) => alert(e.message),
-  });
+
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -501,32 +486,7 @@ export default function AdminSchedulePage() {
       </div>
 
       <div className="flex gap-4 mb-4">
-        <button onClick={() => setViewMode("units")} className={viewMode === "units" ? "font-bold border-b-2 border-blue-500" : ""}>
-          По юнитам
-        </button>
-        <button onClick={() => setViewMode("groups")} className={viewMode === "groups" ? "font-bold border-b-2 border-blue-500" : ""}>
-          По группам
-        </button>
-        <button onClick={handlePrint} className="bg-blue-600 text-white px-3 py-1 rounded ml-2 hover:bg-blue-700">
-          🖨️ Печать
-        </button>
-        <button onClick={handleCSV} className="bg-green-600 text-white px-3 py-1 rounded ml-2 hover:bg-green-700">
-          📥 CSV
-        </button>
 
-        <button
-          onClick={() => optimizeScheduleMut.mutate()}
-          disabled={editMode || optimizeScheduleMut.isPending}
-          className="px-3 py-1 rounded ml-2 bg-purple-600 hover:bg-purple-700 text-white disabled:bg-gray-400"
-        >
-          {optimizeScheduleMut.isPending ? "Оптимизация..." : "Оптимизировать"}
-        </button>
-
-        {viewMode === "units" && (
-          <button onClick={() => setEditMode(!editMode)} className="ml-auto bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600">
-            {editMode ? "Завершить редактирование" : "Редактировать"}
-          </button>
-        )}
       </div>
 <div className="flex gap-4 mb-4">
   <button onClick={() => setViewMode("units")} className={viewMode === "units" ? "font-bold border-b-2 border-blue-500" : ""}>
