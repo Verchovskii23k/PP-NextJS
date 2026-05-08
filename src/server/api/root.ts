@@ -1,4 +1,4 @@
-import { router } from "./trpc";
+import { router } from "@/trpc";
 import { authRouter } from "./routers/auth";
 import { institutesRouter } from "./routers/institutes";
 import { buildingsRouter } from "./routers/buildings";
@@ -15,7 +15,7 @@ import { daysOfWeekRouter } from "./routers/daysOfWeek";
 import { pairsRouter } from "./routers/pairs";
 import { weeksRouter } from "./routers/weeks";
 import { generationsRouter } from "./routers/generators";
-import { scheduleRouter } from "./routers/schedule";
+import { scheduleRouter } from "./server/trpc/routers/schedule";
 import { lookupRouter } from "./routers/lookup";   // ✅ добавлено
 
 export const appRouter = router({
@@ -36,7 +36,7 @@ export const appRouter = router({
   weeks: weeksRouter,
   generations: generationsRouter,
   schedule: scheduleRouter,
-  lookup: lookupRouter,   // ✅ добавлено
+  lookup: lookupRouter,   
 });
 
 export type AppRouter = typeof appRouter;

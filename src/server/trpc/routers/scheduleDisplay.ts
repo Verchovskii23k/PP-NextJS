@@ -218,6 +218,7 @@ export const scheduleDisplayRouter = router({
       })),
     }))
     .mutation(async ({ ctx, input }) => {
+          console.log('🚀 checkSlots START', input.movingId);
       const moving = await ctx.db.select().from(scheduleDisplay).where(eq(scheduleDisplay.id, input.movingId)).limit(1);
       if (!moving.length) throw new Error('Занятие не найдено');
       const m = moving[0];
@@ -275,10 +276,16 @@ export const scheduleDisplayRouter = router({
             eq(scheduleDisplay.isBuffered, false)   // исключаем буфер
           ));
         const others = allInSlot.filter(e => e.id !== input.movingId);
-
+        console.log(`[checkSlots] key=${key}, movingId=${input.movingId}, others.length=${others.length}`);
+        
         if (others.length === 0) {
           results[key] = { status: 'free' };
-          continue;
+        } else if (others.length === 1 && others[0].unitCode === m.unitCode) {
+          // разрешаем swap без проверки обратных конфликтов
+          results[key] = { status: 'swap', swapId: others[0].id };
+          console.log(`✅ SWAP for ${key}`);
+        } else {
+          results[key] = { status: 'conflict' };
         }
 
         let directConflict = false;
@@ -317,59 +324,69 @@ export const scheduleDisplayRouter = router({
         }
 
         if (others.length === 1) {
-          const other = others[0];
 
-          const otherUnitGroups = await ctx.db
+        const other = others[0];
+
+        // Запрещаем swap, если юниты разные
+        if (other.unitCode === m.unitCode) {
+          results[key] = { status: 'swap', swapId: other.id };
+          console.log(`  → SWAP разрешён (упрощённо) для ${key}`);
+          continue;
+        }
+
+        // Если занятие из того же юнита – предполагаем, что можно меняться,
+        // если только нет конфликта преподавателей/аудиторий в старом слоте
+        const otherUnitGroups = await ctx.db
+          .select({ studyGroupId: unitRoots.studyGroupId })
+          .from(unitRoots)
+          .where(eq(unitRoots.unitCode, other.unitCode));
+        const otherGroupIds = new Set(otherUnitGroups.map(r => r.studyGroupId));
+        const [oTeacher] = await ctx.db.select({ teacherId: lessons.teacherId }).from(lessons).where(eq(lessons.id, other.lessonId)).limit(1);
+        const [oClassroom] = await ctx.db.select({ classroomId: lessonClassrooms.classroomId }).from(lessonClassrooms).where(eq(lessonClassrooms.lessonId, other.lessonId)).limit(1);
+        const oTeacherId = oTeacher?.teacherId ?? null;
+        const oClassroomId = oClassroom?.classroomId ?? null;
+
+        const oldSlotAll = await ctx.db
+          .select()
+          .from(scheduleDisplay)
+          .where(and(
+            eq(scheduleDisplay.weekNumber, oldSlot!.week),
+            eq(scheduleDisplay.dayOfWeekId, oldSlot!.dayId),
+            eq(scheduleDisplay.pairNumberId, oldSlot!.pairId),
+          ));
+        const oldOthers = oldSlotAll.filter(e => e.id !== input.movingId);
+
+        // Проверяем, что other можно поставить в старый слот
+        let reverseConflict = false;
+        for (const oldOther of oldOthers) {
+          const oldUnitGroups = await ctx.db
             .select({ studyGroupId: unitRoots.studyGroupId })
             .from(unitRoots)
-            .where(eq(unitRoots.unitCode, other.unitCode));
-          const otherGroupIds = new Set(otherUnitGroups.map(r => r.studyGroupId));
-          const [oTeacher] = await ctx.db.select({ teacherId: lessons.teacherId }).from(lessons).where(eq(lessons.id, other.lessonId)).limit(1);
-          const [oClassroom] = await ctx.db.select({ classroomId: lessonClassrooms.classroomId }).from(lessonClassrooms).where(eq(lessonClassrooms.lessonId, other.lessonId)).limit(1);
-          const oTeacherId = oTeacher?.teacherId ?? null;
-          const oClassroomId = oClassroom?.classroomId ?? null;
+            .where(eq(unitRoots.unitCode, oldOther.unitCode));
+          const oldGroupIds = new Set(oldUnitGroups.map(r => r.studyGroupId));
+          const [oldTeacher, oldClassroom] = await Promise.all([
+            ctx.db.select({ teacherId: lessons.teacherId }).from(lessons).where(eq(lessons.id, oldOther.lessonId)).limit(1),
+            ctx.db.select({ classroomId: lessonClassrooms.classroomId }).from(lessonClassrooms).where(eq(lessonClassrooms.lessonId, oldOther.lessonId)).limit(1),
+          ]);
+          const oldTeacherId = oldTeacher[0]?.teacherId ?? null;
+          const oldClassroomId = oldClassroom[0]?.classroomId ?? null;
 
-          const oldSlotAll = await ctx.db
-            .select()
-            .from(scheduleDisplay)
-            .where(and(
-              eq(scheduleDisplay.weekNumber, oldSlot!.week),
-              eq(scheduleDisplay.dayOfWeekId, oldSlot!.dayId),
-              eq(scheduleDisplay.pairNumberId, oldSlot!.pairId),
-            ));
-          const oldOthers = oldSlotAll.filter(e => e.id !== input.movingId);
-
-          let reverseConflict = false;
-          for (const oldOther of oldOthers) {
-            const oldUnitGroups = await ctx.db
-              .select({ studyGroupId: unitRoots.studyGroupId })
-              .from(unitRoots)
-              .where(eq(unitRoots.unitCode, oldOther.unitCode));
-            const oldGroupIds = new Set(oldUnitGroups.map(r => r.studyGroupId));
-            const [oldTeacher, oldClassroom] = await Promise.all([
-              ctx.db.select({ teacherId: lessons.teacherId }).from(lessons).where(eq(lessons.id, oldOther.lessonId)).limit(1),
-              ctx.db.select({ classroomId: lessonClassrooms.classroomId }).from(lessonClassrooms).where(eq(lessonClassrooms.lessonId, oldOther.lessonId)).limit(1),
-            ]);
-            const oldTeacherId = oldTeacher[0]?.teacherId ?? null;
-            const oldClassroomId = oldClassroom[0]?.classroomId ?? null;
-
-            if (
-              ([...otherGroupIds].some(g => oldGroupIds.has(g))) ||
-              (oTeacherId && oldTeacherId && oTeacherId === oldTeacherId) ||
-              (oClassroomId && oldClassroomId && oClassroomId === oldClassroomId)
-            ) {
-              reverseConflict = true;
-              break;
-            }
+          if (
+            (oTeacherId && oldTeacherId && oTeacherId === oldTeacherId) ||
+            (oClassroomId && oldClassroomId && oClassroomId === oldClassroomId)
+          ) {
+            reverseConflict = true;
+            break;
           }
+        }
 
-          if (!reverseConflict) {
-            results[key] = { status: 'swap', swapId: other.id };
-          } else {
-            results[key] = { status: 'conflict' };
-          }
-        } else {
+        if (!reverseConflict) {
+          results[key] = { status: 'swap', swapId: other.id };
+        } else{
           results[key] = { status: 'conflict' };
+        }
+        } else {
+            results[key] = { status: 'conflict' };
         }
       }
 
@@ -419,11 +436,15 @@ export const scheduleDisplayRouter = router({
         ctx.db.select().from(scheduleDisplay).where(eq(scheduleDisplay.id, input.id1)).limit(1),
         ctx.db.select().from(scheduleDisplay).where(eq(scheduleDisplay.id, input.id2)).limit(1),
       ]);
-      if (!rec1.length || !rec2.length) throw new Error('Занятие не найдено');
+      const r1 = rec1[0] as typeof scheduleDisplay.$inferSelect;
+      const r2 = rec2[0] as typeof scheduleDisplay.$inferSelect;
 
-      const slot1 = { weekNumber: rec1[0].weekNumber, dayOfWeekId: rec1[0].dayOfWeekId, pairNumberId: rec1[0].pairNumberId, unitCode: rec1[0].unitCode };
-      const slot2 = { weekNumber: rec2[0].weekNumber, dayOfWeekId: rec2[0].dayOfWeekId, pairNumberId: rec2[0].pairNumberId, unitCode: rec2[0].unitCode };
+      if (r1.unitCode !== r2.unitCode) {
+        throw new Error('Обмен между разными юнитами запрещён');
+      }
 
+      const slot1 = { weekNumber: r1.weekNumber, dayOfWeekId: r1.dayOfWeekId, pairNumberId: r1.pairNumberId, unitCode: r1.unitCode };
+      const slot2 = { weekNumber: r2.weekNumber, dayOfWeekId: r2.dayOfWeekId, pairNumberId: r2.pairNumberId, unitCode: r2.unitCode };
       await Promise.all([
         ctx.db.update(scheduleDisplay).set(slot2).where(eq(scheduleDisplay.id, input.id1)),
         ctx.db.update(scheduleDisplay).set(slot1).where(eq(scheduleDisplay.id, input.id2)),

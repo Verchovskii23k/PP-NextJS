@@ -175,21 +175,7 @@ export default function AdminSchedulePage() {
   const updateFlags = trpc.scheduleDisplay.updateFlags.useMutation();
   const moveToBufferMut = trpc.scheduleDisplay.moveToBuffer.useMutation();
   const moveFromBufferMut = trpc.scheduleDisplay.moveFromBuffer.useMutation();
-  
-  const optimizeScheduleMut = trpc.scheduleDisplay.optimizeSchedule.useMutation({
-    onSuccess: (data) => {
-      alert(`Оптимизация завершена. Итераций: ${data.iterations}, улучшение: с ${data.initialScore} до ${data.finalScore}`);
-      if (viewMode === "units") {
-        utils.scheduleDisplay.getForWeekPair.invalidate({ weekBase });
-        utils.scheduleDisplay.getForWeekPair.refetch({ weekBase });
-      } else {
-        utils.scheduleDisplay.getByStudyGroups.invalidate({ weekBase });
-        utils.scheduleDisplay.getByStudyGroups.refetch({ weekBase });
-      }
-      utils.scheduleDisplay.getBuffer.invalidate();
-    },
-    onError: (e) => alert(e.message),
-  });
+  const regenerateSchedule = trpc.scheduleDisplay.regenerateSchedule.useMutation();
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -214,7 +200,10 @@ export default function AdminSchedulePage() {
         if (val.status === 'swap' && val.swapId) newSwapIds[key] = val.swapId;
       }
       setSlotStatuses(newStatuses);
+      console.log('🔥 slotStatuses updated:', newStatuses);
+
       setSlotSwapIds(newSwapIds);
+      console.log('🔥 slotSwapIds:', newSwapIds);
     },
     [unitsData, checkSlots]
   );
@@ -496,11 +485,17 @@ export default function AdminSchedulePage() {
         </button>
 
         <button
-          onClick={() => optimizeScheduleMut.mutate()}
-          disabled={editMode || optimizeScheduleMut.isPending}
-          className="px-3 py-1 rounded ml-2 bg-purple-600 hover:bg-purple-700 text-white disabled:bg-gray-400"
+          onClick={() => {
+            if (editMode) {
+              alert('Выйдите из режима редактирования перед перегенерацией');
+              return;
+            }
+            setShowRegenDialog(true);
+          }}
+          disabled={editMode}
+          className={`px-3 py-1 rounded ml-2 ${editMode ? 'bg-gray-400 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-700'} text-white`}
         >
-          {optimizeScheduleMut.isPending ? "Оптимизация..." : "Оптимизировать"}
+          Перегенерировать
         </button>
 
         {viewMode === "units" && (
