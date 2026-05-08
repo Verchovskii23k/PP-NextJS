@@ -160,7 +160,6 @@ export default function AdminSchedulePage() {
   const [activeDragEntry, setActiveDragEntry] = useState<ScheduleRow | null>(null);
   const [slotStatuses, setSlotStatuses] = useState<Record<string, "free" | "conflict" | "swap">>({});
   const [slotSwapIds, setSlotSwapIds] = useState<Record<string, number>>({});
-  const [showRegenDialog, setShowRegenDialog] = useState(false);
 
   const utils = trpc.useUtils();
 
@@ -176,7 +175,21 @@ export default function AdminSchedulePage() {
   const updateFlags = trpc.scheduleDisplay.updateFlags.useMutation();
   const moveToBufferMut = trpc.scheduleDisplay.moveToBuffer.useMutation();
   const moveFromBufferMut = trpc.scheduleDisplay.moveFromBuffer.useMutation();
-  const regenerateSchedule = trpc.scheduleDisplay.regenerateSchedule.useMutation();
+  
+  const optimizeScheduleMut = trpc.scheduleDisplay.optimizeSchedule.useMutation({
+    onSuccess: (data) => {
+      alert(`Оптимизация завершена. Итераций: ${data.iterations}, улучшение: с ${data.initialScore} до ${data.finalScore}`);
+      if (viewMode === "units") {
+        utils.scheduleDisplay.getForWeekPair.invalidate({ weekBase });
+        utils.scheduleDisplay.getForWeekPair.refetch({ weekBase });
+      } else {
+        utils.scheduleDisplay.getByStudyGroups.invalidate({ weekBase });
+        utils.scheduleDisplay.getByStudyGroups.refetch({ weekBase });
+      }
+      utils.scheduleDisplay.getBuffer.invalidate();
+    },
+    onError: (e) => alert(e.message),
+  });
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -437,22 +450,6 @@ export default function AdminSchedulePage() {
     link.remove();
   };
 
-  const handleRegenerate = async (includeBuffered: boolean) => {
-    try {
-      const result = await regenerateSchedule.mutateAsync({ includeBuffered });
-      utils.scheduleDisplay.getForWeekPair.invalidate({ weekBase });
-      utils.scheduleDisplay.getByStudyGroups.invalidate({ weekBase });
-      utils.scheduleDisplay.getBuffer.invalidate();
-      if (result.unplacedMerges && result.unplacedMerges.length > 0) {
-        alert(`Расписание перегенерировано. Не удалось разместить слияния: ${result.unplacedMerges.join(', ')}`);
-      } else {
-        alert('Расписание перегенерировано');
-      }
-    } catch (e: any) {
-      alert(e.message);
-    }
-  };
-
   if (viewMode === "units" && unitsLoading) return <div className="p-6">Загрузка...</div>;
   if (viewMode === "groups" && groupsLoading) return <div className="p-6">Загрузка...</div>;
 
@@ -499,17 +496,11 @@ export default function AdminSchedulePage() {
         </button>
 
         <button
-          onClick={() => {
-            if (editMode) {
-              alert('Выйдите из режима редактирования перед перегенерацией');
-              return;
-            }
-            setShowRegenDialog(true);
-          }}
-          disabled={editMode}
-          className={`px-3 py-1 rounded ml-2 ${editMode ? 'bg-gray-400 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-700'} text-white`}
+          onClick={() => optimizeScheduleMut.mutate()}
+          disabled={editMode || optimizeScheduleMut.isPending}
+          className="px-3 py-1 rounded ml-2 bg-purple-600 hover:bg-purple-700 text-white disabled:bg-gray-400"
         >
-          Перегенерировать
+          {optimizeScheduleMut.isPending ? "Оптимизация..." : "Оптимизировать"}
         </button>
 
         {viewMode === "units" && (
@@ -747,40 +738,6 @@ export default function AdminSchedulePage() {
               </button>
               <button onClick={saveFlags} className="bg-primary text-white px-3 py-1 rounded hover:bg-primary/90">
                 Сохранить
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showRegenDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
-          <div className="bg-background p-6 rounded shadow-lg w-96 border border-border">
-            <h2 className="font-bold mb-4 text-foreground">Перегенерация расписания</h2>
-            <p className="text-sm mb-4 text-foreground">
-              В буфере находится {bufferEntries.length} занятий. Выберите вариант перегенерации:
-            </p>
-            <div className="flex gap-2 justify-end">
-              <button
-                onClick={() => {
-                  setShowRegenDialog(false);
-                  handleRegenerate(false);
-                }}
-                className="bg-gray-500 text-white px-3 py-1 rounded"
-              >
-                Без буфера
-              </button>
-              <button
-                onClick={() => {
-                  setShowRegenDialog(false);
-                  handleRegenerate(true);
-                }}
-                className="bg-primary text-white px-3 py-1 rounded"
-              >
-                С буфером
-              </button>
-              <button onClick={() => setShowRegenDialog(false)} className="bg-muted text-foreground px-3 py-1 rounded">
-                Отмена
               </button>
             </div>
           </div>
