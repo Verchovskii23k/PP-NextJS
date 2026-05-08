@@ -8,7 +8,7 @@ import {
   KeyRound,
   Shield,
   Users,
-  Sliders
+  Sliders, 
 } from "lucide-react";
 
 const sections = [
@@ -19,6 +19,7 @@ const sections = [
   { title: "Логины и пароли", description: "Генерация учётных записей", href: "/admin/credentials", icon: KeyRound, available: true },
   { title: "Администраторы", description: "Управление администраторами", href: "/admin/administrators", icon: Shield, available: true },
   { title: "Пользователи", description: "Сброс логинов и паролей", href: "/admin/users", icon: Users, available: true },
+  { title: "Локальный поиск", description: "Настройка параметров локального поиска", href: "/admin/optimization-settings", icon: Sliders, available: true },
 ];
 
 export default function AdminDashboard() {
