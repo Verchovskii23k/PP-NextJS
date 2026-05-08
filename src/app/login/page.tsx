@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { trpc } from "@/trpc/client";
 import { Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
@@ -15,6 +15,12 @@ export default function LoginPage() {
     },
     onError: (e) => setError(e.message),
   });
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setLogin(""); // убедимся, что поле логина чистое
+    }, 100); // 100 мс обычно достаточно
+    return () => clearTimeout(timer);
+  }, []);
 
   return (
     <div className="max-w-md mx-auto mt-20 p-6 border border-border rounded-lg bg-background text-foreground">

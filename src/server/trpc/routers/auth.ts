@@ -367,40 +367,97 @@ forgotPassword: publicProcedure
   }),
 
   resetPassword: publicProcedure
-    .input(z.object({
-      token: z.string(),
-      newPassword: z.string().min(6),
-    }))
-    .mutation(async ({ ctx, input }) => {
-      const [user] = await ctx.db
+  .input(z.object({
+    token: z.string(),
+    newPassword: z.string().min(6),
+    newLogin: z.string().min(3).optional(),
+  }))
+  .mutation(async ({ ctx, input }) => {
+    // Ищем пользователя по токену
+    const [user] = await ctx.db
+      .select({ id: securityCenter.id })
+      .from(securityCenter)
+      .where(eq(securityCenter.resetToken, input.token))
+      .limit(1);
+
+    if (!user) throw new Error("Токен недействителен или истёк");
+
+    // Проверяем срок действия
+    const [fullUser] = await ctx.db
+      .select({ resetTokenExpires: securityCenter.resetTokenExpires })
+      .from(securityCenter)
+      .where(eq(securityCenter.id, user.id))
+      .limit(1);
+    if (!fullUser?.resetTokenExpires || fullUser.resetTokenExpires < new Date()) {
+      throw new Error("Токен истёк");
+    }
+
+    const newHash = await hashPassword(input.newPassword);
+
+    // Определяем итоговый логин: если передан новый – используем его, иначе не меняем
+    let targetLogin: string | undefined = undefined;
+    if (input.newLogin) {
+      targetLogin = input.newLogin;
+    }
+
+    // Проверяем уникальность пары (логин + хэш) только если логин задан (явно или остаётся текущий)
+    if (targetLogin) {
+      const [conflict] = await ctx.db
         .select({ id: securityCenter.id })
         .from(securityCenter)
-        .where(eq(securityCenter.resetToken, input.token))
+        .where(
+          and(
+            eq(securityCenter.login, targetLogin),
+            eq(securityCenter.passwordHash, newHash),
+            sql`${securityCenter.id} != ${user.id}`
+          )
+        )
         .limit(1);
-
-      if (!user) throw new Error("Токен недействителен или истёк");
-
-      // Проверим срок действия (можно было бы и в запросе, но так нагляднее)
-      const [fullUser] = await ctx.db
-        .select({ resetTokenExpires: securityCenter.resetTokenExpires })
+      if (conflict) {
+        throw new Error("Пользователь с таким логином и паролем уже существует. Выберите другую комбинацию.");
+      }
+    } else {
+      // Если логин не меняется, проверяем пару с текущим логином пользователя
+      const [current] = await ctx.db
+        .select({ login: securityCenter.login })
         .from(securityCenter)
         .where(eq(securityCenter.id, user.id))
         .limit(1);
-      if (!fullUser?.resetTokenExpires || fullUser.resetTokenExpires < new Date()) {
-        throw new Error("Токен истёк");
+      if (current) {
+        targetLogin = current.login;
+        const [conflict] = await ctx.db
+          .select({ id: securityCenter.id })
+          .from(securityCenter)
+          .where(
+            and(
+              eq(securityCenter.login, targetLogin),
+              eq(securityCenter.passwordHash, newHash),
+              sql`${securityCenter.id} != ${user.id}`
+            )
+          )
+          .limit(1);
+        if (conflict) {
+          throw new Error("Пользователь с таким логином и паролем уже существует. Выберите другой пароль.");
+        }
       }
+    }
 
-      const newHash = await hashPassword(input.newPassword);
-      await ctx.db
-        .update(securityCenter)
-        .set({
-          passwordHash: newHash,
-          resetToken: null,
-          resetTokenExpires: null,
-          passwordChangedAt: new Date(),
-        })
-        .where(eq(securityCenter.id, user.id));
+    // Формируем объект обновления
+    const updateData: Record<string, unknown> = {
+      passwordHash: newHash,
+      resetToken: null,
+      resetTokenExpires: null,
+      passwordChangedAt: new Date(),
+    };
+    if (input.newLogin) {
+      updateData.login = input.newLogin;
+    }
 
-      return { success: true };
-    }),
+    await ctx.db
+      .update(securityCenter)
+      .set(updateData)
+      .where(eq(securityCenter.id, user.id));
+
+    return { success: true };
+  }),
 });
