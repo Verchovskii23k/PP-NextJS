@@ -6,7 +6,7 @@ import {
   employeesDepartments, classrooms, buildings, weeks, lessonTypes, disciplines
 } from "@/db/schema";
 import { lessons, lessonClassrooms, schedule, employees, units } from "@/db/schema";
-import { eq, inArray, asc, and, or } from "drizzle-orm";
+import { eq, inArray, asc, and } from "drizzle-orm";
 import { optimizeSchedule } from "./scheduleOptimizer";
 
 
@@ -162,134 +162,124 @@ export const scheduleDisplayRouter = router({
     }),
 
   // Возврат из буфера
-  moveFromBuffer: adminProcedure
-    .input(z.object({
-      id: z.number(),
-      targetWeek: z.number().int().min(1),
-      targetDayId: z.number().int(),
-      targetPairId: z.number().int(),
-      targetUnitCode: z.string(),
-    }))
-    .mutation(async ({ ctx, input }) => {
-      const record = await ctx.db
-        .select()
-        .from(scheduleDisplay)
-        .where(eq(scheduleDisplay.id, input.id))
-        .limit(1);
-      if (!record.length || !record[0].isBuffered) {
-        throw new Error('Запись не в буфере');
-      }
+moveFromBuffer: adminProcedure
+  .input(z.object({
+    id: z.number(),
+    targetWeek: z.number().int().min(1),
+    targetDayId: z.number().int(),
+    targetPairId: z.number().int(),
+    targetUnitCode: z.string(),
+  }))
+  .mutation(async ({ ctx, input }) => {
+    const record = await ctx.db
+      .select()
+      .from(scheduleDisplay)
+      .where(eq(scheduleDisplay.id, input.id))
+      .limit(1);
+    if (!record.length || !record[0].isBuffered) {
+      throw new Error('Запись не в буфере');
+    }
 
-      const existing = await ctx.db
+    const existing = await ctx.db
+      .select()
+      .from(scheduleDisplay)
+      .where(and(
+        eq(scheduleDisplay.weekNumber, input.targetWeek),
+        eq(scheduleDisplay.dayOfWeekId, input.targetDayId),
+        eq(scheduleDisplay.pairNumberId, input.targetPairId),
+        eq(scheduleDisplay.unitCode, input.targetUnitCode),
+        eq(scheduleDisplay.isBuffered, false)
+      ));
+    if (existing.length > 0) throw new Error('Слот занят');
+
+    await ctx.db
+      .update(scheduleDisplay)
+      .set({
+        weekNumber: input.targetWeek,
+        dayOfWeekId: input.targetDayId,
+        pairNumberId: input.targetPairId,
+        unitCode: input.targetUnitCode,
+        isBuffered: false,
+        positionFlag: false,
+        mergeNumber: 0,
+      })
+      .where(eq(scheduleDisplay.id, input.id));
+
+    return { success: true };
+  }),
+
+  // ==================== ПРОВЕРКА СЛОТОВ ====================
+// src/server/trpc/routers/scheduleDisplay.ts (фрагмент checkSlots)
+// ... остальной код без изменений
+
+checkSlots: adminProcedure
+  .input(z.object({
+    movingId: z.number(),
+    slots: z.array(z.object({
+      week: z.number().int(),
+      dayId: z.number().int(),
+      pairId: z.number().int(),
+      unitCode: z.string(),
+    })),
+  }))
+  .mutation(async ({ ctx, input }) => {
+    const moving = await ctx.db.select().from(scheduleDisplay).where(eq(scheduleDisplay.id, input.movingId)).limit(1);
+    if (!moving.length) throw new Error('Занятие не найдено');
+    const m = moving[0];
+
+    // Получаем группы, преподавателя, аудиторию для перемещаемого занятия
+    const movingUnitGroups = await ctx.db
+      .select({ studyGroupId: unitRoots.studyGroupId })
+      .from(unitRoots)
+      .where(eq(unitRoots.unitCode, m.unitCode));
+    const movingGroupIds = new Set(movingUnitGroups.map(r => r.studyGroupId));
+
+    const [mTeacher, mClassroom] = await Promise.all([
+      ctx.db.select({ teacherId: lessons.teacherId })
+        .from(lessons)
+        .where(eq(lessons.id, m.lessonId))
+        .limit(1),
+      ctx.db.select({ classroomId: lessonClassrooms.classroomId })
+        .from(lessonClassrooms)
+        .where(eq(lessonClassrooms.lessonId, m.lessonId))
+        .limit(1),
+    ]);
+    const mTeacherId = mTeacher[0]?.teacherId ?? null;
+    const mClassroomId = mClassroom[0]?.classroomId ?? null;
+
+    // Старый слот (если не буфер)
+    const oldSlot = m.isBuffered ? null : {
+      week: m.weekNumber,
+      dayId: m.dayOfWeekId,
+      pairId: m.pairNumberId,
+      unitCode: m.unitCode,
+    };
+
+    const results: Record<string, { status: string; swapId?: number }> = {};
+
+    // Для каждого проверяемого слота
+    for (const slot of input.slots) {
+      const key = `week-${slot.week}-${slot.dayId}-${slot.pairId}-${slot.unitCode}`;
+
+      // Все занятия в этом слоте (исключая буфер)
+      const allInSlot = await ctx.db
         .select()
         .from(scheduleDisplay)
         .where(and(
-          eq(scheduleDisplay.weekNumber, input.targetWeek),
-          eq(scheduleDisplay.dayOfWeekId, input.targetDayId),
-          eq(scheduleDisplay.pairNumberId, input.targetPairId),
-          eq(scheduleDisplay.unitCode, input.targetUnitCode),
+          eq(scheduleDisplay.weekNumber, slot.week),
+          eq(scheduleDisplay.dayOfWeekId, slot.dayId),
+          eq(scheduleDisplay.pairNumberId, slot.pairId),
           eq(scheduleDisplay.isBuffered, false)
         ));
-      if (existing.length > 0) throw new Error('Слот занят');
 
-      await ctx.db
-        .update(scheduleDisplay)
-        .set({
-          weekNumber: input.targetWeek,
-          dayOfWeekId: input.targetDayId,
-          pairNumberId: input.targetPairId,
-          unitCode: input.targetUnitCode,
-          isBuffered: false,
-        })
-        .where(eq(scheduleDisplay.id, input.id));
+      const others = allInSlot.filter(e => e.id !== input.movingId);
+      const sameUnitEntry = others.find(e => e.unitCode === m.unitCode) ?? null;
+      const differentUnitEntries = others.filter(e => e.unitCode !== m.unitCode);
 
-      return { success: true };
-    }),
-
-  // ==================== ПРОВЕРКА СЛОТОВ ====================
-  checkSlots: adminProcedure
-    .input(z.object({
-      movingId: z.number(),
-      slots: z.array(z.object({
-        week: z.number().int(),
-        dayId: z.number().int(),
-        pairId: z.number().int(),
-        unitCode: z.string(),
-      })),
-    }))
-    .mutation(async ({ ctx, input }) => {
-          console.log('🚀 checkSlots START', input.movingId);
-      const moving = await ctx.db.select().from(scheduleDisplay).where(eq(scheduleDisplay.id, input.movingId)).limit(1);
-      if (!moving.length) throw new Error('Занятие не найдено');
-      const m = moving[0];
-
-      const isBuffer = m.isBuffered;   // ← используем флаг
-
-      const movingUnitGroups = await ctx.db
-        .select({ studyGroupId: unitRoots.studyGroupId })
-        .from(unitRoots)
-        .where(eq(unitRoots.unitCode, m.unitCode));
-      const movingGroupIds = new Set(movingUnitGroups.map(r => r.studyGroupId));
-
-      if (movingGroupIds.size === 0) {
-        const errMsg = `Юнит ${m.unitCode} не привязан ни к одной учебной группе.`;
-        const results: Record<string, { status: string; diagnostic?: string }> = {};
-        for (const slot of input.slots) {
-          const key = `week-${slot.week}-${slot.dayId}-${slot.pairId}-${slot.unitCode}`;
-          results[key] = { status: 'conflict', diagnostic: errMsg };
-        }
-        return results;
-      }
-
-      const [mTeacher, mClassroom] = await Promise.all([
-        ctx.db.select({ teacherId: lessons.teacherId })
-          .from(lessons)
-          .where(eq(lessons.id, m.lessonId))
-          .limit(1),
-        ctx.db.select({ classroomId: lessonClassrooms.classroomId })
-          .from(lessonClassrooms)
-          .where(eq(lessonClassrooms.lessonId, m.lessonId))
-          .limit(1),
-      ]);
-      const mTeacherId = mTeacher[0]?.teacherId ?? null;
-      const mClassroomId = mClassroom[0]?.classroomId ?? null;
-
-      const oldSlot = isBuffer ? null : {
-        week: m.weekNumber,
-        dayId: m.dayOfWeekId,
-        pairId: m.pairNumberId,
-        unitCode: m.unitCode,
-      };
-
-      const results: Record<string, { status: string; swapId?: number }> = {};
-
-      for (const slot of input.slots) {
-        const key = `week-${slot.week}-${slot.dayId}-${slot.pairId}-${slot.unitCode}`;
-
-        const allInSlot = await ctx.db
-          .select()
-          .from(scheduleDisplay)
-          .where(and(
-            eq(scheduleDisplay.weekNumber, slot.week),
-            eq(scheduleDisplay.dayOfWeekId, slot.dayId),
-            eq(scheduleDisplay.pairNumberId, slot.pairId),
-            eq(scheduleDisplay.isBuffered, false)   // исключаем буфер
-          ));
-        const others = allInSlot.filter(e => e.id !== input.movingId);
-        console.log(`[checkSlots] key=${key}, movingId=${input.movingId}, others.length=${others.length}`);
-        
-        if (others.length === 0) {
-          results[key] = { status: 'free' };
-        } else if (others.length === 1 && others[0].unitCode === m.unitCode) {
-          // разрешаем swap без проверки обратных конфликтов
-          results[key] = { status: 'swap', swapId: others[0].id };
-          console.log(`✅ SWAP for ${key}`);
-        } else {
-          results[key] = { status: 'conflict' };
-        }
-
-        let directConflict = false;
-        for (const other of others) {
+      // Проверяем конфликты с чужими юнитами
+      let directConflict = false;
+      if (differentUnitEntries.length > 0) {
+        for (const other of differentUnitEntries) {
           const otherUnitGroups = await ctx.db
             .select({ studyGroupId: unitRoots.studyGroupId })
             .from(unitRoots)
@@ -312,146 +302,193 @@ export const scheduleDisplayRouter = router({
             break;
           }
         }
+      }
 
-        if (directConflict) {
+      if (directConflict) {
+        results[key] = { status: 'conflict' };
+        continue;
+      }
+
+      // Без конфликтов с чужими юнитами
+      if (sameUnitEntry) {
+        // Если перемещаемое из буфера – обмен невозможен
+        if (m.isBuffered) {
           results[key] = { status: 'conflict' };
           continue;
         }
 
-        if (isBuffer) {
-          results[key] = { status: 'free' };
-          continue;
-        }
+        // Проверка осмысленности swap
+        const [sameTeacher, sameClassroom] = await Promise.all([
+          ctx.db.select({ teacherId: lessons.teacherId }).from(lessons).where(eq(lessons.id, sameUnitEntry.lessonId)).limit(1),
+          ctx.db.select({ classroomId: lessonClassrooms.classroomId }).from(lessonClassrooms).where(eq(lessonClassrooms.lessonId, sameUnitEntry.lessonId)).limit(1),
+        ]);
+        const sTeacherId = sameTeacher[0]?.teacherId ?? null;
+        const sClassroomId = sameClassroom[0]?.classroomId ?? null;
 
-        if (others.length === 1) {
-
-        const other = others[0];
-
-        // Запрещаем swap, если юниты разные
-        if (other.unitCode === m.unitCode) {
-          results[key] = { status: 'swap', swapId: other.id };
-          console.log(`  → SWAP разрешён (упрощённо) для ${key}`);
-          continue;
-        }
-
-        // Если занятие из того же юнита – предполагаем, что можно меняться,
-        // если только нет конфликта преподавателей/аудиторий в старом слоте
-        const otherUnitGroups = await ctx.db
-          .select({ studyGroupId: unitRoots.studyGroupId })
-          .from(unitRoots)
-          .where(eq(unitRoots.unitCode, other.unitCode));
-        const otherGroupIds = new Set(otherUnitGroups.map(r => r.studyGroupId));
-        const [oTeacher] = await ctx.db.select({ teacherId: lessons.teacherId }).from(lessons).where(eq(lessons.id, other.lessonId)).limit(1);
-        const [oClassroom] = await ctx.db.select({ classroomId: lessonClassrooms.classroomId }).from(lessonClassrooms).where(eq(lessonClassrooms.lessonId, other.lessonId)).limit(1);
-        const oTeacherId = oTeacher?.teacherId ?? null;
-        const oClassroomId = oClassroom?.classroomId ?? null;
-
-        const oldSlotAll = await ctx.db
-          .select()
-          .from(scheduleDisplay)
-          .where(and(
-            eq(scheduleDisplay.weekNumber, oldSlot!.week),
-            eq(scheduleDisplay.dayOfWeekId, oldSlot!.dayId),
-            eq(scheduleDisplay.pairNumberId, oldSlot!.pairId),
-          ));
-        const oldOthers = oldSlotAll.filter(e => e.id !== input.movingId);
-
-        // Проверяем, что other можно поставить в старый слот
-        let reverseConflict = false;
-        for (const oldOther of oldOthers) {
-          const oldUnitGroups = await ctx.db
-            .select({ studyGroupId: unitRoots.studyGroupId })
-            .from(unitRoots)
-            .where(eq(unitRoots.unitCode, oldOther.unitCode));
-          const oldGroupIds = new Set(oldUnitGroups.map(r => r.studyGroupId));
-          const [oldTeacher, oldClassroom] = await Promise.all([
-            ctx.db.select({ teacherId: lessons.teacherId }).from(lessons).where(eq(lessons.id, oldOther.lessonId)).limit(1),
-            ctx.db.select({ classroomId: lessonClassrooms.classroomId }).from(lessonClassrooms).where(eq(lessonClassrooms.lessonId, oldOther.lessonId)).limit(1),
+        // Если все три ключевых параметра совпадают – бессмысленный обмен
+        if (
+          mTeacherId === sTeacherId &&
+          mClassroomId === sClassroomId
+          // NOTE: можно добавить сравнение disciplineId, но он не хранится в scheduleDisplay.
+          // Проверим через lessons
+        ) {
+          // Получаем disciplineId для обоих занятий
+          const [mDisc, sDisc] = await Promise.all([
+            ctx.db.select({ disciplineId: lessons.disciplineId }).from(lessons).where(eq(lessons.id, m.lessonId)).limit(1),
+            ctx.db.select({ disciplineId: lessons.disciplineId }).from(lessons).where(eq(lessons.id, sameUnitEntry.lessonId)).limit(1),
           ]);
-          const oldTeacherId = oldTeacher[0]?.teacherId ?? null;
-          const oldClassroomId = oldClassroom[0]?.classroomId ?? null;
-
-          if (
-            (oTeacherId && oldTeacherId && oTeacherId === oldTeacherId) ||
-            (oClassroomId && oldClassroomId && oClassroomId === oldClassroomId)
-          ) {
-            reverseConflict = true;
-            break;
+          if (mDisc[0]?.disciplineId === sDisc[0]?.disciplineId) {
+            results[key] = { status: 'conflict' };
+            continue;
           }
         }
 
-        if (!reverseConflict) {
-          results[key] = { status: 'swap', swapId: other.id };
-        } else{
+        // Проверка обратной перестановки (проверка, что sameUnitEntry можно поместить в старый слот moving)
+        if (oldSlot) {
+          const oldSlotAll = await ctx.db
+            .select()
+            .from(scheduleDisplay)
+            .where(and(
+              eq(scheduleDisplay.weekNumber, oldSlot.week),
+              eq(scheduleDisplay.dayOfWeekId, oldSlot.dayId),
+              eq(scheduleDisplay.pairNumberId, oldSlot.pairId),
+              eq(scheduleDisplay.isBuffered, false)
+            ));
+          const oldOthers = oldSlotAll.filter(e => e.id !== input.movingId);
+
+          let reverseConflict = false;
+          for (const oldOther of oldOthers) {
+            const oldOtherUnitGroups = await ctx.db
+              .select({ studyGroupId: unitRoots.studyGroupId })
+              .from(unitRoots)
+              .where(eq(unitRoots.unitCode, oldOther.unitCode));
+            const oldOtherGroupIds = new Set(oldOtherUnitGroups.map(r => r.studyGroupId));
+
+            const [oldOtherTeacher, oldOtherClassroom] = await Promise.all([
+              ctx.db.select({ teacherId: lessons.teacherId }).from(lessons).where(eq(lessons.id, oldOther.lessonId)).limit(1),
+              ctx.db.select({ classroomId: lessonClassrooms.classroomId }).from(lessonClassrooms).where(eq(lessonClassrooms.lessonId, oldOther.lessonId)).limit(1),
+            ]);
+            const ooTId = oldOtherTeacher[0]?.teacherId ?? null;
+            const ooCId = oldOtherClassroom[0]?.classroomId ?? null;
+
+            const sameUnitGroups = await ctx.db
+              .select({ studyGroupId: unitRoots.studyGroupId })
+              .from(unitRoots)
+              .where(eq(unitRoots.unitCode, sameUnitEntry.unitCode));
+            const sameGroupIds = new Set(sameUnitGroups.map(r => r.studyGroupId));
+
+            if (
+              ([...sameGroupIds].some(g => oldOtherGroupIds.has(g))) ||
+              (sTeacherId && ooTId && sTeacherId === ooTId) ||
+              (sClassroomId && ooCId && sClassroomId === ooCId)
+            ) {
+              reverseConflict = true;
+              break;
+            }
+          }
+
+          if (reverseConflict) {
+            results[key] = { status: 'conflict' };
+          } else {
+            results[key] = { status: 'swap', swapId: sameUnitEntry.id };
+          }
+        } else {
+          // oldSlot отсутствует (буфер) – swap невозможен (уже обработано выше)
           results[key] = { status: 'conflict' };
         }
-        } else {
-            results[key] = { status: 'conflict' };
-        }
+      } else {
+        // Слот свободен
+        results[key] = { status: 'free' };
       }
+    }
 
-      return results;
-    }),
+    return results;
+  }),
+// ...
 
   // ==================== ПЕРЕМЕЩЕНИЯ ====================
-  move: adminProcedure
-    .input(z.object({
-      id: z.number(),
-      targetWeek: z.number().int(),
-      targetDayId: z.number().int(),
-      targetPairId: z.number().int(),
-      targetUnitCode: z.string(),
-    }))
-    .mutation(async ({ ctx, input }) => {
-      const existing = await ctx.db
-        .select()
-        .from(scheduleDisplay)
-        .where(and(
-          eq(scheduleDisplay.weekNumber, input.targetWeek),
-          eq(scheduleDisplay.dayOfWeekId, input.targetDayId),
-          eq(scheduleDisplay.pairNumberId, input.targetPairId),
-          eq(scheduleDisplay.unitCode, input.targetUnitCode),
-          eq(scheduleDisplay.isBuffered, false)   // не учитываем буфер
-        ));
+move: adminProcedure
+  .input(z.object({
+    id: z.number(),
+    targetWeek: z.number().int(),
+    targetDayId: z.number().int(),
+    targetPairId: z.number().int(),
+    targetUnitCode: z.string(),
+  }))
+  .mutation(async ({ ctx, input }) => {
+    const existing = await ctx.db
+      .select()
+      .from(scheduleDisplay)
+      .where(and(
+        eq(scheduleDisplay.weekNumber, input.targetWeek),
+        eq(scheduleDisplay.dayOfWeekId, input.targetDayId),
+        eq(scheduleDisplay.pairNumberId, input.targetPairId),
+        eq(scheduleDisplay.unitCode, input.targetUnitCode),
+        eq(scheduleDisplay.isBuffered, false)
+      ));
 
-      if (existing.length > 0) throw new Error('Слот занят');
+    if (existing.length > 0) throw new Error('Слот занят');
 
-      await ctx.db
-        .update(scheduleDisplay)
-        .set({
-          weekNumber: input.targetWeek,
-          dayOfWeekId: input.targetDayId,
-          pairNumberId: input.targetPairId,
-          unitCode: input.targetUnitCode,
-        })
-        .where(eq(scheduleDisplay.id, input.id));
+    // Сброс флагов перед перемещением
+    await ctx.db
+      .update(scheduleDisplay)
+      .set({
+        weekNumber: input.targetWeek,
+        dayOfWeekId: input.targetDayId,
+        pairNumberId: input.targetPairId,
+        unitCode: input.targetUnitCode,
+        positionFlag: false,
+        mergeNumber: 0,
+      })
+      .where(eq(scheduleDisplay.id, input.id));
 
-      return { success: true };
-    }),
+    return { success: true };
+  }),
 
-  swap: adminProcedure
-    .input(z.object({ id1: z.number(), id2: z.number() }))
-    .mutation(async ({ ctx, input }) => {
-      const [rec1, rec2] = await Promise.all([
-        ctx.db.select().from(scheduleDisplay).where(eq(scheduleDisplay.id, input.id1)).limit(1),
-        ctx.db.select().from(scheduleDisplay).where(eq(scheduleDisplay.id, input.id2)).limit(1),
-      ]);
-      const r1 = rec1[0] as typeof scheduleDisplay.$inferSelect;
-      const r2 = rec2[0] as typeof scheduleDisplay.$inferSelect;
+// Мутация swap
+swap: adminProcedure
+  .input(z.object({ id1: z.number(), id2: z.number() }))
+  .mutation(async ({ ctx, input }) => {
+    const [rec1, rec2] = await Promise.all([
+      ctx.db.select().from(scheduleDisplay).where(eq(scheduleDisplay.id, input.id1)).limit(1),
+      ctx.db.select().from(scheduleDisplay).where(eq(scheduleDisplay.id, input.id2)).limit(1),
+    ]);
+    const r1 = rec1[0] as typeof scheduleDisplay.$inferSelect;
+    const r2 = rec2[0] as typeof scheduleDisplay.$inferSelect;
 
-      if (r1.unitCode !== r2.unitCode) {
-        throw new Error('Обмен между разными юнитами запрещён');
-      }
+    if (r1.unitCode !== r2.unitCode) {
+      throw new Error('Обмен между разными юнитами запрещён');
+    }
 
-      const slot1 = { weekNumber: r1.weekNumber, dayOfWeekId: r1.dayOfWeekId, pairNumberId: r1.pairNumberId, unitCode: r1.unitCode };
-      const slot2 = { weekNumber: r2.weekNumber, dayOfWeekId: r2.dayOfWeekId, pairNumberId: r2.pairNumberId, unitCode: r2.unitCode };
-      await Promise.all([
-        ctx.db.update(scheduleDisplay).set(slot2).where(eq(scheduleDisplay.id, input.id1)),
-        ctx.db.update(scheduleDisplay).set(slot1).where(eq(scheduleDisplay.id, input.id2)),
-      ]);
+    const slot1 = {
+      weekNumber: r1.weekNumber,
+      dayOfWeekId: r1.dayOfWeekId,
+      pairNumberId: r1.pairNumberId,
+      unitCode: r1.unitCode,
+    };
+    const slot2 = {
+      weekNumber: r2.weekNumber,
+      dayOfWeekId: r2.dayOfWeekId,
+      pairNumberId: r2.pairNumberId,
+      unitCode: r2.unitCode,
+    };
 
-      return { success: true };
-    }),
+    // Сброс флагов у обоих
+    await Promise.all([
+      ctx.db.update(scheduleDisplay).set({
+        ...slot2,
+        positionFlag: false,
+        mergeNumber: 0,
+      }).where(eq(scheduleDisplay.id, input.id1)),
+      ctx.db.update(scheduleDisplay).set({
+        ...slot1,
+        positionFlag: false,
+        mergeNumber: 0,
+      }).where(eq(scheduleDisplay.id, input.id2)),
+    ]);
+
+    return { success: true };
+  }),
 
   updateFlags: adminProcedure
     .input(z.object({

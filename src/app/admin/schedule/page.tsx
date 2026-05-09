@@ -151,6 +151,7 @@ function BufferZone({ entries, isEditMode }: { entries: ScheduleRow[]; isEditMod
   );
 }
 
+
 export default function AdminSchedulePage() {
   const weekBase = 1;
   const [viewMode, setViewMode] = useState<"units" | "groups">("units");
@@ -160,6 +161,11 @@ export default function AdminSchedulePage() {
   const [activeDragEntry, setActiveDragEntry] = useState<ScheduleRow | null>(null);
   const [slotStatuses, setSlotStatuses] = useState<Record<string, "free" | "conflict" | "swap">>({});
   const [slotSwapIds, setSlotSwapIds] = useState<Record<string, number>>({});
+  const [confirmDialog, setConfirmDialog] = useState<{
+    show: boolean;
+    message: string;
+    onConfirm: () => void;
+  }>({ show: false, message: '', onConfirm: () => {} });
 
   const utils = trpc.useUtils();
 
@@ -176,6 +182,47 @@ export default function AdminSchedulePage() {
   const moveToBufferMut = trpc.scheduleDisplay.moveToBuffer.useMutation();
   const moveFromBufferMut = trpc.scheduleDisplay.moveFromBuffer.useMutation();
   
+
+const refreshData = useCallback(() => {
+  if (viewMode === "units") {
+    utils.scheduleDisplay.getForWeekPair.invalidate({ weekBase });
+    utils.scheduleDisplay.getForWeekPair.refetch({ weekBase });
+  } else {
+    utils.scheduleDisplay.getByStudyGroups.invalidate({ weekBase });
+    utils.scheduleDisplay.getByStudyGroups.refetch({ weekBase });
+  }
+  utils.scheduleDisplay.getBuffer.invalidate();
+}, [viewMode, utils, weekBase]);
+
+const performMove = useCallback(async (entry: ScheduleRow, targetId: string) => {
+  const targetWeek = parseInt(targetId.split("-")[1], 10);
+  const targetDayId = parseInt(targetId.split("-")[2], 10);
+  const targetPairId = parseInt(targetId.split("-")[3], 10);
+  const targetUnitCode = targetId.split("-").slice(4).join("-");
+
+  if (targetUnitCode !== entry.unitCode) {
+    console.warn("Нельзя перенести занятие в другой юнит");
+    return;
+  }
+
+  const status = slotStatuses[targetId];
+  if (!status) return;
+
+  try {
+    if (status === "free") {
+      await moveMutation.mutateAsync({ id: entry.id, targetWeek, targetDayId, targetPairId, targetUnitCode });
+    } else if (status === "swap") {
+      const swapId = slotSwapIds[targetId];
+      if (!swapId) { alert("Занятие для обмена не найдено"); return; }
+      await swapMutation.mutateAsync({ id1: entry.id, id2: swapId });
+    }
+    utils.scheduleDisplay.getForWeekPair.invalidate({ weekBase });
+    utils.scheduleDisplay.getByStudyGroups.invalidate({ weekBase });
+  } catch (e: any) { alert(e.message); }
+}, [slotStatuses, slotSwapIds, moveMutation, swapMutation, utils, weekBase]);
+
+
+
   const optimizeScheduleMut = trpc.scheduleDisplay.optimizeSchedule.useMutation({
     onSuccess: (data) => {
       alert(`Оптимизация завершена. Итераций: ${data.iterations}, улучшение: с ${data.initialScore} до ${data.finalScore}`);
@@ -233,70 +280,59 @@ export default function AdminSchedulePage() {
     }
   };
 
-  const handleDragEnd = async (event: DragEndEvent) => {
-    const { active, over } = event;
-    setActiveDragEntry(null);
-    setSlotStatuses({});
-    setSlotSwapIds({});
-    if (!over || !active.data.current?.entry) return;
-    const entry = active.data.current.entry as ScheduleRow;
-    const targetId = over.id as string;
+const handleDragEnd = async (event: DragEndEvent) => {
+  const { active, over } = event;
+  setActiveDragEntry(null);
+  setSlotStatuses({});
+  setSlotSwapIds({});
+  if (!over || !active.data.current?.entry) return;
+  const entry = active.data.current.entry as ScheduleRow;
+  const targetId = over.id as string;
 
-    if (targetId === "buffer-zone") {
-      if (entry.weekNumber !== 0) {
-        await moveToBufferMut.mutateAsync({ id: entry.id });
-        utils.scheduleDisplay.getBuffer.invalidate();
-        utils.scheduleDisplay.getForWeekPair.invalidate({ weekBase });
-        utils.scheduleDisplay.getByStudyGroups.invalidate({ weekBase });
-      }
+  if (targetId === "buffer-zone") {
+    if (entry.weekNumber !== 0) {
+      await moveToBufferMut.mutateAsync({ id: entry.id });
+      refreshData();
+    }
+    return;
+  }
+
+  if (entry.weekNumber === 0) { // из буфера
+    const parts = targetId.split("-");
+    if (parts.length < 5 || parts[0] !== "week") return;
+    const targetWeek = parseInt(parts[1], 10);
+    const targetDayId = parseInt(parts[2], 10);
+    const targetPairId = parseInt(parts[3], 10);
+    const targetUnitCode = parts.slice(4).join("-");
+    const slots = [{ week: targetWeek, dayId: targetDayId, pairId: targetPairId, unitCode: targetUnitCode }];
+    const result = await checkSlots.mutateAsync({ movingId: entry.id, slots });
+    const status = result[`week-${targetWeek}-${targetDayId}-${targetPairId}-${targetUnitCode}`]?.status;
+    if (status !== 'free') {
+      alert('Невозможно разместить: конфликт');
       return;
     }
+    await moveFromBufferMut.mutateAsync({ id: entry.id, targetWeek, targetDayId, targetPairId, targetUnitCode });
+    refreshData();
+    return;
+  }
 
-    if (entry.weekNumber === 0) {
-      const parts = targetId.split("-");
-      if (parts.length < 5 || parts[0] !== "week") return;
-      const targetWeek = parseInt(parts[1], 10);
-      const targetDayId = parseInt(parts[2], 10);
-      const targetPairId = parseInt(parts[3], 10);
-      const targetUnitCode = parts.slice(4).join("-");
-      const slots = [{ week: targetWeek, dayId: targetDayId, pairId: targetPairId, unitCode: targetUnitCode }];
-      const result = await checkSlots.mutateAsync({ movingId: entry.id, slots });
-      const status = result[`week-${targetWeek}-${targetDayId}-${targetPairId}-${targetUnitCode}`]?.status;
-      if (status !== 'free') {
-        alert('Невозможно разместить: конфликт');
-        return;
-      }
-      await moveFromBufferMut.mutateAsync({ id: entry.id, targetWeek, targetDayId, targetPairId, targetUnitCode });
-      utils.scheduleDisplay.getBuffer.invalidate();
-      utils.scheduleDisplay.getForWeekPair.invalidate({ weekBase });
-      utils.scheduleDisplay.getByStudyGroups.invalidate({ weekBase });
-      return;
-    }
+  // Проверка флагов у перетаскиваемого занятия
+  const hasFlags = entry.positionFlag || entry.mergeNumber !== 0;
+  if (hasFlags) {
+    setConfirmDialog({
+      show: true,
+      message: 'Есть зафиксированные занятия или подвергнутые слиянию. При переносе/обмене флаги фиксации и слияния будут сброшены. Продолжить?',
+      onConfirm: () => {
+        setConfirmDialog({ show: false, message: '', onConfirm: () => {} });
+        performMove(entry, targetId);
+      },
+    });
+    return;
+  }
 
-    const targetWeek = parseInt(targetId.split("-")[1], 10);
-    const targetDayId = parseInt(targetId.split("-")[2], 10);
-    const targetPairId = parseInt(targetId.split("-")[3], 10);
-    const targetUnitCode = targetId.split("-").slice(4).join("-");
-
-    if (targetUnitCode !== entry.unitCode) {
-      console.warn("Нельзя перенести занятие в другой юнит");
-      return;
-    }
-
-    const status = slotStatuses[targetId];
-    if (!status) return;
-    try {
-      if (status === "free") {
-        await moveMutation.mutateAsync({ id: entry.id, targetWeek, targetDayId, targetPairId, targetUnitCode });
-      } else if (status === "swap") {
-        const swapId = slotSwapIds[targetId];
-        if (!swapId) { alert("Занятие для обмена не найдено"); return; }
-        await swapMutation.mutateAsync({ id1: entry.id, id2: swapId });
-      }
-      utils.scheduleDisplay.getForWeekPair.invalidate({ weekBase });
-      utils.scheduleDisplay.getByStudyGroups.invalidate({ weekBase });
-    } catch (e: any) { alert(e.message); }
-  };
+  // Без флагов – просто выполняем
+  await performMove(entry, targetId);
+};
 
   const openFlagEditor = (entry: ScheduleRow) => {
     setSelectedEntry(entry);
@@ -484,7 +520,27 @@ export default function AdminSchedulePage() {
           </>
         )}
       </div>
-
+      {confirmDialog.show && (
+        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
+          <div className="bg-background p-6 rounded shadow-lg border border-border max-w-md">
+            <p className="text-foreground mb-4">{confirmDialog.message}</p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setConfirmDialog({ show: false, message: '', onConfirm: () => {} })}
+                className="px-4 py-2 border border-border rounded text-foreground hover:bg-muted"
+              >
+                Отмена
+              </button>
+              <button
+                onClick={confirmDialog.onConfirm}
+                className="px-4 py-2 bg-primary text-white rounded hover:bg-primary/90"
+              >
+                Подтвердить
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="flex gap-4 mb-4">
 
       </div>
