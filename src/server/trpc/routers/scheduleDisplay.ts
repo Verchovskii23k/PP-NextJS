@@ -11,15 +11,16 @@ import { optimizeSchedule } from "./scheduleOptimizer";
 
 export const scheduleDisplayRouter = router({
 getForWeekPair: adminProcedure
-  .input(z.object({ weekBaseId: z.number().int().min(1).optional() })) // weekBaseId больше не используется
+  .input(z.object({ weekBaseId: z.number().int().min(1).optional() }))
   .query(async ({ ctx }) => {
-    // Все активные недели
+    // Все активные недели с типами
     const weeksList = await ctx.db
       .select({ id: weeks.id, type: weeks.type })
       .from(weeks)
       .where(eq(weeks.isActive, true))
       .orderBy(asc(weeks.id));
 
+    // ВСЕ строки, не фильтруем по неделям
     const rows = await ctx.db
       .select()
       .from(scheduleDisplay)

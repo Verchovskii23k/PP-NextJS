@@ -67,24 +67,9 @@ function DraggableLesson({ entry, isEditMode }: { entry: ScheduleRow; isEditMode
   );
 }
 
-function DroppableArea({
-  weekId,
-  weekIndex,
-  dayId,
-  pairId,
-  unitCode,
-  entry,
-  isEditMode,
-  status,
-  onCellClick,
-}: {
-  weekId: number;
-  weekIndex: number;
-  dayId: number;
-  pairId: number;
-  unitCode: string;
-  entry: ScheduleRow | undefined;
-  isEditMode: boolean;
+function DroppableArea({ weekId, weekIndex, dayId, pairId, unitCode, entry, isEditMode, status, onCellClick }: {
+  weekId: number; weekIndex: number; dayId: number; pairId: number; unitCode: string;
+  entry: ScheduleRow | undefined; isEditMode: boolean;
   status: "free" | "conflict" | "swap" | null;
   onCellClick: (e: ScheduleRow) => void;
 }) {
@@ -97,11 +82,22 @@ function DroppableArea({
 
   let bg = "";
   if (isEditMode) {
-    if (status === "free") bg = "bg-green-100 dark:bg-green-900/20";
-    else if (status === "conflict") bg = "bg-red-100 dark:bg-red-900/20";
-    else if (status === "swap") bg = "bg-blue-100 dark:bg-blue-900/20";
+    // Если есть статус – используем его цвет, иначе цвет недели
+    if (status === "free") {
+      bg = "bg-green-100 dark:bg-green-900/20";
+    } else if (status === "conflict") {
+      bg = "bg-red-100 dark:bg-red-900/20";
+    } else if (status === "swap") {
+      bg = "bg-blue-100 dark:bg-blue-900/20";
+    } else {
+      // Нет активного статуса – показываем цвет недели
+      const color = WEEK_COLORS[weekIndex % WEEK_COLORS.length];
+      bg = `${color.bg} ${color.border}`;
+    }
+    // Дополнительная подсветка при наведении
     if (isOver) bg += " ring-2 ring-blue-500";
   } else {
+    // Обычный режим – всегда цвет недели
     const color = WEEK_COLORS[weekIndex % WEEK_COLORS.length];
     bg = `${color.bg} ${color.border}`;
   }
