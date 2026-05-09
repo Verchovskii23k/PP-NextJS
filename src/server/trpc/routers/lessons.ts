@@ -1,16 +1,49 @@
+// src/server/trpc/routers/lessons.ts
 import { z } from "zod";
 import { router, adminProcedure } from "../trpc";
-import { lessons } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { lessons, disciplines, lessonTypes, employeesDepartments, employees } from "@/db/schema";
+import { eq, sql } from "drizzle-orm";
 
 export const lessonsRouter = router({
   list: adminProcedure.query(async ({ ctx }) => {
-    return ctx.db.select().from(lessons);
+    return ctx.db
+      .select({
+        id: lessons.id,
+        curriculumId: lessons.curriculumId,
+        unitId: lessons.unitId,
+        lessonTypeId: lessons.lessonTypeId,
+        disciplineId: lessons.disciplineId,
+        teacherId: lessons.teacherId,
+        countPerSemester: lessons.countPerSemester,
+        display: sql<string>`${disciplines.abbreviation} || '-' || ${employees.surname} || ' ' || left(${employees.name},1) || '.' || left(${employees.patronymic},1) || '.' || '-' || ${lessonTypes.abbreviation}`.as('display'),
+      })
+      .from(lessons)
+      .innerJoin(disciplines, eq(lessons.disciplineId, disciplines.id))
+      .leftJoin(employeesDepartments, eq(lessons.teacherId, employeesDepartments.id))
+      .leftJoin(employees, eq(employeesDepartments.employeeId, employees.id))
+      .innerJoin(lessonTypes, eq(lessons.lessonTypeId, lessonTypes.id));
   }),
   get: adminProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ ctx, input }) => {
-      const rows = await ctx.db.select().from(lessons).where(eq(lessons.id, input.id)).limit(1);
+      const rows = await ctx.db
+        .select({
+          id: lessons.id,
+          curriculumId: lessons.curriculumId,
+          unitId: lessons.unitId,
+          lessonTypeId: lessons.lessonTypeId,
+          disciplineId: lessons.disciplineId,
+          teacherId: lessons.teacherId,
+          countPerSemester: lessons.countPerSemester,
+          display: sql<string>`${disciplines.abbreviation} || '-' || ${employees.surname} || ' ' || left(${employees.name},1) || '.' || left(${employees.patronymic},1) || '.' || '-' || ${lessonTypes.abbreviation}`.as('display'),
+        })
+        .from(lessons)
+        .innerJoin(disciplines, eq(lessons.disciplineId, disciplines.id))
+        .leftJoin(employeesDepartments, eq(lessons.teacherId, employeesDepartments.id))
+        .leftJoin(employees, eq(employeesDepartments.employeeId, employees.id))
+        .innerJoin(lessonTypes, eq(lessons.lessonTypeId, lessonTypes.id))
+        .where(eq(lessons.id, input.id))
+        .limit(1);
       return rows[0] ?? null;
     }),
   create: adminProcedure

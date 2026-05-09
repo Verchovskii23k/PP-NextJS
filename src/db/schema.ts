@@ -324,6 +324,7 @@ export const scheduleDisplay = pgTable("schedule_display", {
   mergeNumber: integer("merge_number").default(0),
   positionFlag: boolean("position_flag").default(false),
   classroomFlag: boolean("classroom_flag").default(false),
+  classroomId: integer("classroom_id").references(() => classrooms.id),
   isBuffered: boolean("is_buffered").default(false).notNull(),
 });
 

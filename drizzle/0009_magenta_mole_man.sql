@@ -1,0 +1,2 @@
+ALTER TABLE "schedule_display" ADD COLUMN "classroom_id" integer;--> statement-breakpoint
+ALTER TABLE "schedule_display" ADD CONSTRAINT "schedule_display_classroom_id_classrooms_id_fk" FOREIGN KEY ("classroom_id") REFERENCES "public"."classrooms"("id") ON DELETE no action ON UPDATE no action;

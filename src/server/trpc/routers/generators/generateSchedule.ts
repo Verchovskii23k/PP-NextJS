@@ -246,6 +246,7 @@ export const generateScheduleRouter = router({
             mergeNumber: 0,
             positionFlag: false,
             classroomFlag: row.classroomId !== null,
+            classroomId: row.classroomId, // ✅ сохраняем ID аудитории
           };
         });
 

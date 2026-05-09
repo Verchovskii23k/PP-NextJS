@@ -29,18 +29,19 @@ type ScheduleRow = {
   positionFlag: boolean;
   classroomFlag: boolean;
   lessonId: number | null;
+  isBuffered: boolean; // ✅ новое поле
 };
 
 type WeekInfo = { id: number; type: string };
 
-// Цвета для разных недель (не красный, не зелёный, не синий)
+// Цвета для разных недель
 const WEEK_COLORS = [
-  { bg: 'bg-indigo-200 dark:bg-indigo-800', border: 'border-indigo-400 dark:border-indigo-600' },
-  { bg: 'bg-teal-200 dark:bg-teal-800', border: 'border-teal-400 dark:border-teal-600' },
-  { bg: 'bg-purple-200 dark:bg-purple-800', border: 'border-purple-400 dark:border-purple-600' },
-  { bg: 'bg-amber-200 dark:bg-amber-800', border: 'border-amber-400 dark:border-amber-600' },
-  { bg: 'bg-pink-200 dark:bg-pink-800', border: 'border-pink-400 dark:border-pink-600' },
-  { bg: 'bg-cyan-200 dark:bg-cyan-800', border: 'border-cyan-400 dark:border-cyan-600' },
+  { bg: "bg-indigo-200 dark:bg-indigo-800", border: "border-indigo-400 dark:border-indigo-600" },
+  { bg: "bg-teal-200 dark:bg-teal-800", border: "border-teal-400 dark:border-teal-600" },
+  { bg: "bg-purple-200 dark:bg-purple-800", border: "border-purple-400 dark:border-purple-600" },
+  { bg: "bg-amber-200 dark:bg-amber-800", border: "border-amber-400 dark:border-amber-600" },
+  { bg: "bg-pink-200 dark:bg-pink-800", border: "border-pink-400 dark:border-pink-600" },
+  { bg: "bg-cyan-200 dark:bg-cyan-800", border: "border-cyan-400 dark:border-cyan-600" },
 ];
 
 function DraggableLesson({ entry, isEditMode }: { entry: ScheduleRow; isEditMode: boolean }) {
@@ -67,9 +68,24 @@ function DraggableLesson({ entry, isEditMode }: { entry: ScheduleRow; isEditMode
   );
 }
 
-function DroppableArea({ weekId, weekIndex, dayId, pairId, unitCode, entry, isEditMode, status, onCellClick }: {
-  weekId: number; weekIndex: number; dayId: number; pairId: number; unitCode: string;
-  entry: ScheduleRow | undefined; isEditMode: boolean;
+function DroppableArea({
+  weekId,
+  weekIndex,
+  dayId,
+  pairId,
+  unitCode,
+  entry,
+  isEditMode,
+  status,
+  onCellClick,
+}: {
+  weekId: number;
+  weekIndex: number;
+  dayId: number;
+  pairId: number;
+  unitCode: string;
+  entry: ScheduleRow | undefined;
+  isEditMode: boolean;
   status: "free" | "conflict" | "swap" | null;
   onCellClick: (e: ScheduleRow) => void;
 }) {
@@ -82,22 +98,15 @@ function DroppableArea({ weekId, weekIndex, dayId, pairId, unitCode, entry, isEd
 
   let bg = "";
   if (isEditMode) {
-    // Если есть статус – используем его цвет, иначе цвет недели
-    if (status === "free") {
-      bg = "bg-green-100 dark:bg-green-900/20";
-    } else if (status === "conflict") {
-      bg = "bg-red-100 dark:bg-red-900/20";
-    } else if (status === "swap") {
-      bg = "bg-blue-100 dark:bg-blue-900/20";
-    } else {
-      // Нет активного статуса – показываем цвет недели
+    if (status === "free") bg = "bg-green-100 dark:bg-green-900/20";
+    else if (status === "conflict") bg = "bg-red-100 dark:bg-red-900/20";
+    else if (status === "swap") bg = "bg-blue-100 dark:bg-blue-900/20";
+    else {
       const color = WEEK_COLORS[weekIndex % WEEK_COLORS.length];
       bg = `${color.bg} ${color.border}`;
     }
-    // Дополнительная подсветка при наведении
     if (isOver) bg += " ring-2 ring-blue-500";
   } else {
-    // Обычный режим – всегда цвет недели
     const color = WEEK_COLORS[weekIndex % WEEK_COLORS.length];
     bg = `${color.bg} ${color.border}`;
   }
@@ -178,7 +187,6 @@ export default function AdminSchedulePage() {
 
   const utils = trpc.useUtils();
 
-  // Запрос данных с сервера
   const { data: unitsData, isLoading: unitsLoading } = trpc.scheduleDisplay.getForWeekPair.useQuery(
     { weekBaseId: 1 },
     { enabled: viewMode === "units" }
@@ -189,11 +197,9 @@ export default function AdminSchedulePage() {
   );
   const { data: bufferData } = trpc.scheduleDisplay.getBuffer.useQuery(undefined, { enabled: editMode });
 
-  // Все активные недели с их типами (приходят с сервера)
   const activeWeeksData: WeekInfo[] = unitsData?.weeks || groupsData?.weeks || [];
   const activeWeekIds = activeWeeksData.map((w) => w.id);
 
-  // Мутации
   const checkSlots = trpc.scheduleDisplay.checkSlots.useMutation();
   const moveMutation = trpc.scheduleDisplay.move.useMutation();
   const swapMutation = trpc.scheduleDisplay.swap.useMutation();
@@ -202,9 +208,7 @@ export default function AdminSchedulePage() {
   const moveFromBufferMut = trpc.scheduleDisplay.moveFromBuffer.useMutation();
   const optimizeScheduleMut = trpc.scheduleDisplay.optimizeSchedule.useMutation({
     onSuccess: (data) => {
-      alert(
-        `Оптимизация завершена. Итераций: ${data.iterations}, улучшение: с ${data.initialScore} до ${data.finalScore}`
-      );
+      alert(`Оптимизация завершена. Итераций: ${data.iterations}, улучшение: с ${data.initialScore} до ${data.finalScore}`);
       refreshData();
     },
     onError: (e) => alert(e.message),
@@ -302,15 +306,17 @@ export default function AdminSchedulePage() {
     const entry = active.data.current.entry as ScheduleRow;
     const targetId = over.id as string;
 
+    // --- Буфер ---
     if (targetId === "buffer-zone") {
-      if (entry.weekId !== 0) {
+      if (!entry.isBuffered) {
         await moveToBufferMut.mutateAsync({ id: entry.id });
         refreshData();
       }
       return;
     }
 
-    if (entry.weekId === 0) {
+    if (entry.isBuffered) {
+      // возврат из буфера
       const parts = targetId.split("-");
       if (parts.length < 5 || parts[0] !== "week") return;
       const targetWeekId = parseInt(parts[1], 10);
@@ -329,6 +335,7 @@ export default function AdminSchedulePage() {
       return;
     }
 
+    // --- Проверка флагов ---
     const hasFlags = entry.positionFlag || entry.mergeNumber !== 0;
     if (hasFlags) {
       setConfirmDialog({
@@ -365,14 +372,12 @@ export default function AdminSchedulePage() {
   const handlePrint = () => {
     const tableElement = document.getElementById("schedule-table");
     if (!tableElement) return;
-    const clone = tableElement.cloneNode(true) as HTMLElement;
-    // Упрощённая печать, можно оставить как есть, цвета недель сохранятся
     const printWindow = window.open("", "_blank", "width=1200,height=800");
     if (!printWindow) return;
     printWindow.document.write(`
       <html>
         <head><title>Расписание</title></head>
-        <body>${clone.outerHTML}</body>
+        <body>${tableElement.outerHTML}</body>
       </html>
     `);
     printWindow.document.close();
@@ -451,7 +456,7 @@ export default function AdminSchedulePage() {
     <div className="p-4 bg-background text-foreground">
       <h1 className="text-xl font-bold mb-4">Расписание</h1>
 
-      {/* Легенда недель и статусов */}
+      {/* Легенда */}
       <div className="flex flex-wrap gap-4 mb-4 p-3 bg-muted rounded border border-border text-sm">
         {activeWeeksData.map((week, idx) => (
           <div key={week.id} className="flex items-center gap-2">
@@ -464,16 +469,13 @@ export default function AdminSchedulePage() {
         {editMode && (
           <>
             <div className="flex items-center gap-2">
-              <span className="inline-block w-4 h-4 rounded bg-green-300 dark:bg-green-900/20 border border-green-400 dark:border-green-800"></span>{" "}
-              Свободно
+              <span className="inline-block w-4 h-4 rounded bg-green-300 dark:bg-green-900/20 border border-green-400 dark:border-green-800"></span> Свободно
             </div>
             <div className="flex items-center gap-2">
-              <span className="inline-block w-4 h-4 rounded bg-red-300 dark:bg-red-900/20 border border-red-400 dark:border-red-800"></span>{" "}
-              Конфликт
+              <span className="inline-block w-4 h-4 rounded bg-red-300 dark:bg-red-900/20 border border-red-400 dark:border-red-800"></span> Конфликт
             </div>
             <div className="flex items-center gap-2">
-              <span className="inline-block w-4 h-4 rounded bg-blue-300 dark:bg-blue-900/20 border border-blue-400 dark:border-blue-800"></span>{" "}
-              Обмен
+              <span className="inline-block w-4 h-4 rounded bg-blue-300 dark:bg-blue-900/20 border border-blue-400 dark:border-blue-800"></span> Обмен
             </div>
           </>
         )}
@@ -522,10 +524,7 @@ export default function AdminSchedulePage() {
           {optimizeScheduleMut.isPending ? "Оптимизация..." : "Оптимизировать"}
         </button>
         {viewMode === "units" && (
-          <button
-            onClick={() => setEditMode(!editMode)}
-            className="ml-auto bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600"
-          >
+          <button onClick={() => setEditMode(!editMode)} className="ml-auto bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600">
             {editMode ? "Завершить редактирование" : "Редактировать"}
           </button>
         )}

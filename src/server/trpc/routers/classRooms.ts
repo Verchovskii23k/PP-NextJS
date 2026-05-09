@@ -1,12 +1,55 @@
+// src/server/trpc/routers/classrooms.ts
 import { z } from "zod";
 import { router, adminProcedure } from "../trpc";
-import { classrooms } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { classrooms, buildings, departments } from "@/db/schema";
+import { eq, sql } from "drizzle-orm";
 
 export const classroomsRouter = router({
   list: adminProcedure.query(async ({ ctx }) => {
-    return ctx.db.select().from(classrooms);
+    return ctx.db
+      .select({
+        id: classrooms.id,
+        buildingId: classrooms.buildingId,
+        roomNumber: classrooms.roomNumber,
+        capacity: classrooms.capacity,
+        departmentId: classrooms.departmentId,
+        priorityLecture: classrooms.priorityLecture,
+        priorityWorkshop: classrooms.priorityWorkshop,
+        priorityGuidedStudy: classrooms.priorityGuidedStudy,
+        priorityLab: classrooms.priorityLab,
+        usageMetric: classrooms.usageMetric,
+        isActive: classrooms.isActive,
+        display: sql<string>`${buildings.number} || '-' || ${classrooms.roomNumber} || '-' || COALESCE(${departments.abbreviation}, 'Общая') || '-' || ${classrooms.usageMetric}`.as('display'),
+      })
+      .from(classrooms)
+      .leftJoin(buildings, eq(classrooms.buildingId, buildings.id))
+      .leftJoin(departments, eq(classrooms.departmentId, departments.id));
   }),
+  get: adminProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ ctx, input }) => {
+      const rows = await ctx.db
+        .select({
+          id: classrooms.id,
+          buildingId: classrooms.buildingId,
+          roomNumber: classrooms.roomNumber,
+          capacity: classrooms.capacity,
+          departmentId: classrooms.departmentId,
+          priorityLecture: classrooms.priorityLecture,
+          priorityWorkshop: classrooms.priorityWorkshop,
+          priorityGuidedStudy: classrooms.priorityGuidedStudy,
+          priorityLab: classrooms.priorityLab,
+          usageMetric: classrooms.usageMetric,
+          isActive: classrooms.isActive,
+          display: sql<string>`${buildings.number} || '-' || ${classrooms.roomNumber} || '-' || COALESCE(${departments.abbreviation}, 'Общая') || '-' || ${classrooms.usageMetric}`.as('display'),
+        })
+        .from(classrooms)
+        .leftJoin(buildings, eq(classrooms.buildingId, buildings.id))
+        .leftJoin(departments, eq(classrooms.departmentId, departments.id))
+        .where(eq(classrooms.id, input.id))
+        .limit(1);
+      return rows[0] ?? null;
+    }),
   create: adminProcedure
     .input(z.object({
       buildingId: z.coerce.number().int(),
@@ -20,9 +63,7 @@ export const classroomsRouter = router({
       usageMetric: z.coerce.number().optional(),
       isActive: z.boolean().default(true),
     }))
-    .mutation(async ({ ctx, input }) => {
-      return ctx.db.insert(classrooms).values(input).returning();
-    }),
+    .mutation(async ({ ctx, input }) => ctx.db.insert(classrooms).values(input).returning()),
   update: adminProcedure
     .input(z.object({
       id: z.number(),
@@ -45,7 +86,7 @@ export const classroomsRouter = router({
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
       try {
-        await ctx.db.delete(classrooms).where(eq(classrooms.id, input.id));   // исправлено
+        await ctx.db.delete(classrooms).where(eq(classrooms.id, input.id));
         return { success: true };
       } catch (e: any) {
         if (e?.code === '23503' || e?.message?.includes('foreign key') || e?.cause?.code === '23503') {
@@ -54,10 +95,4 @@ export const classroomsRouter = router({
         throw e;
       }
     }),
-  get: adminProcedure
-  .input(z.object({ id: z.number() }))
-  .query(async ({ ctx, input }) => {
-    const rows = await ctx.db.select().from(classrooms).where(eq(classrooms.id, input.id)).limit(1);
-    return rows[0] ?? null;
-  }),
 });

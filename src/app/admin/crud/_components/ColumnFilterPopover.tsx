@@ -24,10 +24,13 @@ export function ColumnFilterPopover({
     ? tablesMeta[field.references.table]
     : null;
 
-  const { data: relatedData } = (trpc as any)[relatedMeta?.routerKey]?.list?.useQuery?.(
-    undefined,
-    { enabled: !!relatedMeta }
-  );
+  // ⚡ защита: если нет метаданных или routerKey — не вызываем хук
+  const { data: relatedData } = (relatedMeta?.routerKey)
+    ? (trpc as any)[relatedMeta.routerKey]?.list?.useQuery?.(
+        undefined,
+        { enabled: !!relatedMeta }
+      ) ?? { data: [] }
+    : { data: [] };
 
   const labelMap = useMemo(() => {
     if (!relatedData || !field.references) return null;

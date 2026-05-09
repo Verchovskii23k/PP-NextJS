@@ -64,6 +64,13 @@
       "when": 1778325262271,
       "tag": "0008_right_menace",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1778344648905,
+      "tag": "0009_magenta_mole_man",
+      "breakpoints": true
     }
   ]
 }

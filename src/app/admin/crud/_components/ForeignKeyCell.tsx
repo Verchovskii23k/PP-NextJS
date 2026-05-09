@@ -1,4 +1,4 @@
-// ForeignKeyCell.tsx
+// src/app/admin/crud/_components/ForeignKeyCell.tsx
 "use client";
 import { trpc } from "@/trpc/client";
 import { tablesMeta } from "@/lib/table-meta";
@@ -17,6 +17,7 @@ export function ForeignKeyCell({ table, id, displayField, dbTableName }: Foreign
   const meta = tablesMeta[table];
   const routerKey = meta?.routerKey;
 
+  // ⚡ защита: если нет роутера, показываем просто ID
   if (!routerKey) {
     return <span>{id}</span>;
   }

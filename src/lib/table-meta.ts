@@ -253,8 +253,8 @@ export const tablesMeta: Record<string, TableMeta> = {
     dbTableName: "lesson_classrooms",
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
-      { dbName: "lessonId", displayName: "Занятие", isFK: true, references: { table: "lessons", displayField: "id" }, required: true },
-      { dbName: "classroomId", displayName: "Аудитория", isFK: true, references: { table: "classrooms", displayField: "roomNumber" }, required: true },
+      { dbName: "lessonId", displayName: "Занятие", isFK: true, references: { table: "lessons", displayField: "display" }, required: true },
+      { dbName: "classroomId", displayName: "Аудитория", isFK: true, references: { table: "classrooms", displayField: "display" }, required: true },
     ],
   },
   unitRoots: {
