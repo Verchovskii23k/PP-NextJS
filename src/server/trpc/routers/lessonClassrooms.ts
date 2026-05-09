@@ -5,7 +5,7 @@ import {
   lessonClassrooms, lessons, classrooms, buildings, departments,
   disciplines, lessonTypes, employeesDepartments, employees, units
 } from "@/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 export const lessonClassroomsRouter = router({
   list: adminProcedure.query(async ({ ctx }) => {
@@ -14,25 +14,15 @@ export const lessonClassroomsRouter = router({
         id: lessonClassrooms.id,
         lessonId: lessonClassrooms.lessonId,
         classroomId: lessonClassrooms.classroomId,
-        lessonDisplay: sql<string>`
-          ${units.code} || '-' || ${lessonTypes.abbreviation} || '-' ||
-          ${disciplines.abbreviation} || '-' ||
-          ${employees.surname} || ' ' || left(${employees.name},1) || '.' ||
-          left(${employees.patronymic},1) || '.'
-        `.as('lessonDisplay'),
-        classroomDisplay: sql<string>`
-          ${buildings.number} || '-' || ${classrooms.roomNumber} || '-' ||
-          COALESCE(${departments.abbreviation}, 'Общая') || '-' ||
-          ${classrooms.usageMetric}
-        `.as('classroomDisplay'),
       })
       .from(lessonClassrooms)
       .innerJoin(lessons, eq(lessonClassrooms.lessonId, lessons.id))
       .innerJoin(units, eq(lessons.unitId, units.id))
       .innerJoin(disciplines, eq(lessons.disciplineId, disciplines.id))
+      .innerJoin(lessonTypes, eq(lessons.lessonTypeId, lessonTypes.id))
       .leftJoin(employeesDepartments, eq(lessons.teacherId, employeesDepartments.id))
       .leftJoin(employees, eq(employeesDepartments.employeeId, employees.id))
-      .innerJoin(lessonTypes, eq(lessons.lessonTypeId, lessonTypes.id))
+      // .innerJoin(lessonTypes, eq(lessons.lessonTypeId, lessonTypes.id))
       .innerJoin(classrooms, eq(lessonClassrooms.classroomId, classrooms.id))
       .leftJoin(buildings, eq(classrooms.buildingId, buildings.id))
       .leftJoin(departments, eq(classrooms.departmentId, departments.id));
@@ -45,25 +35,15 @@ export const lessonClassroomsRouter = router({
           id: lessonClassrooms.id,
           lessonId: lessonClassrooms.lessonId,
           classroomId: lessonClassrooms.classroomId,
-          lessonDisplay: sql<string>`
-            ${units.code} || '-' || ${lessonTypes.abbreviation} || '-' ||
-            ${disciplines.abbreviation} || '-' ||
-            ${employees.surname} || ' ' || left(${employees.name},1) || '.' ||
-            left(${employees.patronymic},1) || '.'
-          `.as('lessonDisplay'),
-          classroomDisplay: sql<string>`
-            ${buildings.number} || '-' || ${classrooms.roomNumber} || '-' ||
-            COALESCE(${departments.abbreviation}, 'Общая') || '-' ||
-            ${classrooms.usageMetric}
-          `.as('classroomDisplay'),
         })
         .from(lessonClassrooms)
         .innerJoin(lessons, eq(lessonClassrooms.lessonId, lessons.id))
         .innerJoin(units, eq(lessons.unitId, units.id))
         .innerJoin(disciplines, eq(lessons.disciplineId, disciplines.id))
+        .innerJoin(lessonTypes, eq(lessons.lessonTypeId, lessonTypes.id))
         .leftJoin(employeesDepartments, eq(lessons.teacherId, employeesDepartments.id))
         .leftJoin(employees, eq(employeesDepartments.employeeId, employees.id))
-        .innerJoin(lessonTypes, eq(lessons.lessonTypeId, lessonTypes.id))
+        // .innerJoin(lessonTypes, eq(lessons.lessonTypeId, lessonTypes.id))
         .innerJoin(classrooms, eq(lessonClassrooms.classroomId, classrooms.id))
         .leftJoin(buildings, eq(classrooms.buildingId, buildings.id))
         .leftJoin(departments, eq(classrooms.departmentId, departments.id))

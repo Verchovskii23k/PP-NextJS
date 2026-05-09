@@ -78,29 +78,37 @@ export const authRouter = router({
       return { success: true };
     }),
 
-  login: publicProcedure
+login: publicProcedure
   .input(z.object({ login: z.string(), password: z.string() }))
   .mutation(async ({ ctx, input }) => {
-    // Ищем пользователя по логину
-    const [user] = await ctx.db
-      .select()
-      .from(securityCenter)
-      .where(eq(securityCenter.login, input.login))
-      .limit(1);
+    try {
+      const [user] = await ctx.db
+        .select()
+        .from(securityCenter)
+        .where(eq(securityCenter.login, input.login))
+        .limit(1);
 
-    if (!user || !(await verifyPassword(input.password, user.passwordHash))) {
-      throw new Error("Invalid credentials");
+      if (!user || !(await verifyPassword(input.password, user.passwordHash))) {
+        throw new Error("Invalid credentials");
+      }
+
+      const token = await createSession(user.id);
+      (await cookies()).set("session", token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: 60 * 60 * 24 * 7,
+      });
+      return { success: true };
+    } catch (error: any) {
+      console.error("Login error:", error);
+      if (error.message === "Invalid credentials") {
+        throw error; // пробрасываем, чтобы клиент получил корректную ошибку
+      }
+      // Остальные ошибки (например, БД недоступна) превращаем в универсальное сообщение
+      throw new Error("Внутренняя ошибка сервера. Попробуйте позже.");
     }
-
-    const token = await createSession(user.id);
-    (await cookies()).set("session", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      maxAge: 60 * 60 * 24 * 7,
-    });
-    return { success: true };
   }),
 
   logout: publicProcedure.mutation(async () => {

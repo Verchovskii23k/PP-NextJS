@@ -49,7 +49,7 @@ export async function getUserFromSession(token: string) {
     .where(eq(sessions.token, token))
     .limit(1);
 
-  if (!row || row.expiresAt && new Date(row.expiresAt) < new Date()) {
+  if (!row) {
     return null;
   }
 

@@ -247,16 +247,16 @@ export const tablesMeta: Record<string, TableMeta> = {
       { dbName: "isActive", displayName: "Активен", isFK: false, required: true, inputType: "toggle" }
     ],
   },
-  lessonClassrooms: {
-    nameRu: "Аудитории занятий",
-    routerKey: "lessonClassrooms",
-    dbTableName: "lesson_classrooms",
-    fields: [
-      { dbName: "id", displayName: "ID", isFK: false },
-      { dbName: "lessonId", displayName: "Занятие", isFK: true, references: { table: "lessons", displayField: "display" }, required: true },
-      { dbName: "classroomId", displayName: "Аудитория", isFK: true, references: { table: "classrooms", displayField: "display" }, required: true },
-    ],
-  },
+lessonClassrooms: {
+  nameRu: "Аудитории занятий",
+  routerKey: "lessonClassrooms",
+  dbTableName: "lesson_classrooms",
+  fields: [
+    { dbName: "id", displayName: "ID", isFK: false },
+    { dbName: "lessonId", displayName: "Занятие", isFK: true, references: { table: "lessons", displayField: "display" }, required: true},
+    { dbName: "classroomId", displayName: "Аудитория", isFK: true, references: { table: "classrooms", displayField: "display" }, required: true},
+  ],
+},
   unitRoots: {
     nameRu: "Корни юнитов",
     routerKey: "unitRoots",

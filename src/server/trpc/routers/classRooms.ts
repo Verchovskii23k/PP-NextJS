@@ -5,8 +5,31 @@ import { classrooms, buildings, departments } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
 
 export const classroomsRouter = router({
-  list: adminProcedure.query(async ({ ctx }) => {
-    return ctx.db
+list: adminProcedure.query(async ({ ctx }) => {
+  return ctx.db
+    .select({
+      id: classrooms.id,
+      buildingId: classrooms.buildingId,
+      roomNumber: classrooms.roomNumber,
+      capacity: classrooms.capacity,
+      departmentId: classrooms.departmentId,
+      priorityLecture: classrooms.priorityLecture,
+      priorityWorkshop: classrooms.priorityWorkshop,
+      priorityGuidedStudy: classrooms.priorityGuidedStudy,
+      priorityLab: classrooms.priorityLab,
+      usageMetric: classrooms.usageMetric,
+      isActive: classrooms.isActive,
+      // ✅ читаемое представление
+      display: sql<string>`${buildings.number} || '-' || ${classrooms.roomNumber} || '-' || COALESCE(${departments.abbreviation}, 'Общая') || '-' || ${classrooms.usageMetric}`.as('display'),
+    })
+    .from(classrooms)
+    .leftJoin(buildings, eq(classrooms.buildingId, buildings.id))
+    .leftJoin(departments, eq(classrooms.departmentId, departments.id));
+}),
+get: adminProcedure
+  .input(z.object({ id: z.number() }))
+  .query(async ({ ctx, input }) => {
+    const rows = await ctx.db
       .select({
         id: classrooms.id,
         buildingId: classrooms.buildingId,
@@ -19,37 +42,16 @@ export const classroomsRouter = router({
         priorityLab: classrooms.priorityLab,
         usageMetric: classrooms.usageMetric,
         isActive: classrooms.isActive,
+        // ✅ читаемое представление
         display: sql<string>`${buildings.number} || '-' || ${classrooms.roomNumber} || '-' || COALESCE(${departments.abbreviation}, 'Общая') || '-' || ${classrooms.usageMetric}`.as('display'),
       })
       .from(classrooms)
       .leftJoin(buildings, eq(classrooms.buildingId, buildings.id))
-      .leftJoin(departments, eq(classrooms.departmentId, departments.id));
+      .leftJoin(departments, eq(classrooms.departmentId, departments.id))
+      .where(eq(classrooms.id, input.id))
+      .limit(1);
+    return rows[0] ?? null;
   }),
-  get: adminProcedure
-    .input(z.object({ id: z.number() }))
-    .query(async ({ ctx, input }) => {
-      const rows = await ctx.db
-        .select({
-          id: classrooms.id,
-          buildingId: classrooms.buildingId,
-          roomNumber: classrooms.roomNumber,
-          capacity: classrooms.capacity,
-          departmentId: classrooms.departmentId,
-          priorityLecture: classrooms.priorityLecture,
-          priorityWorkshop: classrooms.priorityWorkshop,
-          priorityGuidedStudy: classrooms.priorityGuidedStudy,
-          priorityLab: classrooms.priorityLab,
-          usageMetric: classrooms.usageMetric,
-          isActive: classrooms.isActive,
-          display: sql<string>`${buildings.number} || '-' || ${classrooms.roomNumber} || '-' || COALESCE(${departments.abbreviation}, 'Общая') || '-' || ${classrooms.usageMetric}`.as('display'),
-        })
-        .from(classrooms)
-        .leftJoin(buildings, eq(classrooms.buildingId, buildings.id))
-        .leftJoin(departments, eq(classrooms.departmentId, departments.id))
-        .where(eq(classrooms.id, input.id))
-        .limit(1);
-      return rows[0] ?? null;
-    }),
   create: adminProcedure
     .input(z.object({
       buildingId: z.coerce.number().int(),

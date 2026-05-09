@@ -9,7 +9,6 @@ import { trpc } from "@/trpc/client";
 
 function HeaderContent() {
   const pathname = usePathname();
-  const router = useRouter();
   const isLoginPage = pathname.startsWith("/login");
   const isSetupPage = pathname.startsWith("/setup");
   const isPublicPage = isLoginPage || isSetupPage;
@@ -17,7 +16,7 @@ function HeaderContent() {
   const { data: user } = trpc.auth.me.useQuery();
   const logoutMut = trpc.auth.logout.useMutation({
     onSuccess: () => {
-      router.push("/login");
+      window.location.href = "/login";
     },
   });
 

@@ -28,6 +28,7 @@ export function ForeignKeyCell({ table, id, displayField, dbTableName }: Foreign
   if (!data) return <span className="text-red-500 dark:text-red-400">???</span>;
 
   const displayValue = data[displayField] ?? data.id;
+  console.log('🔍 ForeignKeyCell', { table, id, data, displayField, displayValue });
 
   return (
     <EntityTooltip tableName={table} id={id}>

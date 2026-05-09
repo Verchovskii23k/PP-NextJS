@@ -5,7 +5,7 @@ import { buildingsRouter } from "./routers/buildings";
 import { departmentsRouter } from "./routers/departments";
 import { specialtiesRouter } from "./routers/specialties";
 import { profilesRouter } from "./routers/profiles";
-import { disciplinesRouter } from "./routers/disciplines";
+import { disciplinesRouter } from "../trpc/routers/disciplines";
 import { unitTypesRouter } from "./routers/unitTypes";
 import { lessonTypesRouter } from "./routers/lessonTypes";
 import { classroomsRouter } from "./routers/classRooms";
