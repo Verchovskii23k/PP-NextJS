@@ -1,0 +1,2 @@
+ALTER TABLE "schedule" ADD CONSTRAINT "schedule_week_number_weeks_id_fk" FOREIGN KEY ("week_number") REFERENCES "public"."weeks"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "schedule_display" ADD CONSTRAINT "schedule_display_week_number_weeks_id_fk" FOREIGN KEY ("week_number") REFERENCES "public"."weeks"("id") ON DELETE no action ON UPDATE no action;

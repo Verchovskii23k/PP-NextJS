@@ -40,6 +40,8 @@ import { positionsRouter } from "./routers/positions";
 import { adminManagementRouter } from "./routers/adminManagement";
 import { userManagementRouter } from "./routers/userManagement";
 import { crudImportExportRouter } from "./routers/crudImportExport";
+import { globalImportExportRouter } from "./routers/globalImportExport";
+import { batchDeleteRouter } from "./routers/batchDelete";
 
 
 export const appRouter = router({
@@ -83,6 +85,8 @@ export const appRouter = router({
   adminManagement: adminManagementRouter,
   userManagement: userManagementRouter,
   crudImportExport: crudImportExportRouter,
+  globalImportExport: globalImportExportRouter,
+  batchDelete: batchDeleteRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -57,6 +57,13 @@
       "when": 1778188189723,
       "tag": "0007_soft_omega_flight",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1778325262271,
+      "tag": "0008_right_menace",
+      "breakpoints": true
     }
   ]
 }

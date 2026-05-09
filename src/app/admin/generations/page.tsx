@@ -221,7 +221,7 @@ export default function GenerationsPage() {
               value={totalWeeksInput ?? ""}
               onChange={(e) => setTotalWeeksInput(Number(e.target.value))}
               className="border border-border rounded px-2 py-1 w-20 bg-background text-foreground placeholder:text-muted-foreground"
-              placeholder="18"
+              placeholder="16"
             />
             <button
               className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-sm"
@@ -236,7 +236,7 @@ export default function GenerationsPage() {
           className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded disabled:opacity-50"
           onClick={() =>
             schedule.mutate({
-              totalWeeks: totalWeeksInput ?? 18,
+              totalWeeks: totalWeeksInput ?? 16,
             })
           }
           disabled={schedule.isPending}

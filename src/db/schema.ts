@@ -304,7 +304,7 @@ export const weeks = pgTable("weeks", {
 
 export const schedule = pgTable("schedule", {
   id: serial("id").primaryKey(),
-  weekNumber: integer("week_number").notNull(),
+  weekId: integer("week_number").notNull().references(() => weeks.id),
   dayOfWeekId: integer("day_of_week_id").notNull().references(() => daysOfWeek.id),
   pairNumberId: integer("pair_number_id").notNull().references(() => pairs.id),
   lessonId: integer("lesson_id").notNull().references(() => lessons.id),
@@ -316,7 +316,7 @@ export const schedule = pgTable("schedule", {
 export const scheduleDisplay = pgTable("schedule_display", {
   id: serial("id").primaryKey(),
   lessonId: integer("lesson_id").references(() => lessons.id, { onDelete: "set null" }),
-  weekNumber: integer("week_number").notNull(),
+  weekId: integer("week_number").notNull().references(() => weeks.id),
   dayOfWeekId: integer("day_of_week_id").notNull().references(() => daysOfWeek.id),
   pairNumberId: integer("pair_number_id").notNull().references(() => pairs.id),
   unitCode: text("unit_code").notNull(),

@@ -1,8 +1,7 @@
 // src/server/trpc/routers/generations/generateSchedule.ts
 import { z } from "zod";
 import { router, adminProcedure } from "../../trpc";
-import { eq, and, sql } from "drizzle-orm";
-
+import { eq, asc } from "drizzle-orm";
 import {
   schedule, lessons, lessonClassrooms,
   daysOfWeek, pairs, scheduleDisplay,
@@ -15,15 +14,19 @@ import {
 export const generateScheduleRouter = router({
   generateSchedule: adminProcedure
     .input(z.object({
-      totalWeeks: z.number().int().min(1).default(18),
+      totalWeeks: z.number().int().min(1).default(16),
     }))
     .mutation(async ({ ctx, input }) => {
-      const [cycleCount] = await ctx.db
-        .select({ count: sql<number>`count(*)` })
-        .from(weeks);
-      const cycleLength = Number(cycleCount?.count) || 2;
+      // Получаем все активные недели (цикл)
+      const weeksList = await ctx.db
+        .select({ id: weeks.id })
+        .from(weeks)
+        .where(eq(weeks.isActive, true))
+        .orderBy(asc(weeks.id));
+      const cycleLength = weeksList.length;
+      if (cycleLength === 0) throw new Error("Нет активных недель в таблице weeks");
 
-      const totalWeeks = input.totalWeeks ?? 18;
+      const totalWeeks = input.totalWeeks ?? 16;
       const step = Math.ceil(totalWeeks / cycleLength);
 
       const allLessons = await ctx.db.select().from(lessons);
@@ -73,25 +76,23 @@ export const generateScheduleRouter = router({
 
       const scheduleRows: (typeof schedule.$inferInsert & { _unitCode?: string })[] = [];
 
-      // Структура занятости слотов: ключ "week-day-pair"
+      // Структура занятости слотов: ключ "weekId-dayId-pairId"
       const slotOccupancy = new Map<string, {
         teacherIds: Set<number>;
         classroomIds: Set<number>;
         groupIds: Set<number>;
       }>();
 
-      // Список всех слотов (только для первых cycleLength недель)
-      const allSlots: { weekNum: number; day: typeof days[0]; pair: typeof pairsList[0] }[] = [];
-      for (let cycleWeek = 0; cycleWeek < cycleLength; cycleWeek++) {
-        const weekNum = cycleWeek + 1;
+      // Все слоты на основе активных недель
+      const allSlots: { weekId: number; day: typeof days[0]; pair: typeof pairsList[0] }[] = [];
+      for (const week of weeksList) {
         for (const day of days) {
           for (const pair of pairsList) {
-            allSlots.push({ weekNum, day, pair });
+            allSlots.push({ weekId: week.id, day, pair });
           }
         }
       }
 
-      // Round‑robin: указатели для каждого класса (потоки, группы, подгруппы)
       let currentSlotIndex = 0;
 
       // Основной цикл по отсортированным занятиям
@@ -116,25 +117,25 @@ export const generateScheduleRouter = router({
 
         let placed = 0;
 
-        // Для занятия проходим по всем неделям цикла
+        // Для каждой недели цикла
         for (let cycleWeek = 0; cycleWeek < cycleLength; cycleWeek++) {
           const needed = weekLoad[cycleWeek];
           if (needed <= 0) continue;
 
+          const targetWeekId = weeksList[cycleWeek].id; // ID недели из таблицы weeks
+
           for (let slot = 0; slot < needed; slot++) {
             if (placed >= S) break;
-
             let placedInSlot = false;
 
-            // Циклический перебор слотов, начиная с currentSlotIndex
             for (let attempt = 0; attempt < allSlots.length; attempt++) {
               const slotIndex = (currentSlotIndex + attempt) % allSlots.length;
-              const { weekNum, day, pair } = allSlots[slotIndex];
+              const { weekId, day, pair } = allSlots[slotIndex];
 
-              // Используем только слоты для нужной недели цикла
-              if (weekNum !== cycleWeek + 1) continue;
+              // Используем только слоты для целевой недели
+              if (weekId !== targetWeekId) continue;
 
-              const slotKey = `${weekNum}-${day.id}-${pair.id}`;
+              const slotKey = `${weekId}-${day.id}-${pair.id}`;
 
               if (!slotOccupancy.has(slotKey)) {
                 slotOccupancy.set(slotKey, {
@@ -159,9 +160,9 @@ export const generateScheduleRouter = router({
               }
               if (freeClassroomId === null) continue;
 
-              // Добавляем запись и обновляем занятость слота
+              // Добавляем запись
               scheduleRows.push({
-                weekNumber: weekNum,
+                weekId: weekId,
                 dayOfWeekId: day.id,
                 pairNumberId: pair.id,
                 lessonId: lesson.id,
@@ -176,9 +177,7 @@ export const generateScheduleRouter = router({
               occupancy.classroomIds.add(freeClassroomId);
               for (const g of lessonGroups) occupancy.groupIds.add(g);
 
-              // Сдвигаем round‑robin на следующий слот после успешного размещения
               currentSlotIndex = (slotIndex + 1) % allSlots.length;
-
               placed++;
               placedInSlot = true;
               break;
@@ -199,7 +198,7 @@ export const generateScheduleRouter = router({
       if (insertedSchedule.length > 0) {
         const enriched = await ctx.db
           .select({
-            weekNumber: schedule.weekNumber,
+            weekId: schedule.weekId,
             dayOfWeekId: schedule.dayOfWeekId,
             pairNumberId: schedule.pairNumberId,
             lessonId: schedule.lessonId,
@@ -239,7 +238,7 @@ export const generateScheduleRouter = router({
           const text = `[${row.unitCode}] ${typeAbbr}${disc} – ${teacher}, ${room}`;
           return {
             lessonId: row.lessonId,
-            weekNumber: row.weekNumber,
+            weekId: row.weekId,
             dayOfWeekId: row.dayOfWeekId,
             pairNumberId: row.pairNumberId,
             unitCode: row.unitCode,

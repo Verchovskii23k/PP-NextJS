@@ -1,100 +1,45 @@
-// src/server/trpc/routers/crudImportExport.ts
 import { z } from "zod";
 import { router, adminProcedure } from "../trpc";
-import { sql } from "drizzle-orm";
-import { tablesMeta } from "@/lib/table-meta";
+import { academicLoadTypes } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
-const ALLOWED_TABLES = Object.keys(tablesMeta);
-
-export const crudImportExportRouter = router({
-  // Экспорт (работает)
-  exportAll: adminProcedure
-    .input(z.object({ tableName: z.string().refine(t => ALLOWED_TABLES.includes(t)) }))
+export const academicLoadTypesRouter = router({
+  list: adminProcedure.query(async ({ ctx }) => ctx.db.select().from(academicLoadTypes)),
+  get: adminProcedure
+    .input(z.object({ id: z.number() }))
     .query(async ({ ctx, input }) => {
-      const dbTableName = tablesMeta[input.tableName].dbTableName || input.tableName;
-      const rows = await ctx.db.execute(sql`SELECT * FROM ${sql.identifier(dbTableName)}`);
-      return rows;
+      const rows = await ctx.db.select().from(academicLoadTypes).where(eq(academicLoadTypes.id, input.id)).limit(1);
+      return rows[0] ?? null;
     }),
-
-  // Импорт (упрощённый, рабочий)
-  importData: adminProcedure
-    .input(z.object({
-      tableName: z.string().refine(t => ALLOWED_TABLES.includes(t)),
-      data: z.array(z.record(z.any())),
+  create: adminProcedure
+    .input(z.object({ 
+      name: z.string().min(1), 
+      abbreviation: z.string().optional(),
+      isActive: z.boolean().default(true),
+    }))
+    .mutation(async ({ ctx, input }) => 
+      ctx.db.insert(academicLoadTypes).values(input).returning()),
+  update: adminProcedure
+    .input(z.object({ id: z.number(), 
+      name: z.string().min(1).optional(), 
+      abbreviation: z.string().optional(), 
+      isActive: z.boolean().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const { tableName, data } = input;
-      const dbTableName = tablesMeta[tableName].dbTableName || tableName;
-      const fields = tablesMeta[tableName].fields;
-
-      const results = {
-        total: data.length,
-        inserted: 0,
-        updated: 0,
-        skipped: 0,
-        errors: [] as string[],
-      };
-
-      for (const row of data) {
-        try {
-          const id = row.id;
-          if (id === undefined || id === null) {
-            results.errors.push(`Строка без id: ${JSON.stringify(row)}`);
-            continue;
-          }
-
-          // Проверка существования
-          const existingRows = await ctx.db.execute(
-            sql`SELECT * FROM ${sql.identifier(dbTableName)} WHERE id = ${id}`
-          );
-          const existing = existingRows[0] as any;
-
-          const { id: _, ...values } = row;
-
-          // Валидация обязательных полей
-          const validationErrors: string[] = [];
-          for (const field of fields) {
-            if (field.dbName === "id") continue;
-            const value = row[field.dbName];
-            if (field.required && (value === undefined || value === null || value === "")) {
-              validationErrors.push(`Поле ${field.displayName} обязательно`);
-            }
-          }
-          if (validationErrors.length) {
-            results.errors.push(`id=${id}: ${validationErrors.join(", ")}`);
-            continue;
-          }
-
-          if (!existing) {
-            // Вставка
-            const columns = Object.keys(values);
-            const placeholders = columns.map(() => "?").join(", ");
-            const rawQuery = `INSERT INTO ${dbTableName} (${columns.join(", ")}) VALUES (${placeholders})`;
-            await ctx.db.execute(sql.raw(rawQuery, ...Object.values(values)));
-            results.inserted++;
-          } else {
-            // Сравнение
-            let needUpdate = false;
-            for (const [k, v] of Object.entries(values)) {
-              if (String(existing[k]) !== String(v)) {
-                needUpdate = true;
-                break;
-              }
-            }
-            if (!needUpdate) {
-              results.skipped++;
-              continue;
-            }
-            // Обновление
-            const setClause = Object.keys(values).map(k => `${k} = ?`).join(", ");
-            const rawUpdate = `UPDATE ${dbTableName} SET ${setClause} WHERE id = ?`;
-            await ctx.db.execute(sql.raw(rawUpdate, ...Object.values(values), id));
-            results.updated++;
-          }
-        } catch (error: any) {
-          results.errors.push(`id=${row.id}: ${error.message}`);
+      const { id, ...data } = input;
+      return ctx.db.update(academicLoadTypes).set(data).where(eq(academicLoadTypes.id, id)).returning();
+    }),
+  delete: adminProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      try {
+        await ctx.db.delete(academicLoadTypes).where(eq(academicLoadTypes.id, input.id));
+        return { success: true };
+      } catch (e: any) {
+        if (e?.code === '23503' || e?.message?.includes('foreign key') || e?.cause?.code === '23503') {
+          throw new Error('Невозможно удалить – запись используется в других таблицах');
         }
+        throw e;
       }
-      return results;
     }),
 });

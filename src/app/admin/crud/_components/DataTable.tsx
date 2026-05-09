@@ -1,7 +1,7 @@
 // src/app/admin/crud/_components/DataTable.tsx
 "use client";
 import * as React from "react";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -35,13 +35,6 @@ export function DataTable({ tableName }: DataTableProps) {
   const meta = tablesMeta[tableName];
   if (!meta) return <div>Таблица не найдена</div>;
 
-  React.useEffect(() => {
-    setSorting([]);
-    setPagination({ pageIndex: 0, pageSize: 10000 });
-    setGlobalFilter("");
-    setColumnFilters([]);
-  }, [tableName]);
-
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [pagination, setPagination] = React.useState<PaginationState>({
     pageIndex: 0,
@@ -62,12 +55,62 @@ export function DataTable({ tableName }: DataTableProps) {
     },
   });
 
+  // ========== Массовое удаление ==========
+  const deleteManyMutation = trpc.batchDelete.deleteMany.useMutation();
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+
+  const rows = (data as any[]) ?? [];
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === rows.length && rows.length > 0) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(rows.map((r) => r.id)));
+    }
+  };
+
+  const toggleSelectOne = (id: number) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedIds.size === 0) return;
+    if (!window.confirm(`Удалить ${selectedIds.size} записей?`)) return;
+
+    try {
+      const result = await deleteManyMutation.mutateAsync({
+        tableName,
+        ids: Array.from(selectedIds),
+      });
+      let message = `Удалено: ${result.deleted}`;
+      if (result.errors.length > 0) {
+        message += `\nНе удалось удалить: ${result.errors.length}\n${result.errors
+          .map((e) => `ID ${e.id}: ${e.message}`)
+          .join("\n")}`;
+      }
+      alert(message);
+      setSelectedIds(new Set());
+      (utils as any)[routerKey]?.list?.invalidate?.();
+    } catch (err: any) {
+      alert("Ошибка: " + err.message);
+    }
+  };
+  // =====================================
+
   // ---------- JSON импорт/экспорт ----------
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+
   const exportQuery = trpc.crudImportExport.exportAll.useQuery(
     { tableName },
-    { enabled: false } // не запускаем автоматически
+    { enabled: false }
   );
   const importMutation = trpc.crudImportExport.importData.useMutation();
 
@@ -101,8 +144,9 @@ export function DataTable({ tableName }: DataTableProps) {
         const json = JSON.parse(content);
         if (!Array.isArray(json)) throw new Error("Файл должен содержать массив объектов");
         const result = await importMutation.mutateAsync({ tableName, data: json });
-        alert(`Импорт завершён:\nВсего: ${result.total}\nВставлено: ${result.inserted}\nОбновлено: ${result.updated}\nПропущено (совпадают): ${result.skipped}\nОшибок: ${result.errors.length}\n${result.errors.slice(0, 5).join("\n")}`);
-        // Обновляем таблицу
+        alert(
+          `Импорт завершён:\nВсего: ${result.total}\nВставлено: ${result.inserted}\nОбновлено: ${result.updated}\nПропущено (совпадают): ${result.skipped}\nОшибок: ${result.errors.length}\n${result.errors.slice(0, 5).join("\n")}`
+        );
         (utils as any)[routerKey]?.list?.invalidate?.();
       } catch (err: any) {
         alert("Ошибка импорта: " + err.message);
@@ -114,10 +158,40 @@ export function DataTable({ tableName }: DataTableProps) {
   };
   // -----------------------------------------
 
-  const rows = (data as any[]) ?? [];
+  // Сброс состояний при переключении таблицы
+  React.useEffect(() => {
+    setSorting([]);
+    setPagination({ pageIndex: 0, pageSize: 10000 });
+    setGlobalFilter("");
+    setColumnFilters([]);
+    setSelectedIds(new Set());
+  }, [tableName]);
 
   const columns = React.useMemo<ColumnDef<any>[]>(() => {
     const cols: ColumnDef<any>[] = [
+      // Колонка выбора (чекбоксы)
+      {
+        id: "select",
+        header: () => (
+          <input
+            type="checkbox"
+            checked={rows.length > 0 && selectedIds.size === rows.length}
+            onChange={toggleSelectAll}
+            className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+          />
+        ),
+        cell: ({ row }) => (
+          <input
+            type="checkbox"
+            checked={selectedIds.has(row.original.id)}
+            onChange={() => toggleSelectOne(row.original.id)}
+            className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+          />
+        ),
+        enableSorting: false,
+        enableGlobalFilter: false,
+      },
+      // Нумерация
       {
         id: "index",
         header: "№",
@@ -135,6 +209,7 @@ export function DataTable({ tableName }: DataTableProps) {
       },
     ];
 
+    // Остальные колонки из метаданных
     meta.fields.forEach(field => {
       const columnDef: ColumnDef<any> = {
         id: field.dbName,
@@ -180,6 +255,7 @@ export function DataTable({ tableName }: DataTableProps) {
       cols.push(columnDef);
     });
 
+    // Действия
     cols.push({
       id: "actions",
       header: "Действия",
@@ -194,7 +270,6 @@ export function DataTable({ tableName }: DataTableProps) {
           >
             Ред.
           </button>
-
           <button
             className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 text-sm"
             onClick={async () => {
@@ -219,7 +294,7 @@ export function DataTable({ tableName }: DataTableProps) {
     });
 
     return cols;
-  }, [meta, rows, columnFilters, pagination.pageIndex, pagination.pageSize, deleteMutation]);
+  }, [meta, rows, columnFilters, pagination.pageIndex, pagination.pageSize, deleteMutation, selectedIds]);
 
   React.useEffect(() => {
     const validIds = new Set(columns.map(col => col.id));
@@ -289,7 +364,20 @@ export function DataTable({ tableName }: DataTableProps) {
         >
           {importMutation.isPending ? "..." : "JSON-импорт"}
         </button>
+        {/* Кнопка массового удаления */}
+        {selectedIds.size > 0 && (
+          <button
+            className="px-3 py-1.5 bg-red-600 text-white rounded text-sm hover:bg-red-700"
+            onClick={handleDeleteSelected}
+            disabled={deleteManyMutation.isPending}
+          >
+            {deleteManyMutation.isPending
+              ? "Удаление..."
+              : `Удалить выбранные (${selectedIds.size})`}
+          </button>
+        )}
       </div>
+
       <div className="overflow-x-auto rounded border border-border">
         <table className="min-w-full divide-y divide-border">
           <thead className="bg-muted">
@@ -330,27 +418,31 @@ export function DataTable({ tableName }: DataTableProps) {
                 </td>
               </tr>
             ) : (
-              table.getRowModel().rows.map(row => (
-                <tr
-                  key={row.id}
-                  className={`hover:bg-muted/50 ${
-                    row.original.isActive === false ? "bg-red-50 dark:bg-red-900/20" : ""
-                  }`}
-                >
-                  {row.getVisibleCells().map(cell => (
-                    <td
-                      key={cell.id}
-                      className="px-4 py-2 whitespace-nowrap text-sm text-foreground"
-                    >
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </td>
-                  ))}
-                </tr>
-              ))
+              table.getRowModel().rows.map(row => {
+                const isSelected = selectedIds.has(row.original.id);
+                return (
+                  <tr
+                    key={row.id}
+                    className={`hover:bg-muted/50 ${
+                      row.original.isActive === false ? "bg-red-50 dark:bg-red-900/20" : ""
+                    } ${isSelected ? "bg-gray-100 dark:bg-gray-800" : ""}`}
+                  >
+                    {row.getVisibleCells().map(cell => (
+                      <td
+                        key={cell.id}
+                        className="px-4 py-2 whitespace-nowrap text-sm text-foreground"
+                      >
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </td>
+                    ))}
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
       </div>
+
       {table.getPageCount() > 1 && (
         <div className="flex items-center justify-between mt-4">
           <div className="text-sm text-muted-foreground">
@@ -374,6 +466,7 @@ export function DataTable({ tableName }: DataTableProps) {
           </div>
         </div>
       )}
+
       {showForm && (
         <RecordForm
           tableName={tableName}
