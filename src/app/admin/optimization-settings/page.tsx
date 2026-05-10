@@ -1,3 +1,4 @@
+// src/app/admin/settings/optimization/page.tsx
 "use client";
 import { trpc } from "@/trpc/client";
 import { useState } from "react";
@@ -7,6 +8,8 @@ const KEYS = {
   groupWindow: "opt_weight_group_window",
   dailyBalance: "opt_weight_daily_balance",
   typeDiversity: "opt_weight_type_diversity",
+  singleLessonDay: "opt_weight_single_lesson_day",
+  unitMisuse: "opt_weight_unit_misuse",
 };
 
 export default function OptimizationSettingsPage() {
@@ -15,15 +18,24 @@ export default function OptimizationSettingsPage() {
   const qGroup = trpc.settings.get.useQuery({ key: KEYS.groupWindow });
   const qBalance = trpc.settings.get.useQuery({ key: KEYS.dailyBalance });
   const qDiversity = trpc.settings.get.useQuery({ key: KEYS.typeDiversity });
+  const qSingle = trpc.settings.get.useQuery({ key: KEYS.singleLessonDay });
+  const qUnit = trpc.settings.get.useQuery({ key: KEYS.unitMisuse });
 
-  const isLoading = qTeacher.isLoading || qGroup.isLoading || qBalance.isLoading || qDiversity.isLoading;
+  const isLoading =
+    qTeacher.isLoading ||
+    qGroup.isLoading ||
+    qBalance.isLoading ||
+    qDiversity.isLoading ||
+    qSingle.isLoading ||
+    qUnit.isLoading;
 
-  // Извлекаем значения (если не загружены – показываем 0, это не критично)
   const initWeights = {
     teacherWindow: Number(qTeacher.data) || 4,
     groupWindow: Number(qGroup.data) || 8,
     dailyBalance: Number(qBalance.data) || 5,
     typeDiversity: Number(qDiversity.data) || 10,
+    singleLessonDay: Number(qSingle.data) || 10,
+    unitMisuse: Number(qUnit.data) || 12,
   };
 
   const [weights, setWeights] = useState(initWeights);
@@ -49,6 +61,8 @@ export default function OptimizationSettingsPage() {
           { label: "Штраф за окна у группы", field: "groupWindow", val: weights.groupWindow },
           { label: "Штраф за неравномерность по дням", field: "dailyBalance", val: weights.dailyBalance },
           { label: "Штраф за однообразие типов занятий", field: "typeDiversity", val: weights.typeDiversity },
+          { label: "Штраф за единственное занятие в день", field: "singleLessonDay", val: weights.singleLessonDay },
+          { label: "Штраф за нерациональное использование юнитов", field: "unitMisuse", val: weights.unitMisuse },
         ].map((item) => (
           <div key={item.field} className="flex items-center gap-4">
             <label className="w-64 text-sm">{item.label}</label>

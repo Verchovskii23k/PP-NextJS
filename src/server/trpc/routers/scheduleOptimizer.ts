@@ -9,13 +9,33 @@ import {
   pairs,
   settings as settingsTable,
   lessonTypes,
+  lessonClassrooms,
+  classrooms,
+  units,
+  unitTypes,
+  studyGroups,
+  employeesDepartments,
+  buildings,
+  disciplines,
+  employees,
+  hourTypeMapping,
 } from "@/db/schema";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, and, asc, gte, isNull, or } from "drizzle-orm";
 
 type SlotKey = string;
 type ScheduleEntry = typeof sdTable.$inferSelect;
 
-interface Occupancy { teacherIds: Set<number>; groupIds: Set<number>; }
+interface Occupancy {
+  teacherIds: Set<number>;
+  groupIds: Set<number>;
+  unitCodes: Set<string>;
+}
+
+interface MergeGroup {
+  mergeNum: number;
+  entries: ScheduleEntry[];
+  totalStudents: number;
+}
 
 interface OptimizationContext {
   entries: ScheduleEntry[];
@@ -23,10 +43,21 @@ interface OptimizationContext {
   occupancyBySlot: Map<SlotKey, Occupancy>;
   lessonTeacher: Map<number, number>;
   unitGroups: Map<string, Set<number>>;
+  unitTypeByUnitCode: Map<string, string>;
   lessonLessonType: Map<number, string>;
-  weights: { teacherWindow: number; groupWindow: number; dailyBalance: number; typeDiversity: number };
+  weights: {
+    teacherWindow: number;
+    groupWindow: number;
+    dailyBalance: number;
+    typeDiversity: number;
+    singleLessonDay: number;
+    unitMisuse: number;
+  };
   teacherSchedule: Map<number, { dayId: number; pairId: number }[]>;
   groupSchedule: Map<number, { dayId: number; pairId: number }[]>;
+  mergeMap: Map<number, MergeGroup>;
+  classroomCapacity: Map<number, number>;
+  mergeClassroomIds: Map<number, number | null>;
 }
 
 const slotKey = (weekId: number, d: number, p: number): SlotKey => `${weekId}-${d}-${p}`;
@@ -37,12 +68,16 @@ async function loadWeights(): Promise<OptimizationContext["weights"]> {
     groupWindow: 8,
     dailyBalance: 5,
     typeDiversity: 10,
+    singleLessonDay: 10,
+    unitMisuse: 12,
   };
   const keys = [
     "opt_weight_teacher_window",
     "opt_weight_group_window",
     "opt_weight_daily_balance",
     "opt_weight_type_diversity",
+    "opt_weight_single_lesson_day",
+    "opt_weight_unit_misuse",
   ];
   const rows = await db
     .select({ key: settingsTable.key, value: settingsTable.value })
@@ -66,15 +101,79 @@ async function loadWeights(): Promise<OptimizationContext["weights"]> {
     groupWindow: result["opt_weight_group_window"],
     dailyBalance: result["opt_weight_daily_balance"],
     typeDiversity: result["opt_weight_type_diversity"],
+    singleLessonDay: result["opt_weight_single_lesson_day"],
+    unitMisuse: result["opt_weight_unit_misuse"],
   };
+}
+
+function computeTotalStudents(
+  entries: ScheduleEntry[],
+  unitGroups: Map<string, Set<number>>,
+  unitTypeByUnitCode: Map<string, string>,
+  studyGroupsMap: Map<number, number>
+): number {
+  let total = 0;
+  const processedGroupIds = new Set<number>();
+
+  for (const entry of entries) {
+    const unitType = unitTypeByUnitCode.get(entry.unitCode) ?? "ГРУППА";
+    const groups = unitGroups.get(entry.unitCode);
+    if (!groups) continue;
+
+    if (unitType === "ПОДГРУППА") {
+      total += 16;
+    } else {
+      for (const gid of groups) {
+        if (!processedGroupIds.has(gid)) {
+          total += studyGroupsMap.get(gid) || 0;
+          processedGroupIds.add(gid);
+        }
+      }
+    }
+  }
+  return total;
+}
+
+function prepareMergeGroups(
+  entries: ScheduleEntry[],
+  unitGroups: Map<string, Set<number>>,
+  unitTypeByUnitCode: Map<string, string>,
+  studyGroupsMap: Map<number, number>
+): { mergeMap: Map<number, MergeGroup>; individualEntries: ScheduleEntry[] } {
+  const mergeMap = new Map<number, MergeGroup>();
+  const individualEntries: ScheduleEntry[] = [];
+
+  const tempGroups = new Map<number, ScheduleEntry[]>();
+  for (const entry of entries) {
+    const mn = entry.mergeNumber ?? 0;
+    if (mn !== 0) {
+      if (!tempGroups.has(mn)) tempGroups.set(mn, []);
+      tempGroups.get(mn)!.push(entry);
+    } else {
+      individualEntries.push(entry);
+    }
+  }
+
+  for (const [mergeNum, groupEntries] of tempGroups) {
+    const totalStudents = computeTotalStudents(groupEntries, unitGroups, unitTypeByUnitCode, studyGroupsMap);
+    mergeMap.set(mergeNum, { mergeNum, entries: groupEntries, totalStudents });
+
+    for (const e of groupEntries) {
+      e.positionFlag = false;
+      e.classroomFlag = false;
+    }
+  }
+
+  return { mergeMap, individualEntries };
 }
 
 async function buildContext(entries: ScheduleEntry[]): Promise<OptimizationContext> {
   const allLessons = await db.select().from(lessons);
   const allUnitRoots = await db.select().from(unitRoots);
-  const allDays = await db.select().from(daysOfWeek).orderBy(daysOfWeek.id);
-  const allPairs = await db.select().from(pairs).orderBy(pairs.number);
-  const allWeeks = await db.select({ id: weeks.id }).from(weeks).where(eq(weeks.isActive, true)).orderBy(weeks.id);
+  const allDays = await db.select().from(daysOfWeek).orderBy(asc(daysOfWeek.id));
+  const allPairs = await db.select().from(pairs).orderBy(asc(pairs.number));
+  const allWeeks = await db.select({ id: weeks.id }).from(weeks).where(eq(weeks.isActive, true)).orderBy(asc(weeks.id));
+
   const lessonLessonType = new Map<number, string>();
   const allLessonTypes = await db.select().from(lessonTypes);
   const typeNameById = new Map<number, string>();
@@ -94,6 +193,37 @@ async function buildContext(entries: ScheduleEntry[]): Promise<OptimizationConte
     unitGroups.get(ur.unitCode)!.add(ur.studyGroupId);
   }
 
+  const allUnits = await db.select().from(units);
+  const allUnitTypes = await db.select().from(unitTypes);
+  const typeNameByIdUT = new Map<number, string>();
+  for (const ut of allUnitTypes) typeNameByIdUT.set(ut.id, ut.name);
+  const unitTypeByUnitCode = new Map<string, string>();
+  for (const u of allUnits) {
+    const typeName = typeNameByIdUT.get(u.unitTypeId) ?? "ГРУППА";
+    unitTypeByUnitCode.set(u.code, typeName);
+  }
+
+  const studyGroupsMap = new Map<number, number>();
+  const allStudyGroups = await db.select().from(studyGroups);
+  for (const sg of allStudyGroups) {
+    studyGroupsMap.set(sg.id, sg.studentCount);
+  }
+
+  const { mergeMap, individualEntries } = prepareMergeGroups(
+    entries, unitGroups, unitTypeByUnitCode, studyGroupsMap
+  );
+
+  const finalEntries: ScheduleEntry[] = [...individualEntries];
+  for (const [, group] of mergeMap) {
+    finalEntries.push(...group.entries);
+  }
+
+  const allClassrooms = await db.select().from(classrooms);
+  const classroomCapacity = new Map<number, number>();
+  for (const c of allClassrooms) {
+    classroomCapacity.set(c.id, c.capacity);
+  }
+
   const slots: { weekId: number; dayId: number; pairId: number }[] = [];
   for (const w of allWeeks) {
     for (const d of allDays) {
@@ -107,10 +237,10 @@ async function buildContext(entries: ScheduleEntry[]): Promise<OptimizationConte
   const teacherSchedule = new Map<number, { dayId: number; pairId: number }[]>();
   const groupSchedule = new Map<number, { dayId: number; pairId: number }[]>();
 
-  for (const e of entries) {
+  for (const e of finalEntries) {
     const key = slotKey(e.weekId, e.dayOfWeekId, e.pairNumberId);
     if (!occupancyBySlot.has(key)) {
-      occupancyBySlot.set(key, { teacherIds: new Set(), groupIds: new Set() });
+      occupancyBySlot.set(key, { teacherIds: new Set(), groupIds: new Set(), unitCodes: new Set() });
     }
     const occ = occupancyBySlot.get(key)!;
     const teacherId = lessonTeacher.get(e.lessonId!);
@@ -127,23 +257,34 @@ async function buildContext(entries: ScheduleEntry[]): Promise<OptimizationConte
         groupSchedule.get(g)!.push({ dayId: e.dayOfWeekId, pairId: e.pairNumberId });
       });
     }
+    occ.unitCodes.add(e.unitCode);
   }
 
   return {
-    entries,
+    entries: finalEntries,
     slots,
     occupancyBySlot,
     lessonTeacher,
     unitGroups,
+    unitTypeByUnitCode,
     weights: await loadWeights(),
     teacherSchedule,
     groupSchedule,
     lessonLessonType,
+    mergeMap,
+    classroomCapacity,
+    mergeClassroomIds: new Map(),
   };
 }
 
-function canMoveToSlot(ctx: OptimizationContext, entry: ScheduleEntry, weekId: number, dayId: number, pairId: number): boolean {
-  if (entry.positionFlag) return false;
+function canMoveToSlot(
+  ctx: OptimizationContext,
+  entry: ScheduleEntry,
+  weekId: number,
+  dayId: number,
+  pairId: number
+): boolean {
+  if (entry.positionFlag && (entry.mergeNumber ?? 0) === 0) return false;
   const key = slotKey(weekId, dayId, pairId);
   const occ = ctx.occupancyBySlot.get(key);
   if (!occ) return true;
@@ -154,11 +295,129 @@ function canMoveToSlot(ctx: OptimizationContext, entry: ScheduleEntry, weekId: n
   const groups = ctx.unitGroups.get(entry.unitCode);
   if (groups && [...groups].some(g => occ.groupIds.has(g))) return false;
 
-  if (occ.groupIds.size > 0) {
-    const entryGroups = ctx.unitGroups.get(entry.unitCode);
-    if (entryGroups && [...entryGroups].some(g => occ.groupIds.has(g))) return false;
+  const entryType = ctx.unitTypeByUnitCode.get(entry.unitCode) ?? "ГРУППА";
+  if (entryType === "ПОДГРУППА" || entryType === "ГРУППА") {
+    for (const existingUnitCode of occ.unitCodes) {
+      const existingType = ctx.unitTypeByUnitCode.get(existingUnitCode) ?? "ГРУППА";
+      if (existingType === "ПОТОК") {
+        const existingGroups = ctx.unitGroups.get(existingUnitCode);
+        if (existingGroups && groups && [...groups].some(g => existingGroups.has(g))) {
+          return false;
+        }
+      } else if (existingType === "ГРУППА" && entryType === "ПОДГРУППА") {
+        const existingGroups = ctx.unitGroups.get(existingUnitCode);
+        if (existingGroups && groups && [...groups].some(g => existingGroups.has(g))) {
+          return false;
+        }
+      }
+    }
+  }
+
+  return true;
+}
+
+function canMoveGroupToSlot(
+  ctx: OptimizationContext,
+  group: MergeGroup,
+  weekId: number,
+  dayId: number,
+  pairId: number
+): boolean {
+  for (const entry of group.entries) {
+    if (!canMoveToSlot(ctx, entry, weekId, dayId, pairId)) return false;
   }
   return true;
+}
+
+function moveGroupToSlot(
+  ctx: OptimizationContext,
+  group: MergeGroup,
+  targetWeek: number,
+  targetDay: number,
+  targetPair: number
+) {
+  for (const entry of group.entries) {
+    const oldWeek = entry.weekId;
+    const oldDay = entry.dayOfWeekId;
+    const oldPair = entry.pairNumberId;
+    entry.weekId = targetWeek;
+    entry.dayOfWeekId = targetDay;
+    entry.pairNumberId = targetPair;
+    updateOccupancy(ctx, entry, oldWeek, oldDay, oldPair, targetWeek, targetDay, targetPair);
+  }
+}
+
+async function syncLessonClassroom(lessonId: number, classroomId: number) {
+  await db
+    .insert(lessonClassrooms)
+    .values({ lessonId, classroomId })
+    .onConflictDoNothing();
+}
+
+async function findSuitableClassroomForGroup(
+  group: MergeGroup,
+  ctx: OptimizationContext
+): Promise<number | null> {
+  const firstEntry = group.entries[0];
+  const [lesson] = await db
+    .select({ disciplineId: lessons.disciplineId, lessonTypeId: lessons.lessonTypeId })
+    .from(lessons)
+    .where(eq(lessons.id, firstEntry.lessonId!))
+    .limit(1);
+  if (!lesson) return null;
+
+  const [disc] = await db
+    .select({ departmentId: disciplines.departmentId })
+    .from(disciplines)
+    .where(eq(disciplines.id, lesson.disciplineId!))
+    .limit(1);
+  const deptId = disc?.departmentId ?? null;
+
+  const [mapping] = await db
+    .select({ priorityColumn: hourTypeMapping.priorityColumn })
+    .from(hourTypeMapping)
+    .where(
+      and(
+        eq(hourTypeMapping.lessonTypeId, lesson.lessonTypeId!),
+        eq(hourTypeMapping.isActive, true)
+      )
+    )
+    .limit(1);
+  if (!mapping) return null;
+  type ClassroomPriorityKey = keyof Pick<typeof classrooms, "priorityLecture" | "priorityWorkshop" | "priorityGuidedStudy" | "priorityLab">;
+  const priorityColumn = mapping.priorityColumn as ClassroomPriorityKey;
+
+  const conditions: any[] = [
+    eq(classrooms.isActive, true),
+    gte(classrooms.capacity, group.totalStudents)
+  ];
+  if (deptId !== null) {
+    conditions.push(or(
+      eq(classrooms.departmentId, deptId),
+      isNull(classrooms.departmentId)
+    ));
+  }
+
+  const candidates = await db
+    .select()
+    .from(classrooms)
+    .where(and(...conditions));
+
+  if (candidates.length === 0) return null;
+
+  candidates.sort((a, b) => {
+    const prioA = (a[priorityColumn] as number) ?? 99;
+    const prioB = (b[priorityColumn] as number) ?? 99;
+    if (prioA !== prioB) return prioA - prioB;
+
+    const metricA = a.usageMetric ?? 0;
+    const metricB = b.usageMetric ?? 0;
+    if (metricA !== metricB) return metricA - metricB;
+
+    return a.id - b.id;
+  });
+
+  return candidates[0].id;
 }
 
 function updateOccupancy(ctx: OptimizationContext, entry: ScheduleEntry, oldWeekId: number, oldDay: number, oldPair: number, newWeekId: number, newDay: number, newPair: number) {
@@ -171,16 +430,18 @@ function updateOccupancy(ctx: OptimizationContext, entry: ScheduleEntry, oldWeek
     if (teacherId) oldOcc.teacherIds.delete(teacherId);
     const groups = ctx.unitGroups.get(entry.unitCode);
     if (groups) groups.forEach(g => oldOcc.groupIds.delete(g));
+    oldOcc.unitCodes.delete(entry.unitCode);
   }
 
   if (!ctx.occupancyBySlot.has(newKey)) {
-    ctx.occupancyBySlot.set(newKey, { teacherIds: new Set(), groupIds: new Set() });
+    ctx.occupancyBySlot.set(newKey, { teacherIds: new Set(), groupIds: new Set(), unitCodes: new Set() });
   }
   const newOcc = ctx.occupancyBySlot.get(newKey)!;
   const teacherId = ctx.lessonTeacher.get(entry.lessonId!);
   if (teacherId) newOcc.teacherIds.add(teacherId);
   const groups = ctx.unitGroups.get(entry.unitCode);
   if (groups) groups.forEach(g => newOcc.groupIds.add(g));
+  newOcc.unitCodes.add(entry.unitCode);
 }
 
 function evaluateState(ctx: OptimizationContext): number {
@@ -204,6 +465,7 @@ function evaluateState(ctx: OptimizationContext): number {
   let score = 0;
   const { weights } = ctx;
 
+  // Окна преподавателей
   for (const [, slots] of teacherSch) {
     const byDay = new Map<number, number[]>();
     slots.forEach(s => {
@@ -219,6 +481,7 @@ function evaluateState(ctx: OptimizationContext): number {
     }
   }
 
+  // Окна групп
   for (const [, slots] of groupSch) {
     const byDay = new Map<number, number[]>();
     slots.forEach(s => {
@@ -234,6 +497,7 @@ function evaluateState(ctx: OptimizationContext): number {
     }
   }
 
+  // Дневной баланс преподавателей
   const teacherPayPerDay = new Map<number, Map<number, number>>();
   for (const [tid, slots] of teacherSch) {
     const byDay = new Map<number, number>();
@@ -248,6 +512,7 @@ function evaluateState(ctx: OptimizationContext): number {
     score += Math.round(variance * weights.dailyBalance);
   }
 
+  // Дневной баланс групп
   const groupPayPerDay = new Map<number, Map<number, number>>();
   for (const [gid, slots] of groupSch) {
     const byDay = new Map<number, number>();
@@ -262,6 +527,7 @@ function evaluateState(ctx: OptimizationContext): number {
     score += Math.round(variance * weights.dailyBalance);
   }
 
+  // Однообразие типов
   const typePenaltyPerGroup = new Map<number, Map<number, Map<string, number>>>();
   for (const e of ctx.entries) {
     const lt = ctx.lessonLessonType.get(e.lessonId!);
@@ -283,7 +549,97 @@ function evaluateState(ctx: OptimizationContext): number {
       }
     }
   }
+
+  // Единственное занятие в день
+  for (const [, slots] of teacherSch) {
+    const byDay = new Map<number, number>();
+    slots.forEach(s => byDay.set(s.dayId, (byDay.get(s.dayId) || 0) + 1));
+    for (const [, cnt] of byDay) {
+      if (cnt === 1) score += weights.singleLessonDay;
+    }
+  }
+  for (const [, slots] of groupSch) {
+    const byDay = new Map<number, number>();
+    slots.forEach(s => byDay.set(s.dayId, (byDay.get(s.dayId) || 0) + 1));
+    for (const [, cnt] of byDay) {
+      if (cnt === 1) score += weights.singleLessonDay;
+    }
+  }
+
+  // Нерациональное использование юнитов
+  for (const [, occ] of ctx.occupancyBySlot) {
+    const groupIds = new Set<number>();
+    const subgroupCodes = new Set<string>();
+    for (const unitCode of occ.unitCodes) {
+      const type = ctx.unitTypeByUnitCode.get(unitCode) ?? "ГРУППА";
+      if (type === "ПОДГРУППА") {
+        subgroupCodes.add(unitCode);
+      } else {
+        const gs = ctx.unitGroups.get(unitCode);
+        if (gs) gs.forEach(g => groupIds.add(g));
+      }
+    }
+    if (groupIds.size > 1) score += (groupIds.size - 1) * weights.unitMisuse;
+    if (subgroupCodes.size > 1) score += (subgroupCodes.size - 1) * weights.unitMisuse;
+  }
+
   return score;
+}
+
+function forcePlaceGroup(
+  ctx: OptimizationContext,
+  group: MergeGroup,
+  targetWeek: number,
+  targetDay: number,
+  targetPair: number
+): boolean {
+  const key = slotKey(targetWeek, targetDay, targetPair);
+  const occ = ctx.occupancyBySlot.get(key);
+  if (!occ) {
+    moveGroupToSlot(ctx, group, targetWeek, targetDay, targetPair);
+    return true;
+  }
+
+  const conflictingEntries = ctx.entries.filter(e => 
+    e.weekId === targetWeek && 
+    e.dayOfWeekId === targetDay && 
+    e.pairNumberId === targetPair &&
+    group.entries.some(ge => !canMoveToSlot(ctx, ge, targetWeek, targetDay, targetPair))
+  );
+
+  if (conflictingEntries.length === 0) {
+    moveGroupToSlot(ctx, group, targetWeek, targetDay, targetPair);
+    return true;
+  }
+
+  const moves: { entry: ScheduleEntry; oldSlot: { week: number; day: number; pair: number }; newSlot: { week: number; day: number; pair: number } }[] = [];
+
+  for (const entry of conflictingEntries) {
+    let found = false;
+    for (let attempt = 0; attempt < 20 && !found; attempt++) {
+      const randSlot = ctx.slots[Math.floor(Math.random() * ctx.slots.length)];
+      if (randSlot.weekId === targetWeek && randSlot.dayId === targetDay && randSlot.pairId === targetPair) continue;
+      if (canMoveToSlot(ctx, entry, randSlot.weekId, randSlot.dayId, randSlot.pairId)) {
+        moves.push({
+          entry,
+          oldSlot: { week: entry.weekId, day: entry.dayOfWeekId, pair: entry.pairNumberId },
+          newSlot: { week: randSlot.weekId, day: randSlot.dayId, pair: randSlot.pairId }
+        });
+        found = true;
+      }
+    }
+    if (!found) return false;
+  }
+
+  for (const move of moves) {
+    updateOccupancy(ctx, move.entry, move.oldSlot.week, move.oldSlot.day, move.oldSlot.pair, move.newSlot.week, move.newSlot.day, move.newSlot.pair);
+    move.entry.weekId = move.newSlot.week;
+    move.entry.dayOfWeekId = move.newSlot.day;
+    move.entry.pairNumberId = move.newSlot.pair;
+  }
+
+  moveGroupToSlot(ctx, group, targetWeek, targetDay, targetPair);
+  return true;
 }
 
 export async function optimizeSchedule() {
@@ -294,65 +650,204 @@ export async function optimizeSchedule() {
   let currentScore = evaluateState(ctx);
   const initialScore = currentScore;
   let iterations = 0, accepted = 0;
-  const MAX_ITER = 500; 
+  const MAX_ITER = 500;
+  const MAX_GROUP_ATTEMPTS = 5;
+
+  const mergeGroups = [...ctx.mergeMap.values()];
 
   while (iterations < MAX_ITER) {
-    const r = Math.random();
-    if (r < 0.7) {
-      if (ctx.entries.length < 2) { iterations++; continue; }
-      const i = Math.floor(Math.random() * ctx.entries.length);
-      let j = Math.floor(Math.random() * (ctx.entries.length - 1));
-      if (j >= i) j++;
-      const a = ctx.entries[i];
-      const b = ctx.entries[j];
-      if (a.positionFlag || b.positionFlag) { iterations++; continue; }
-      if (!canMoveToSlot(ctx, a, b.weekId, b.dayOfWeekId, b.pairNumberId) ||
-          !canMoveToSlot(ctx, b, a.weekId, a.dayOfWeekId, a.pairNumberId)) {
-        iterations++; continue;
+    if (mergeGroups.length > 0 && Math.random() < 0.5) {
+      const group = mergeGroups[Math.floor(Math.random() * mergeGroups.length)];
+      let placed = false;
+
+      for (let attempt = 0; attempt < MAX_GROUP_ATTEMPTS && !placed; attempt++) {
+        const targetSlot = ctx.slots[Math.floor(Math.random() * ctx.slots.length)];
+        if (canMoveGroupToSlot(ctx, group, targetSlot.weekId, targetSlot.dayId, targetSlot.pairId)) {
+          const oldSlots = group.entries.map(e => ({ week: e.weekId, day: e.dayOfWeekId, pair: e.pairNumberId }));
+
+          moveGroupToSlot(ctx, group, targetSlot.weekId, targetSlot.dayId, targetSlot.pairId);
+          const newScore = evaluateState(ctx);
+
+          if (newScore < currentScore) {
+            const classroomId = await findSuitableClassroomForGroup(group, ctx);
+            if (classroomId !== null) {
+              for (const entry of group.entries) {
+                entry.classroomId = classroomId;
+                // Синхронизируем lessonClassrooms: добавляем новую запись, если такой связки ещё нет
+                if (entry.lessonId) await syncLessonClassroom(entry.lessonId, classroomId);
+              }
+              ctx.mergeClassroomIds.set(group.mergeNum, classroomId);
+              currentScore = newScore;
+              accepted++;
+              placed = true;
+            } else {
+              for (let i = 0; i < group.entries.length; i++) {
+                const entry = group.entries[i];
+                const old = oldSlots[i];
+                entry.weekId = old.week;
+                entry.dayOfWeekId = old.day;
+                entry.pairNumberId = old.pair;
+                updateOccupancy(ctx, entry, targetSlot.weekId, targetSlot.dayId, targetSlot.pairId, old.week, old.day, old.pair);
+              }
+            }
+          } else {
+            for (let i = 0; i < group.entries.length; i++) {
+              const entry = group.entries[i];
+              const old = oldSlots[i];
+              entry.weekId = old.week;
+              entry.dayOfWeekId = old.day;
+              entry.pairNumberId = old.pair;
+              updateOccupancy(ctx, entry, targetSlot.weekId, targetSlot.dayId, targetSlot.pairId, old.week, old.day, old.pair);
+            }
+          }
+        }
       }
-      const oldA = { w: a.weekId, d: a.dayOfWeekId, p: a.pairNumberId };
-      const oldB = { w: b.weekId, d: b.dayOfWeekId, p: b.pairNumberId };
-      a.weekId = oldB.w; a.dayOfWeekId = oldB.d; a.pairNumberId = oldB.p;
-      b.weekId = oldA.w; b.dayOfWeekId = oldA.d; b.pairNumberId = oldA.p;
-      updateOccupancy(ctx, a, oldA.w, oldA.d, oldA.p, a.weekId, a.dayOfWeekId, a.pairNumberId);
-      updateOccupancy(ctx, b, oldB.w, oldB.d, oldB.p, b.weekId, b.dayOfWeekId, b.pairNumberId);
-      const newScore = evaluateState(ctx);
-      if (newScore < currentScore) { currentScore = newScore; accepted++; }
-      else {
-        a.weekId = oldA.w; a.dayOfWeekId = oldA.d; a.pairNumberId = oldA.p;
-        b.weekId = oldB.w; b.dayOfWeekId = oldB.d; b.pairNumberId = oldB.p;
-        updateOccupancy(ctx, a, a.weekId, a.dayOfWeekId, a.pairNumberId, oldA.w, oldA.d, oldA.p);
-        updateOccupancy(ctx, b, b.weekId, b.dayOfWeekId, b.pairNumberId, oldB.w, oldB.d, oldB.p);
+
+      if (!placed) {
+        for (let forceAttempt = 0; forceAttempt < 10 && !placed; forceAttempt++) {
+          const targetSlot = ctx.slots[Math.floor(Math.random() * ctx.slots.length)];
+          if (forcePlaceGroup(ctx, group, targetSlot.weekId, targetSlot.dayId, targetSlot.pairId)) {
+            const newScore = evaluateState(ctx);
+            if (newScore < currentScore) {
+              const classroomId = await findSuitableClassroomForGroup(group, ctx);
+              if (classroomId !== null) {
+                for (const entry of group.entries) {
+                  entry.classroomId = classroomId;
+                  if (entry.lessonId) await syncLessonClassroom(entry.lessonId, classroomId);
+                }
+                ctx.mergeClassroomIds.set(group.mergeNum, classroomId);
+                currentScore = newScore;
+                accepted++;
+                placed = true;
+              }
+            }
+          }
+        }
       }
     } else {
-      if (ctx.slots.length === 0) { iterations++; continue; }
-      const entryIdx = Math.floor(Math.random() * ctx.entries.length);
-      const entry = ctx.entries[entryIdx];
-      if (entry.positionFlag) { iterations++; continue; }
-      const slotIdx = Math.floor(Math.random() * ctx.slots.length);
-      const targetSlot = ctx.slots[slotIdx];
-      if (!canMoveToSlot(ctx, entry, targetSlot.weekId, targetSlot.dayId, targetSlot.pairId)) { iterations++; continue; }
-      if (entry.weekId === targetSlot.weekId && entry.dayOfWeekId === targetSlot.dayId && entry.pairNumberId === targetSlot.pairId) { iterations++; continue; }
+      const r = Math.random();
+      if (r < 0.7) {
+        if (ctx.entries.length < 2) { iterations++; continue; }
+        const i = Math.floor(Math.random() * ctx.entries.length);
+        let j = Math.floor(Math.random() * (ctx.entries.length - 1));
+        if (j >= i) j++;
+        const a = ctx.entries[i];
+        const b = ctx.entries[j];
+        if (a.positionFlag || b.positionFlag) { iterations++; continue; }
+        if (!canMoveToSlot(ctx, a, b.weekId, b.dayOfWeekId, b.pairNumberId) ||
+            !canMoveToSlot(ctx, b, a.weekId, a.dayOfWeekId, a.pairNumberId)) {
+          iterations++; continue;
+        }
+        const oldA = { w: a.weekId, d: a.dayOfWeekId, p: a.pairNumberId };
+        const oldB = { w: b.weekId, d: b.dayOfWeekId, p: b.pairNumberId };
+        a.weekId = oldB.w; a.dayOfWeekId = oldB.d; a.pairNumberId = oldB.p;
+        b.weekId = oldA.w; b.dayOfWeekId = oldA.d; b.pairNumberId = oldA.p;
+        updateOccupancy(ctx, a, oldA.w, oldA.d, oldA.p, a.weekId, a.dayOfWeekId, a.pairNumberId);
+        updateOccupancy(ctx, b, oldB.w, oldB.d, oldB.p, b.weekId, b.dayOfWeekId, b.pairNumberId);
+        const newScore = evaluateState(ctx);
+        if (newScore < currentScore) { currentScore = newScore; accepted++; }
+        else {
+          a.weekId = oldA.w; a.dayOfWeekId = oldA.d; a.pairNumberId = oldA.p;
+          b.weekId = oldB.w; b.dayOfWeekId = oldB.d; b.pairNumberId = oldB.p;
+          updateOccupancy(ctx, a, a.weekId, a.dayOfWeekId, a.pairNumberId, oldA.w, oldA.d, oldA.p);
+          updateOccupancy(ctx, b, b.weekId, b.dayOfWeekId, b.pairNumberId, oldB.w, oldB.d, oldB.p);
+        }
+      } else {
+        if (ctx.slots.length === 0) { iterations++; continue; }
+        const entryIdx = Math.floor(Math.random() * ctx.entries.length);
+        const entry = ctx.entries[entryIdx];
+        if (entry.positionFlag) { iterations++; continue; }
+        const slotIdx = Math.floor(Math.random() * ctx.slots.length);
+        const targetSlot = ctx.slots[slotIdx];
+        if (!canMoveToSlot(ctx, entry, targetSlot.weekId, targetSlot.dayId, targetSlot.pairId)) { iterations++; continue; }
+        if (entry.weekId === targetSlot.weekId && entry.dayOfWeekId === targetSlot.dayId && entry.pairNumberId === targetSlot.pairId) { iterations++; continue; }
 
-      const oldW = entry.weekId, oldD = entry.dayOfWeekId, oldP = entry.pairNumberId;
-      entry.weekId = targetSlot.weekId; entry.dayOfWeekId = targetSlot.dayId; entry.pairNumberId = targetSlot.pairId;
-      updateOccupancy(ctx, entry, oldW, oldD, oldP, targetSlot.weekId, targetSlot.dayId, targetSlot.pairId);
-      const newScore = evaluateState(ctx);
-      if (newScore < currentScore) { currentScore = newScore; accepted++; }
-      else {
-        entry.weekId = oldW; entry.dayOfWeekId = oldD; entry.pairNumberId = oldP;
-        updateOccupancy(ctx, entry, targetSlot.weekId, targetSlot.dayId, targetSlot.pairId, oldW, oldD, oldP);
+        const oldW = entry.weekId, oldD = entry.dayOfWeekId, oldP = entry.pairNumberId;
+        entry.weekId = targetSlot.weekId; entry.dayOfWeekId = targetSlot.dayId; entry.pairNumberId = targetSlot.pairId;
+        updateOccupancy(ctx, entry, oldW, oldD, oldP, targetSlot.weekId, targetSlot.dayId, targetSlot.pairId);
+        const newScore = evaluateState(ctx);
+        if (newScore < currentScore) { currentScore = newScore; accepted++; }
+        else {
+          entry.weekId = oldW; entry.dayOfWeekId = oldD; entry.pairNumberId = oldP;
+          updateOccupancy(ctx, entry, targetSlot.weekId, targetSlot.dayId, targetSlot.pairId, oldW, oldD, oldP);
+        }
       }
     }
     iterations++;
   }
+
   if (accepted > 0) {
-    await db.transaction(async (tx) => {
-      await tx.delete(sdTable).where(eq(sdTable.isBuffered, false));
-      if (ctx.entries.length > 0) {
-        await tx.insert(sdTable).values(ctx.entries.map(({ id, ...rest }) => rest));
+    for (const entry of ctx.entries) {
+      await db
+        .update(sdTable)
+        .set({
+          weekId: entry.weekId,
+          dayOfWeekId: entry.dayOfWeekId,
+          pairNumberId: entry.pairNumberId,
+          classroomId: entry.classroomId,
+          positionFlag: entry.positionFlag,
+          mergeNumber: entry.mergeNumber,
+          classroomFlag: entry.classroomFlag,
+        })
+        .where(eq(sdTable.id, entry.id));
+    }
+
+    // Принудительно выравниваем classroomId для групп слияния
+    for (const [mergeNum, classroomId] of ctx.mergeClassroomIds) {
+      if (classroomId === null) continue;
+      const group = ctx.mergeMap.get(mergeNum);
+      if (!group) continue;
+      for (const entry of group.entries) {
+        await db
+          .update(sdTable)
+          .set({ classroomId })
+          .where(eq(sdTable.id, entry.id));
       }
-    });
+    }
+
+    // Пересчитываем displayText
+    const allDisplayRows = await db
+      .select({
+        id: sdTable.id,
+        lessonId: sdTable.lessonId,
+        unitCode: sdTable.unitCode,
+        classroomId: sdTable.classroomId,
+        disciplineAbbr: disciplines.abbreviation,
+        lessonTypeName: lessonTypes.name,
+        teacherSurname: employees.surname,
+        teacherName: employees.name,
+        teacherPatronymic: employees.patronymic,
+        buildingNumber: buildings.number,
+        roomNumber: classrooms.roomNumber,
+      })
+      .from(sdTable)
+      .innerJoin(lessons, eq(sdTable.lessonId, lessons.id))
+      .innerJoin(disciplines, eq(lessons.disciplineId, disciplines.id))
+      .innerJoin(lessonTypes, eq(lessons.lessonTypeId, lessonTypes.id))
+      .leftJoin(employeesDepartments, eq(lessons.teacherId, employeesDepartments.id))
+      .leftJoin(employees, eq(employeesDepartments.employeeId, employees.id))
+      .leftJoin(classrooms, eq(sdTable.classroomId, classrooms.id))
+      .leftJoin(buildings, eq(classrooms.buildingId, buildings.id))
+      .where(eq(sdTable.isBuffered, false));
+
+    for (const row of allDisplayRows) {
+      const typeMap: Record<string, string> = {
+        lecture: 'лек.',
+        lab: 'лаб.',
+        workshop: 'пр.',
+        guidedStudy: 'кср.'
+      };
+      const typeAbbr = typeMap[row.lessonTypeName] || row.lessonTypeName;
+      const disc = row.disciplineAbbr;
+      const teacher = `${row.teacherSurname} ${row.teacherName?.[0] ?? ''}.${row.teacherPatronymic?.[0] ? row.teacherPatronymic[0] + '.' : ''}`;
+      const room = row.buildingNumber ? `${row.buildingNumber}-${row.roomNumber}` : 'б/а';
+      const text = `[${row.unitCode}] ${typeAbbr}${disc} – ${teacher}, ${room}`;
+
+      await db
+        .update(sdTable)
+        .set({ displayText: text })
+        .where(eq(sdTable.id, row.id));
+    }
   }
 
   return { iterations, initialScore, finalScore: currentScore };

@@ -372,12 +372,42 @@ export default function AdminSchedulePage() {
   const handlePrint = () => {
     const tableElement = document.getElementById("schedule-table");
     if (!tableElement) return;
+
+    const clone = tableElement.cloneNode(true) as HTMLElement;
+
+    // Убираем drag-and-drop классы, оставляем только цвета
+    clone.querySelectorAll("[data-week]").forEach((el) => {
+      const htmlEl = el as HTMLElement;
+      const weekType = htmlEl.getAttribute("data-week");
+      if (weekType === "even") {
+        htmlEl.style.backgroundColor = "#d1d5db"; // серый для чётных недель
+      } else {
+        htmlEl.style.backgroundColor = "transparent";
+      }
+      htmlEl.style.padding = "2px";
+      htmlEl.style.borderBottom = "1px solid #666";
+      htmlEl.style.minHeight = "2.5em";
+    });
+
     const printWindow = window.open("", "_blank", "width=1200,height=800");
     if (!printWindow) return;
     printWindow.document.write(`
       <html>
-        <head><title>Расписание</title></head>
-        <body>${tableElement.outerHTML}</body>
+        <head>
+          <title>Расписание</title>
+          <style>
+            @media print {
+              * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+              table { border-collapse: collapse; width: 100%; font-size: 9px; }
+              [data-week="even"] { background-color: #d1d5db !important; }
+              td { vertical-align: middle; }
+            }
+          </style>
+        </head>
+        <body class="p-4">
+          <h1 class="text-xl font-bold mb-4">Расписание</h1>
+          ${clone.outerHTML}
+        </body>
       </html>
     `);
     printWindow.document.close();

@@ -41,8 +41,7 @@ import { adminManagementRouter } from "./routers/adminManagement";
 import { userManagementRouter } from "./routers/userManagement";
 import { crudImportExportRouter } from "./routers/crudImportExport";
 import { globalImportExportRouter } from "./routers/globalImportExport";
-import { batchDeleteRouter } from "./routers/batchDelete";
-
+import { batchDeleteRouter } from "./routers/batchDelete"
 
 export const appRouter = router({
   auth: authRouter,
@@ -87,6 +86,11 @@ export const appRouter = router({
   crudImportExport: crudImportExportRouter,
   globalImportExport: globalImportExportRouter,
   batchDelete: batchDeleteRouter,
+
+
+
+
+
 });
 
 export type AppRouter = typeof appRouter;

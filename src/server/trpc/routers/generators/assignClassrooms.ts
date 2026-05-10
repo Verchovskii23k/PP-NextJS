@@ -2,74 +2,66 @@
 import { router, adminProcedure } from "../../trpc";
 import {
   lessons, lessonClassrooms,
-  classrooms, lessonTypes,
+  classrooms,
   disciplines, units, unitRoots,
-  studyGroups, unitTypes,
+  studyGroups, unitTypes, hourTypeMapping
 } from "@/db/schema";
-import { eq, asc, desc, sql, and } from "drizzle-orm";
+import { eq, sql, and, gte, isNull, or } from "drizzle-orm";
 
 export const assignClassroomsRouter = router({
   assignClassroomsAuto: adminProcedure
     .mutation(async ({ ctx }) => {
       await ctx.db.delete(lessonClassrooms);
+      await ctx.db
+        .update(classrooms)
+        .set({ usageMetric: 0 })
+        .where(eq(classrooms.isActive, true));
 
       const allLessons = await ctx.db.select().from(lessons);
       const failed: { lessonId: number; reason: string }[] = [];
       let assigned = 0;
 
       for (const lesson of allLessons) {
-        const [lt] = await ctx.db
-          .select()
-          .from(lessonTypes)
-          .where(eq(lessonTypes.id, lesson.lessonTypeId!))
-          .limit(1);
-        if (!lt) {
-          failed.push({ lessonId: lesson.id, reason: "Неизвестный тип занятия" });
-          continue;
-        }
-
-        let priorityColumn: keyof typeof classrooms;
-        switch (lt.name) {
-          case "lecture": priorityColumn = "priorityLecture"; break;
-          case "workshop": priorityColumn = "priorityWorkshop"; break;
-          case "guidedStudy": priorityColumn = "priorityGuidedStudy"; break;
-          case "lab": priorityColumn = "priorityLab"; break;
-          default:
-            failed.push({ lessonId: lesson.id, reason: `Неизвестный тип занятия: ${lt.name}` });
-            continue;
-        }
-
+        // --- размер юнита ---
         let unitSize = 0;
         const [unit] = await ctx.db
           .select({ id: units.id, code: units.code, unitTypeId: units.unitTypeId })
           .from(units)
           .where(eq(units.id, lesson.unitId))
           .limit(1);
-        if (!unit) {
-          failed.push({ lessonId: lesson.id, reason: "Юнит не найден" });
-          continue;
-        }
+        if (!unit) { failed.push({ lessonId: lesson.id, reason: "Юнит не найден" }); continue; }
 
-        const roots = await ctx.db
-          .select({ studyGroupId: unitRoots.studyGroupId })
-          .from(unitRoots)
-          .where(eq(unitRoots.unitCode, unit.code));
-        if (roots.length > 0) {
-          const groupIds = roots.map(r => r.studyGroupId);
-          const groupsData = await ctx.db
-            .select({ studentCount: studyGroups.studentCount })
-            .from(studyGroups)
-            .where(sql`${studyGroups.id} IN ${groupIds}`);
-          unitSize = groupsData.reduce((sum, g) => sum + (g.studentCount ?? 0), 0);
+        // Определяем тип юнита
+        const [unitType] = await ctx.db
+          .select({ name: unitTypes.name, maxSize: unitTypes.maxSize })
+          .from(unitTypes)
+          .where(eq(unitTypes.id, unit.unitTypeId))
+          .limit(1);
+        if (!unitType) { failed.push({ lessonId: lesson.id, reason: "Тип юнита не найден" }); continue; }
+
+        if (unitType.name === "ПОДГРУППА") {
+          // Для подгрупп берём maxSize (16)
+          unitSize = unitType.maxSize ?? 0;
         } else {
-          const [ut] = await ctx.db
-            .select({ maxSize: unitTypes.maxSize })
-            .from(unitTypes)
-            .where(eq(unitTypes.id, unit.unitTypeId))
-            .limit(1);
-          unitSize = ut?.maxSize ?? 0;
+          // Для групп и потоков суммируем студентов групп через unitRoots
+          const roots = await ctx.db
+            .select({ studyGroupId: unitRoots.studyGroupId })
+            .from(unitRoots)
+            .where(eq(unitRoots.unitCode, unit.code));
+          if (roots.length > 0) {
+            const groupIds = roots.map(r => r.studyGroupId);
+            const groupsData = await ctx.db
+              .select({ studentCount: studyGroups.studentCount })
+              .from(studyGroups)
+              .where(sql`${studyGroups.id} IN ${groupIds}`);
+            unitSize = groupsData.reduce((sum, g) => sum + (g.studentCount ?? 0), 0);
+          } else {
+            // На случай, если у группы нет unitRoots (не должно быть)
+            unitSize = unitType.maxSize ?? 0;
+          }
         }
 
+        // --- кафедра дисциплины ---
         const [disc] = await ctx.db
           .select({ departmentId: disciplines.departmentId })
           .from(disciplines)
@@ -77,52 +69,69 @@ export const assignClassroomsRouter = router({
           .limit(1);
         const deptId = disc?.departmentId ?? null;
 
-        let bestClassroom: typeof classrooms.$inferSelect | null = null;
-
-        if (deptId) {
-          const candidates = await ctx.db
-            .select()
-            .from(classrooms)
-            .where(
-              and(
-                eq(classrooms.departmentId, deptId),
-                eq(classrooms.isActive, true),          // ← только активные
-                sql`${classrooms.capacity} >= ${unitSize}`
-              )
+        // --- приоритетная колонка ---
+        const [mapping] = await ctx.db
+          .select({ priorityColumn: hourTypeMapping.priorityColumn })
+          .from(hourTypeMapping)
+          .where(
+            and(
+              eq(hourTypeMapping.lessonTypeId, lesson.lessonTypeId!),
+              eq(hourTypeMapping.isActive, true)
             )
-            .orderBy(desc(classrooms[priorityColumn]), asc(classrooms.usageMetric), asc(classrooms.id))
-            .limit(1);
-          if (candidates.length > 0) bestClassroom = candidates[0];
+          )
+          .limit(1);
+        if (!mapping) { failed.push({ lessonId: lesson.id, reason: "Нет маппинга типа занятия" }); continue; }
+
+        type ClassroomPriorityKey = keyof Pick<typeof classrooms, "priorityLecture" | "priorityWorkshop" | "priorityGuidedStudy" | "priorityLab">;
+        const priorityColumn = mapping.priorityColumn as ClassroomPriorityKey;
+
+        // --- фильтрация кандидатов ---
+        const conditions: any[] = [
+          eq(classrooms.isActive, true),
+          gte(classrooms.capacity, unitSize)
+        ];
+        if (deptId !== null) {
+          conditions.push(or(
+            eq(classrooms.departmentId, deptId),
+            isNull(classrooms.departmentId)
+          ));
         }
 
-        if (!bestClassroom) {
-          const candidates = await ctx.db
-            .select()
-            .from(classrooms)
-            .where(
-              and(
-                eq(classrooms.isActive, true),          // ← только активные
-                sql`${classrooms.capacity} >= ${unitSize}`
-              )
-            )
-            .orderBy(desc(classrooms[priorityColumn]), asc(classrooms.usageMetric), asc(classrooms.id))
-            .limit(1);
-          if (candidates.length > 0) bestClassroom = candidates[0];
-        }
+        const candidates = await ctx.db
+          .select()
+          .from(classrooms)
+          .where(and(...conditions));
 
-        if (!bestClassroom) {
-          failed.push({ lessonId: lesson.id, reason: `Нет аудитории вместимостью ≥ ${unitSize}` });
+        if (candidates.length === 0) {
+          failed.push({ lessonId: lesson.id, reason: `Нет аудитории вместимостью ≥ ${unitSize} (кафедра ${deptId ?? 'нет'})` });
           continue;
         }
 
+        // --- сортировка: приоритет (null → 99), метрика, id ---
+        candidates.sort((a, b) => {
+          const prioA = (a[priorityColumn] as number) ?? 99;
+          const prioB = (b[priorityColumn] as number) ?? 99;
+          if (prioA !== prioB) return prioA - prioB;
+
+          const metricA = a.usageMetric ?? 0;
+          const metricB = b.usageMetric ?? 0;
+          if (metricA !== metricB) return metricA - metricB;
+
+          return a.id - b.id;
+        });
+
+        const best = candidates[0];
+
+        // --- назначение ---
         await ctx.db.insert(lessonClassrooms).values({
           lessonId: lesson.id,
-          classroomId: bestClassroom.id,
+          classroomId: best.id,
         });
         await ctx.db
           .update(classrooms)
-          .set({ usageMetric: (bestClassroom.usageMetric ?? 0) + 1 })
-          .where(eq(classrooms.id, bestClassroom.id));
+          .set({ usageMetric: (best.usageMetric ?? 0) + 1 })
+          .where(eq(classrooms.id, best.id));
+
         assigned++;
       }
 

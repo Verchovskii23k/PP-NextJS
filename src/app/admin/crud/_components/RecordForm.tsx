@@ -114,29 +114,34 @@ export function RecordForm({ tableName, editId, onClose }: RecordFormProps) {
     }
   };
 
-  const renderField = (field: FieldMeta) => {
-    if (!editId && field.showInCreate === false) return null;
-    if (field.dbName === "id") return null;
-    const value = formValues[field.dbName] ?? (field.isFK ? null : "");
-    const hasError = !!errors[field.dbName];
-    const errorMsg = errors[field.dbName];
+const renderField = (field: FieldMeta) => {
+  if (!editId && field.showInCreate === false) return null;
+  if (field.dbName === "id") return null;
+  const value = formValues[field.dbName] ?? (field.isFK ? null : ""); // ← обязательно эта строка
+  const hasError = !!errors[field.dbName];
+  const errorMsg = errors[field.dbName];
 
-    // Внешний ключ (select)
-    if (field.isFK && field.references) {
-      const refTable = field.references.table;
-      const refRouterKey = tablesMeta[refTable]?.routerKey;
-      let input: any;
-      if (field.dbName === "directorId") {
-        input = formValues.universityCode ? { instituteId: formValues.universityCode } : undefined;
-      } else if (field.dbName === "headId") {
-        input = editId ? { departmentId: editId } : undefined;
-      } else if (field.dbName === "curatorId") {
-        const profileId = editId ? existingData?.profileId : formValues.profileId;
-        input = profileId ? { profileId } : undefined;
-      } else {
-        input = undefined;
-      }
-      const { data: options, isLoading: optionsLoading } = (trpc as any)[refRouterKey]?.list?.useQuery?.(input) ?? { data: [], isLoading: false };
+  // Внешний ключ (select)
+  if (field.isFK && field.references) {
+    const refTable = field.references.table;
+    const refRouterKey = tablesMeta[refTable]?.routerKey;
+    let input: any;
+
+    // ✅ Динамическая фильтрация аудиторий по уроку
+    if (field.dbName === "classroomId" && tableName === "lessonClassrooms") {
+      const lessonId = formValues.lessonId;
+      input = lessonId ? { lessonId } : undefined;
+    } else if (field.dbName === "directorId") {
+      input = formValues.universityCode ? { instituteId: formValues.universityCode } : undefined;
+    } else if (field.dbName === "headId") {
+      input = editId ? { departmentId: editId } : undefined;
+    } else if (field.dbName === "curatorId") {
+      const profileId = editId ? existingData?.profileId : formValues.profileId;
+      input = profileId ? { profileId } : undefined;
+    }
+
+    const { data: options, isLoading: optionsLoading } =
+      (trpc as any)[refRouterKey]?.list?.useQuery?.(input) ?? { data: [], isLoading: false };
 
       return (
         <div key={field.dbName} className="mb-3">
