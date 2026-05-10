@@ -369,91 +369,25 @@ export default function AdminSchedulePage() {
     refreshData();
   };
 
-  const handlePrint = () => {
-    const tableElement = document.getElementById("schedule-table");
-    if (!tableElement) return;
+const handlePrint = () => {
+  const headerCells: string[] = [];
+  const rows: string[][] = [];
 
-    const clone = tableElement.cloneNode(true) as HTMLElement;
+  if (viewMode === "units" && unitsData) {
+    const unitCodes = Array.from(new Set(unitsData.rows.map(r => r.unitCode))).sort();
+    headerCells.push("День", "Пара", "Неделя", ...unitCodes);
 
-    // Убираем drag-and-drop классы, оставляем только цвета
-    clone.querySelectorAll("[data-week]").forEach((el) => {
-      const htmlEl = el as HTMLElement;
-      const weekType = htmlEl.getAttribute("data-week");
-      if (weekType === "even") {
-        htmlEl.style.backgroundColor = "#d1d5db"; // серый для чётных недель
-      } else {
-        htmlEl.style.backgroundColor = "transparent";
-      }
-      htmlEl.style.padding = "2px";
-      htmlEl.style.borderBottom = "1px solid #666";
-      htmlEl.style.minHeight = "2.5em";
-    });
-
-    const printWindow = window.open("", "_blank", "width=1200,height=800");
-    if (!printWindow) return;
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>Расписание</title>
-          <style>
-            @media print {
-              * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-              table { border-collapse: collapse; width: 100%; font-size: 9px; }
-              [data-week="even"] { background-color: #d1d5db !important; }
-              td { vertical-align: middle; }
-            }
-          </style>
-        </head>
-        <body class="p-4">
-          <h1 class="text-xl font-bold mb-4">Расписание</h1>
-          ${clone.outerHTML}
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
-    printWindow.close();
-  };
-
-  const handleCSV = () => {
-    const rows: string[][] = [];
-    const header = ["День", "Пара", ...activeWeeksData.map((w) => w.type)];
-    if (viewMode === "units" && unitsData) {
-      const unitCodes = Array.from(new Set(unitsData.rows.map((r) => r.unitCode))).sort();
-      unitCodes.forEach((code) => header.push(code));
-      rows.push(header);
-      const days = unitsData.days;
-      const pairs = unitsData.pairs;
-      for (const day of days) {
-        for (const pair of pairs) {
-          const row = [day.name, String(pair.number)];
-          for (const week of activeWeeksData) {
+    for (const day of unitsData.days) {
+      for (const pair of unitsData.pairs) {
+        for (const week of activeWeeksData) {
+          const row: string[] = [
+            day.name,
+            String(pair.number),
+            week.type,
+          ];
+          for (const code of unitCodes) {
             const entry = unitsData.rows.find(
-              (r) =>
-                r.unitCode === row[2] && r.dayOfWeekId === day.id && r.pairNumberId === pair.id && r.weekId === week.id
-            );
-            row.push(entry ? entry.displayText : "—");
-          }
-          rows.push(row);
-        }
-      }
-    } else if (viewMode === "groups" && groupsData) {
-      const groupCodes = Array.from(new Set(groupsData.rows.map((r: any) => r.studyGroupCode))).sort();
-      groupCodes.forEach((code) => header.push(code));
-      rows.push(header);
-      const days = groupsData.days;
-      const pairs = groupsData.pairs;
-      for (const day of days) {
-        for (const pair of pairs) {
-          const row = [day.name, String(pair.number)];
-          for (const week of activeWeeksData) {
-            const entry = groupsData.rows.find(
-              (r: any) =>
-                r.studyGroupCode === row[2] &&
-                r.dayOfWeekId === day.id &&
-                r.pairNumberId === pair.id &&
-                r.weekId === week.id
+              r => r.unitCode === code && r.dayOfWeekId === day.id && r.pairNumberId === pair.id && r.weekId === week.id
             );
             row.push(entry ? entry.displayText : "—");
           }
@@ -461,15 +395,128 @@ export default function AdminSchedulePage() {
         }
       }
     }
-    const bom = "\uFEFF";
-    const csvContent = "data:text/csv;charset=utf-8," + bom + rows.map((r) => r.join(";")).join("\n");
-    const link = document.createElement("a");
-    link.setAttribute("href", encodeURI(csvContent));
-    link.setAttribute("download", `schedule.csv`);
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-  };
+  } else if (viewMode === "groups" && groupsData) {
+    const groupCodes = Array.from(new Set(groupsData.rows.map((r: any) => r.studyGroupCode))).sort();
+    headerCells.push("День", "Пара", "Неделя", ...groupCodes);
+
+    for (const day of groupsData.days) {
+      for (const pair of groupsData.pairs) {
+        for (const week of activeWeeksData) {
+          const row: string[] = [
+            day.name,
+            String(pair.number),
+            week.type,
+          ];
+          for (const code of groupCodes) {
+            const entry = groupsData.rows.find(
+              (r: any) => r.studyGroupCode === code && r.dayOfWeekId === day.id && r.pairNumberId === pair.id && r.weekId === week.id
+            );
+            row.push(entry ? entry.displayText : "—");
+          }
+          rows.push(row);
+        }
+      }
+    }
+  }
+
+  if (rows.length === 0) return;
+
+  // Строим HTML-таблицу
+  let html = `<table border="1" cellpadding="4" cellspacing="0" style="border-collapse: collapse; width: 100%; font-size: 10px;">`;
+  html += `<thead><tr>${headerCells.map(h => `<th style="border:1px solid #666; padding:4px; background:#e5e7eb;">${h}</th>`).join("")}</tr></thead>`;
+  html += `<tbody>`;
+  rows.forEach(row => {
+    const isEven = row[2] === "even"; // третий столбец — тип недели
+    const bg = isEven ? 'background-color:#d1d5db;' : '';
+    html += `<tr style="${bg}">`;
+    row.forEach(cell => {
+      html += `<td style="border:1px solid #666; padding:4px; vertical-align:middle;">${cell}</td>`;
+    });
+    html += `</tr>`;
+  });
+  html += `</tbody></table>`;
+
+  const printWindow = window.open("", "_blank", "width=1200,height=800");
+  if (!printWindow) return;
+  printWindow.document.write(`
+    <html>
+      <head>
+        <title>Расписание</title>
+        <style>
+          @media print {
+            * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            table { border-collapse: collapse; width: 100%; font-size: 9px; }
+            th { background: #e5e7eb !important; }
+          }
+        </style>
+      </head>
+      <body class="p-4">
+        <h1 class="text-xl font-bold mb-4">Расписание</h1>
+        ${html}
+      </body>
+    </html>
+  `);
+  printWindow.document.close();
+  printWindow.focus();
+  printWindow.print();
+  printWindow.close();
+};
+
+const handleCSV = () => {
+  const rows: string[][] = [];
+  const header = ["День", "Пара", ...activeWeeksData.map(w => w.type)];
+
+  if (viewMode === "units" && unitsData) {
+    const unitCodes = Array.from(new Set(unitsData.rows.map(r => r.unitCode))).sort();
+    unitCodes.forEach(code => header.push(code));
+    rows.push(header);
+
+    for (const day of unitsData.days) {
+      for (const pair of unitsData.pairs) {
+        for (const week of activeWeeksData) {
+          const row = [day.name, String(pair.number), week.type]; // неделя текстом
+          for (const code of unitCodes) {
+            const entry = unitsData.rows.find(
+              r => r.unitCode === code && r.dayOfWeekId === day.id && r.pairNumberId === pair.id && r.weekId === week.id
+            );
+            row.push(entry ? entry.displayText : "—");
+          }
+          rows.push(row);
+        }
+      }
+    }
+  } else if (viewMode === "groups" && groupsData) {
+    const groupCodes = Array.from(new Set(groupsData.rows.map((r: any) => r.studyGroupCode))).sort();
+    groupCodes.forEach(code => header.push(code));
+    rows.push(header);
+
+    for (const day of groupsData.days) {
+      for (const pair of groupsData.pairs) {
+        for (const week of activeWeeksData) {
+          const row = [day.name, String(pair.number), week.type];
+          for (const code of groupCodes) {
+            const entry = groupsData.rows.find(
+              (r: any) => r.studyGroupCode === code && r.dayOfWeekId === day.id && r.pairNumberId === pair.id && r.weekId === week.id
+            );
+            row.push(entry ? entry.displayText : "—");
+          }
+          rows.push(row);
+        }
+      }
+    }
+  }
+
+  if (rows.length === 0) return;
+
+  const bom = "\uFEFF";
+  const csvContent = "data:text/csv;charset=utf-8," + bom + rows.map(r => r.join(";")).join("\n");
+  const link = document.createElement("a");
+  link.setAttribute("href", encodeURI(csvContent));
+  link.setAttribute("download", `schedule.csv`);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+};
 
   if (viewMode === "units" && unitsLoading) return <div className="p-6">Загрузка...</div>;
   if (viewMode === "groups" && groupsLoading) return <div className="p-6">Загрузка...</div>;
