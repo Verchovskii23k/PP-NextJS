@@ -1,11 +1,11 @@
-// src/components/EntityTooltip.tsx
+// EntityTooltip.tsx
 "use client";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { trpc } from "@/trpc/client";
 import { tablesMeta } from "@/lib/table-meta";
 
 interface EntityTooltipProps {
-  tableName: string;   // ключ таблицы в tablesMeta
+  tableName: string;
   id: number;
   children: React.ReactNode;
 }
@@ -15,23 +15,17 @@ export function EntityTooltip({ tableName, id, children }: EntityTooltipProps) {
   const triggerRef = useRef<HTMLSpanElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
   const [posStyle, setPosStyle] = useState<React.CSSProperties>({});
-
-  const meta = tablesMeta[tableName];
-  if (!meta) return <>{children}</>;
-
-  // Запрос к lookup с реальным именем таблицы в БД
+    const meta = tablesMeta[tableName];
   const { data, isLoading } = trpc.lookup.getRow.useQuery(
     { tableName: meta.dbTableName, id },
     { enabled: show, staleTime: 60_000 }
   );
-
-  // Переключение при клике на триггер
-  const handleToggle = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation(); // чтобы клик не ушёл на другие элементы
+    const handleToggle = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
     setShow(prev => !prev);
   }, []);
+  
 
-  // Закрытие при клике вне тултипа и триггера
   useEffect(() => {
     if (!show) return;
     const handleOutsideClick = (event: MouseEvent) => {
@@ -48,14 +42,11 @@ export function EntityTooltip({ tableName, id, children }: EntityTooltipProps) {
     return () => document.removeEventListener("mousedown", handleOutsideClick);
   }, [show]);
 
-  // Расчёт позиции при открытии
   useEffect(() => {
     if (!show || !triggerRef.current || !tooltipRef.current) return;
-
     const triggerRect = triggerRef.current.getBoundingClientRect();
     const tooltipEl = tooltipRef.current;
 
-    // Временно даём браузеру отрисовать тултип, чтобы узнать его размеры
     const updatePosition = () => {
       const tooltipRect = tooltipEl.getBoundingClientRect();
       const gap = 4;
@@ -63,41 +54,35 @@ export function EntityTooltip({ tableName, id, children }: EntityTooltipProps) {
       let left = triggerRect.right + gap;
       let top = triggerRect.top;
 
-      // Проверка горизонтального пространства
       if (left + tooltipRect.width > window.innerWidth - gap) {
-        // Пытаемся разместить слева от триггера
         left = triggerRect.left - tooltipRect.width - gap;
-        if (left < gap) {
-          // Если и слева не помещается, прижимаем к правому краю
-          left = window.innerWidth - tooltipRect.width - gap;
-        }
+        if (left < gap) left = window.innerWidth - tooltipRect.width - gap;
       }
 
-      // Проверка вертикального пространства
       if (top + tooltipRect.height > window.innerHeight - gap) {
-        // Пытаемся разместить снизу вверх
         top = triggerRect.bottom - tooltipRect.height - gap;
-        if (top < gap) {
-          // Если не помещается, прижимаем к нижнему краю
-          top = window.innerHeight - tooltipRect.height - gap;
-        }
+        if (top < gap) top = window.innerHeight - tooltipRect.height - gap;
       }
 
-      // Минимальные отступы
       if (left < gap) left = gap;
       if (top < gap) top = gap;
 
       setPosStyle({
         position: "fixed",
-        left: left,
-        top: top,
+        left,
+        top,
         zIndex: 50,
       });
     };
 
-    // Используем requestAnimationFrame для точного измерения после рендера
     requestAnimationFrame(updatePosition);
-  }, [show, data]); // data меняет содержимое, нужно пересчитывать позицию
+  }, [show, data]);
+
+  
+  if (!meta) return <>{children}</>;
+
+
+
 
   return (
     <span ref={triggerRef} className="relative inline-block">
@@ -116,21 +101,21 @@ export function EntityTooltip({ tableName, id, children }: EntityTooltipProps) {
           <div className="font-semibold mb-1">{meta.nameRu}</div>
           {isLoading && <div className="text-gray-500">Загрузка...</div>}
           {data === null && <div className="text-red-500">Не найдено</div>}
-          {data &&
+          {data && typeof data === 'object' &&
             meta.fields.map((field) => (
               <div key={field.dbName} className="flex justify-between gap-4">
                 <span className="text-gray-600">{field.displayName}:</span>
-                {field.isFK && data[field.dbName] != null ? (
+                {field.isFK && (data as Record<string, unknown>)[field.dbName] != null ? (
                   <EntityTooltip
                     tableName={field.references!.table}
-                    id={data[field.dbName]}
+                    id={(data as Record<string, unknown>)[field.dbName] as number}
                   >
                     <span className="text-blue-600 font-medium hover:bg-blue-100 cursor-pointer">
-                      {data[field.dbName]}
+                      {(data as Record<string, unknown>)[field.dbName] as string}
                     </span>
                   </EntityTooltip>
                 ) : (
-                  <span>{data[field.dbName] ?? "—"}</span>
+                  <span>{(data as Record<string, unknown>)[field.dbName] !== undefined ? String((data as Record<string, unknown>)[field.dbName]) : "—"}</span>
                 )}
               </div>
             ))}

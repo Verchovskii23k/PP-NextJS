@@ -3,10 +3,20 @@ import { trpc } from "@/trpc/client";
 import { useState } from "react";
 
 export default function AdministratorsPage() {
+    interface ToggleAdminResult {
+    success: boolean;
+    warning?: string;
+  }
   const utils = trpc.useUtils(); // <-- добавили
   const { data, isLoading, error } = trpc.adminManagement.listEmployeesWithAdminFlag.useQuery();
   const { data: me } = trpc.auth.me.useQuery();
-  const toggleMutation = trpc.adminManagement.toggleAdmin.useMutation();
+  const toggleMutation = trpc.adminManagement.toggleAdmin.useMutation({
+    onSuccess: (data: ToggleAdminResult) => {
+      if (data.warning) {
+        setMutWarning(data.warning);
+      }
+    },
+  });
   const [mutError, setMutError] = useState<string | null>(null);
   const [mutWarning, setMutWarning] = useState<string | null>(null);
 

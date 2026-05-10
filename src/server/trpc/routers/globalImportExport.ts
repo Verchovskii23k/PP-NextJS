@@ -82,11 +82,14 @@ function camelToSnake(str: string) {
   return str.replace(/[A-Z]/g, l => `_${l.toLowerCase()}`);
 }
 
-function transformKeysToCamel(obj: any): any {
+function transformKeysToCamel(obj: unknown): unknown {
   if (Array.isArray(obj)) return obj.map(transformKeysToCamel);
   if (obj !== null && typeof obj === "object") {
     return Object.fromEntries(
-      Object.entries(obj).map(([key, val]) => [snakeToCamel(key), transformKeysToCamel(val)])
+      Object.entries(obj as Record<string, unknown>).map(([key, val]) => [
+        snakeToCamel(key),
+        transformKeysToCamel(val),
+      ])
     );
   }
   return obj;
@@ -94,14 +97,14 @@ function transformKeysToCamel(obj: any): any {
 
 export const globalImportExportRouter = router({
   exportAll: adminProcedure.query(async () => {
-    const result: Record<string, any[]> = {};
+    const result: Record<string, unknown[]> = {};
 
     for (const tableName of IMPORT_ORDER) {
       if (EXCLUDED_TABLES.has(tableName)) continue;
       const dbTableName = tablesMeta[tableName]?.dbTableName || tableName;
       try {
         const rows = await db.execute(sql`SELECT * FROM ${sql.identifier(dbTableName)}`);
-        result[tableName] = (rows as any[]).map(row => transformKeysToCamel(row));
+        result[tableName] = (rows as unknown[]).map(row => transformKeysToCamel(row));
       } catch (e) {
         console.error(`Export error for table ${tableName}:`, e);
         result[tableName] = [];
@@ -112,7 +115,7 @@ export const globalImportExportRouter = router({
   }),
 
   importAll: adminProcedure
-    .input(z.record(z.string(), z.array(z.any())))
+    .input(z.record(z.string(), z.array(z.unknown())))
     .mutation(async ({ input }) => {
       const stats: Record<string, { inserted: number; updated: number; skipped: number; errors: string[] }> = {};
 
@@ -132,7 +135,7 @@ export const globalImportExportRouter = router({
         for (const row of rows) {
           try {
             // Преобразуем camelCase → snake_case, удаляем id и поля не из схемы
-            const dbRow: Record<string, any> = {};
+            const dbRow: Record<string, unknown> = {};
             for (const [key, val] of Object.entries(row)) {
               if (key === "id") continue;
               const snakeKey = camelToSnake(key);
@@ -149,11 +152,11 @@ export const globalImportExportRouter = router({
             // ---------- employees / students (уникальный email) ----------
             if (tableName === "employees" || tableName === "students") {
               const email = dbRow["email"];
-              let existingByEmail: any = null;
+              let existingByEmail: unknown = null;
               if (email) {
                 const existingRows = await db.execute(
                   sql`SELECT * FROM ${sql.identifier(dbTableName)} WHERE email = ${email} LIMIT 1`
-                ) as any[];
+                ) as unknown[];
                 if (existingRows.length > 0) existingByEmail = existingRows[0];
               }
 
@@ -187,7 +190,7 @@ export const globalImportExportRouter = router({
 
             // ---------- Остальные таблицы ----------
             // Поиск существующей записи по уникальным ключам
-            let existing: any = null;
+            let existing: unknown = null;
             if (uniqueKeys.length > 0 && uniqueKeys.every(k => dbRow[k] !== undefined && dbRow[k] !== null)) {
               const conditions = uniqueKeys.map(k => sql`${sql.identifier(k)} = ${dbRow[k]}`);
               const whereClause = conditions.length > 1
@@ -196,7 +199,7 @@ export const globalImportExportRouter = router({
 
               const existingRows = await db.execute(
                 sql`SELECT * FROM ${sql.identifier(dbTableName)} WHERE ${whereClause} LIMIT 1`
-              ) as any[];
+              ) as unknown[];
 
               if (existingRows.length > 0) existing = existingRows[0];
             }

@@ -1,4 +1,4 @@
-// src/app/admin/crud/_components/ColumnFilterPopover.tsx
+// ColumnFilterPopover.tsx
 "use client";
 import { useState, useMemo } from "react";
 import { trpc } from "@/trpc/client";
@@ -6,9 +6,9 @@ import { tablesMeta, type FieldMeta } from "@/lib/table-meta";
 
 interface ColumnFilterPopoverProps {
   field: FieldMeta;
-  allValues: any[];
-  currentFilter: any[] | undefined;
-  onFilterChange: (excludedValues: any[] | undefined) => void;
+  allValues: unknown[];
+  currentFilter: unknown[] | undefined;
+  onFilterChange: (excludedValues: unknown[] | undefined) => void;
 }
 
 export function ColumnFilterPopover({
@@ -24,17 +24,13 @@ export function ColumnFilterPopover({
     ? tablesMeta[field.references.table]
     : null;
 
-  // ⚡ защита: если нет метаданных или routerKey — не вызываем хук
-  const { data: relatedData } = (relatedMeta?.routerKey)
-    ? (trpc as any)[relatedMeta.routerKey]?.list?.useQuery?.(
-        undefined,
-        { enabled: !!relatedMeta }
-      ) ?? { data: [] }
-    : { data: [] };
+  const { data: relatedData } = relatedMeta?.routerKey
+    ? ((trpc as unknown as Record<string, { list: { useQuery: (input?: unknown) => { data?: Record<string, unknown>[]; isLoading?: boolean } } }>)[relatedMeta.routerKey])?.list?.useQuery?.(undefined) ?? { data: [] as Record<string, unknown>[] }
+    : { data: [] as Record<string, unknown>[] };
 
   const labelMap = useMemo(() => {
     if (!relatedData || !field.references) return null;
-    const map = new Map<any, string>();
+    const map = new Map<unknown, string>();
     for (const row of relatedData) {
       const display = row[field.references.displayField];
       map.set(row.id, display !== undefined && display !== null ? String(display) : String(row.id));
@@ -51,7 +47,7 @@ export function ColumnFilterPopover({
 
   const excludedSet = useMemo(() => new Set(currentFilter || []), [currentFilter]);
 
-  const handleToggle = (id: any) => {
+  const handleToggle = (id: unknown) => {
     const newExcluded = new Set(excludedSet);
     if (newExcluded.has(id)) {
       newExcluded.delete(id);
@@ -73,7 +69,7 @@ export function ColumnFilterPopover({
     });
   }, [uniqueIds, search, labelMap]);
 
-  const getDisplay = (id: any) => {
+  const getDisplay = (id: unknown) => {
     if (labelMap) return labelMap.get(id) ?? String(id);
     return String(id);
   };
@@ -111,7 +107,7 @@ export function ColumnFilterPopover({
           />
           <div className="max-h-48 overflow-y-auto space-y-1">
             {filteredItems.map(id => (
-              <label key={id} className="flex items-center space-x-2 text-sm cursor-pointer hover:bg-muted/50 px-1 py-0.5 rounded text-foreground">
+              <label key={String(id)} className="flex items-center space-x-2 text-sm cursor-pointer hover:bg-muted/50 px-1 py-0.5 rounded text-foreground">
                 <input
                   type="checkbox"
                   checked={!excludedSet.has(id)}

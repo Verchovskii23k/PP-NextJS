@@ -12,12 +12,17 @@ export default function ForgotPasswordPage() {
   const [token, setToken] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
+  interface ForgotPasswordResult {
+    message?: string;
+    token?: string;
+  }
+
   const forgotMut = trpc.auth.forgotPassword.useMutation({
-    onSuccess: (data) => {
-      if ((data as any).message) {
-        setMessage((data as any).message);
-      } else if ((data as any).token) {
-        setToken((data as any).token);
+    onSuccess: (data: ForgotPasswordResult) => {
+      if (data.message) {
+        setMessage(data.message);
+      } else if (data.token) {
+        setToken(data.token);
       }
     },
     onError: (e) => setError(e.message),

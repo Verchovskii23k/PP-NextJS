@@ -1,47 +1,49 @@
+// lookup.ts
 import { z } from "zod";
-import { router, adminProcedure } from "@/server/trpc";   // ✅ абсолютный путь
-import * as schema from "@/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { router, publicProcedure } from "@/server/trpc";
+import { sql } from "drizzle-orm";
+
+function toCamelCase(str: string): string {
+  return str.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+}
+
+function mapKeysToCamel(obj: unknown): unknown {
+  if (Array.isArray(obj)) return obj.map(mapKeysToCamel);
+  if (obj !== null && typeof obj === "object") {
+    return Object.fromEntries(
+      Object.entries(obj as Record<string, unknown>).map(([key, val]) => [toCamelCase(key), mapKeysToCamel(val)])
+    );
+  }
+  return obj;
+}
 
 export const lookupRouter = router({
-  getRow: adminProcedure
-    .input(z.object({
-      tableName: z.string(),
-      id: z.number(),
-    }))
+  getRow: publicProcedure
+    .input(z.object({ tableName: z.string(), id: z.number() }))
     .query(async ({ ctx, input }) => {
-      const table = (schema as any)[input.tableName];
-      if (!table) throw new Error(`Table ${input.tableName} not found`);
-      const rows = await ctx.db
-        .select()
-        .from(table)
-        .where(eq(table.id, input.id))
-        .limit(1);
-      return rows[0] ?? null;
-    }),
+      const allowedTables = [
+        "institutes", "buildings", "departments", "specialties", "profiles",
+        "disciplines", "unit_types", "lesson_types", "classrooms", "employees",
+        "students", "study_groups", "units", "lessons", "curriculum",
+        "employees_departments", "lesson_classrooms", "unit_roots",
+        "curriculum_profiles", "academic_load_types", "control_types",
+        "hour_type_mapping", "discipline_teachers", "settings",
+        "days_of_week", "pairs", "weeks", "education_levels",
+        "education_forms", "education", "positions", "employmentTypes"
+      ];
+      if (!allowedTables.includes(input.tableName)) {
+        throw new Error(`Таблица "${input.tableName}" не разрешена`);
+      }
 
-  getList: adminProcedure
-    .input(z.object({
-      tableName: z.string(),
-      page: z.number().int().min(1).default(1),
-      pageSize: z.number().int().min(1).max(50).default(15),
-      search: z.string().optional(),
-    }))
-    .query(async ({ ctx, input }) => {
-      const table = (schema as any)[input.tableName];
-      if (!table) throw new Error("Table not found");
-
-      const [countRow] = await ctx.db
-        .select({ cnt: sql<number>`count(*)` })
-        .from(table);
-      const total = countRow?.cnt ?? 0;
-
-      const rows = await ctx.db
-        .select()
-        .from(table)
-        .limit(input.pageSize)
-        .offset((input.page - 1) * input.pageSize);
-
-      return { rows, total };
+      try {
+        const rows = await ctx.db.execute(
+          sql`SELECT * FROM ${sql.identifier(input.tableName)} WHERE id = ${input.id}`
+        );
+        if (rows.length === 0) return null;
+        return mapKeysToCamel(rows[0]);
+      } catch (error) {
+        console.error(error);
+        throw new Error(`Ошибка загрузки данных из таблицы "${input.tableName}"`);
+      }
     }),
 });
