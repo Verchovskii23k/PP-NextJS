@@ -21,7 +21,30 @@ import { RecordForm } from "./RecordForm";
 import { ForeignKeyCell } from "./ForeignKeyCell";
 import { ColumnFilterPopover } from "./ColumnFilterPopover";
 
-const arrayFilterFn: FilterFn<any> = (row, columnId, filterValue: any[]) => {
+interface BaseRow extends Record<string, unknown> {
+  id: number;
+  isActive?: boolean;
+}
+
+interface CrudRouter {
+  list: {
+    useQuery: (input?: unknown, opts?: unknown) => {
+      data?: BaseRow[];
+      isLoading: boolean;
+      isError: boolean;
+      error: { message: string } | null;
+    };
+  };
+  delete: {
+    useMutation: (opts?: unknown) => {
+      mutateAsync?: (input: { id: number }) => Promise<unknown>;
+      mutate: (input: { id: number }) => void;
+      isPending?: boolean;
+    };
+  };
+}
+
+const arrayFilterFn: FilterFn<BaseRow> = (row, columnId, filterValue: unknown[]) => {
   if (!filterValue || filterValue.length === 0) return true;
   const cellValue = row.getValue(columnId);
   return !filterValue.includes(cellValue);
@@ -32,9 +55,7 @@ interface DataTableProps {
 }
 
 export function DataTable({ tableName }: DataTableProps) {
-  const meta = tablesMeta[tableName];
-  if (!meta) return <div>Таблица не найдена</div>;
-
+  // ---------- все хуки на верхнем уровне ----------
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [pagination, setPagination] = React.useState<PaginationState>({
     pageIndex: 0,
@@ -44,23 +65,51 @@ export function DataTable({ tableName }: DataTableProps) {
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [showForm, setShowForm] = React.useState(false);
   const [editId, setEditId] = React.useState<number | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
-  const routerKey = meta.routerKey as keyof typeof trpc;
-  const { data, isLoading, isError, error } = (trpc as any)[routerKey]?.list?.useQuery?.();
+  const meta = tablesMeta[tableName];
+  const metaExists = meta !== undefined;
 
+  const routerKey = meta?.routerKey as keyof typeof trpc;
+  const router = metaExists
+    ? (trpc as unknown as Record<string, CrudRouter>)[meta!.routerKey] as CrudRouter | undefined
+    : undefined;
+
+  const { data: rawData, isLoading, isError, error } = router?.list?.useQuery?.() ?? {
+    data: [] as BaseRow[],
+    isLoading: false,
+    isError: false,
+    error: { message: "" } as { message: string },
+  };
+
+  const rows: BaseRow[] = rawData ?? [];
   const utils = trpc.useUtils();
-  const deleteMutation = (trpc as any)[routerKey]?.delete?.useMutation?.({
+
+  const deleteMutation = router?.delete?.useMutation?.({
     onSuccess: () => {
       (utils as any)[routerKey]?.list?.invalidate?.();
     },
   });
 
-  // ========== Массовое удаление ==========
   const deleteManyMutation = trpc.batchDelete.deleteMany.useMutation();
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
-  const rows = (data as any[]) ?? [];
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const exportQuery = trpc.crudImportExport.exportAll.useQuery(
+    { tableName },
+    { enabled: false }
+  );
+  const importMutation = trpc.crudImportExport.importData.useMutation();
 
+  // ---------- эффект сброса ----------
+  React.useEffect(() => {
+    setSorting([]);
+    setPagination({ pageIndex: 0, pageSize: 10000 });
+    setGlobalFilter("");
+    setColumnFilters([]);
+    setSelectedIds(new Set());
+  }, [tableName]);
+
+  // ---------- вспомогательные функции ----------
   const toggleSelectAll = () => {
     if (selectedIds.size === rows.length && rows.length > 0) {
       setSelectedIds(new Set());
@@ -84,7 +133,6 @@ export function DataTable({ tableName }: DataTableProps) {
   const handleDeleteSelected = async () => {
     if (selectedIds.size === 0) return;
     if (!window.confirm(`Удалить ${selectedIds.size} записей?`)) return;
-
     try {
       const result = await deleteManyMutation.mutateAsync({
         tableName,
@@ -99,20 +147,10 @@ export function DataTable({ tableName }: DataTableProps) {
       alert(message);
       setSelectedIds(new Set());
       (utils as any)[routerKey]?.list?.invalidate?.();
-    } catch (err: any) {
-      alert("Ошибка: " + err.message);
+    } catch (err: unknown) {
+      alert("Ошибка: " + (err instanceof Error ? err.message : "Неизвестная ошибка"));
     }
   };
-  // =====================================
-
-  // ---------- JSON импорт/экспорт ----------
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const exportQuery = trpc.crudImportExport.exportAll.useQuery(
-    { tableName },
-    { enabled: false }
-  );
-  const importMutation = trpc.crudImportExport.importData.useMutation();
 
   const handleExport = async () => {
     try {
@@ -129,8 +167,8 @@ export function DataTable({ tableName }: DataTableProps) {
       } else {
         alert("Нет данных для экспорта");
       }
-    } catch (err: any) {
-      alert("Ошибка экспорта: " + err.message);
+    } catch (err: unknown) {
+      alert("Ошибка экспорта: " + (err instanceof Error ? err.message : "Неизвестная ошибка"));
     }
   };
 
@@ -148,28 +186,20 @@ export function DataTable({ tableName }: DataTableProps) {
           `Импорт завершён:\nВсего: ${result.total}\nВставлено: ${result.inserted}\nОбновлено: ${result.updated}\nПропущено (совпадают): ${result.skipped}\nОшибок: ${result.errors.length}\n${result.errors.slice(0, 5).join("\n")}`
         );
         (utils as any)[routerKey]?.list?.invalidate?.();
-      } catch (err: any) {
-        alert("Ошибка импорта: " + err.message);
+      } catch (err: unknown) {
+        alert("Ошибка импорта: " + (err instanceof Error ? err.message : "Неизвестная ошибка"));
       } finally {
         if (fileInputRef.current) fileInputRef.current.value = "";
       }
     };
     reader.readAsText(file);
   };
-  // -----------------------------------------
 
-  // Сброс состояний при переключении таблицы
-  React.useEffect(() => {
-    setSorting([]);
-    setPagination({ pageIndex: 0, pageSize: 10000 });
-    setGlobalFilter("");
-    setColumnFilters([]);
-    setSelectedIds(new Set());
-  }, [tableName]);
+  // ---------- колонки ----------
+  const columns = React.useMemo<ColumnDef<BaseRow>[]>(() => {
+    if (!metaExists) return [];
 
-  const columns = React.useMemo<ColumnDef<any>[]>(() => {
-    const cols: ColumnDef<any>[] = [
-      // Колонка выбора (чекбоксы)
+    const cols: ColumnDef<BaseRow>[] = [
       {
         id: "select",
         header: () => (
@@ -191,29 +221,23 @@ export function DataTable({ tableName }: DataTableProps) {
         enableSorting: false,
         enableGlobalFilter: false,
       },
-      // Нумерация
       {
         id: "index",
         header: "№",
-        cell: ({ row }) => {
-          const visibleRows = table.getRowModel().rows;
-          const rowIndex = visibleRows.findIndex(r => r.id === row.id);
-          return (
-            <span className="text-muted-foreground text-xs">
-              {pagination.pageIndex * pagination.pageSize + rowIndex + 1}
-            </span>
-          );
-        },
+        cell: ({ row }) => (
+          <span className="text-muted-foreground text-xs">
+            {pagination.pageIndex * pagination.pageSize + row.index + 1}
+          </span>
+        ),
         enableSorting: false,
         enableGlobalFilter: false,
       },
     ];
 
-    // Остальные колонки из метаданных
-    meta.fields.forEach(field => {
-      const columnDef: ColumnDef<any> = {
+    meta!.fields.forEach(field => {
+      const columnDef: ColumnDef<BaseRow> = {
         id: field.dbName,
-        accessorFn: (row: any) => row[field.dbName],
+        accessorFn: (row) => row[field.dbName],
         header: () => (
           <div className="flex items-center">
             <span>{field.displayName}</span>
@@ -221,7 +245,7 @@ export function DataTable({ tableName }: DataTableProps) {
               field={field}
               allValues={rows.map(row => row[field.dbName])}
               currentFilter={
-                columnFilters.find(f => f.id === field.dbName)?.value as any[]
+                columnFilters.find(f => f.id === field.dbName)?.value as unknown[]
               }
               onFilterChange={(values) => {
                 setColumnFilters(prev => {
@@ -234,7 +258,7 @@ export function DataTable({ tableName }: DataTableProps) {
             />
           </div>
         ),
-        cell: ({ getValue }: any) => {
+        cell: ({ getValue }) => {
           const value = getValue();
           if (field.isFK && field.references) {
             return (
@@ -255,11 +279,10 @@ export function DataTable({ tableName }: DataTableProps) {
       cols.push(columnDef);
     });
 
-    // Действия
     cols.push({
       id: "actions",
       header: "Действия",
-      cell: ({ row }: any) => (
+      cell: ({ row }) => (
         <div className="flex gap-2">
           <button
             className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm"
@@ -281,8 +304,8 @@ export function DataTable({ tableName }: DataTableProps) {
               try {
                 await deleteMutation.mutateAsync({ id: row.original.id });
                 (utils as any)[routerKey]?.list?.invalidate?.();
-              } catch (e: any) {
-                alert(e.message);
+              } catch (e: unknown) {
+                alert(e instanceof Error ? e.message : "Ошибка");
                 (utils as any)[routerKey]?.list?.invalidate?.();
               }
             }}
@@ -294,7 +317,11 @@ export function DataTable({ tableName }: DataTableProps) {
     });
 
     return cols;
-  }, [meta, rows, columnFilters, pagination.pageIndex, pagination.pageSize, deleteMutation, selectedIds]);
+  }, [meta, rows, selectedIds, columnFilters, pagination.pageIndex, pagination.pageSize, deleteMutation]);
+
+  if (!metaExists) {
+    return <div>Таблица не найдена</div>;
+  }
 
   React.useEffect(() => {
     const validIds = new Set(columns.map(col => col.id));
@@ -323,7 +350,7 @@ export function DataTable({ tableName }: DataTableProps) {
   });
 
   if (isLoading) return <div>Загрузка...</div>;
-  if (isError) return <div className="text-red-500">Ошибка: {error.message}</div>;
+  if (isError && error) return <div className="text-red-500">Ошибка: {error.message}</div>;
 
   return (
     <div>
@@ -364,7 +391,6 @@ export function DataTable({ tableName }: DataTableProps) {
         >
           {importMutation.isPending ? "..." : "JSON-импорт"}
         </button>
-        {/* Кнопка массового удаления */}
         {selectedIds.size > 0 && (
           <button
             className="px-3 py-1.5 bg-red-600 text-white rounded text-sm hover:bg-red-700"

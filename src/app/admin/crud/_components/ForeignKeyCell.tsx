@@ -8,27 +8,37 @@ interface ForeignKeyCellProps {
   table: string;
   id: number;
   displayField: string;
-  dbTableName?: string;
 }
 
-export function ForeignKeyCell({ table, id, displayField, dbTableName }: ForeignKeyCellProps) {
+// Тип для роутера, который содержит только get
+interface ReadonlyRouter {
+  get: {
+    useQuery: (input: { id: number }, opts?: unknown) => {
+      data?: Record<string, unknown> | null;
+      isLoading: boolean;
+    };
+  };
+}
+
+export function ForeignKeyCell({ table, id, displayField }: ForeignKeyCellProps) {
   if (id === undefined || id === null) return <>—</>;
 
   const meta = tablesMeta[table];
   const routerKey = meta?.routerKey;
 
-  // ⚡ защита: если нет роутера, показываем просто ID
   if (!routerKey) {
     return <span>{id}</span>;
   }
 
-  const { data, isLoading } = (trpc as any)[routerKey]?.get?.useQuery?.({ id }, { enabled: !!id });
+  const router = (trpc as unknown as Record<string, ReadonlyRouter>)[routerKey] as ReadonlyRouter | undefined;
+  const { data, isLoading } = router?.get?.useQuery?.({ id }, { enabled: !!id }) ?? { data: null, isLoading: false };
 
   if (isLoading) return <span className="text-muted-foreground">...</span>;
   if (!data) return <span className="text-red-500 dark:text-red-400">???</span>;
 
-  const displayValue = data[displayField] ?? data.id;
-  console.log('🔍 ForeignKeyCell', { table, id, data, displayField, displayValue });
+  const displayValue = data[displayField] !== undefined && data[displayField] !== null
+    ? String(data[displayField])
+    : String(data.id ?? id);
 
   return (
     <EntityTooltip tableName={table} id={id}>
