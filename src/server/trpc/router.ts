@@ -15,7 +15,7 @@ import { studentsRouter } from "./routers/students";
 import { daysOfWeekRouter } from "./routers/daysOfWeek";
 import { pairsRouter } from "./routers/pairs";
 import { weeksRouter } from "./routers/weeks";
-import { generationsRouter } from "./routers/generators";
+import { generationsRouter } from "./routers/generations";
 import { scheduleRouter } from "./routers/schedule";
 import { scheduleDisplayRouter } from "./routers/scheduleDisplay";
 import { studyGroupsRouter } from "./routers/studyGroups";  

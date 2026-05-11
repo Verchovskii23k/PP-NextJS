@@ -1,0 +1,65 @@
+import { beforeAll, describe, expect, it } from 'vitest';
+import { seedTestData } from '@/test/fixtures/fixtures';
+import { createTestCaller } from '@/test/trpc';
+import { clearDatabase } from '@/test/fixtures/fixtures';
+
+let caller: Awaited<ReturnType<typeof createTestCaller>>;
+
+beforeAll(async () => {
+  await seedTestData();
+  caller = await createTestCaller({ id: 1, role: 'admin' });
+});
+
+describe('generators (ordered)', () => {
+  it('1. generateGroups', async () => {
+    const res = await caller.generations.generateGroups();
+    expect(res.createdGroups).toBeGreaterThan(0);
+  });
+
+  it('2. generateUnits', async () => {
+    const res = await caller.generations.generateUnits();
+    expect(res.createdUnits).toBeGreaterThan(0);
+  });
+
+  it('3. generateLessons', async () => {
+    const res = await caller.generations.generateLessons({ currentSemester: 1 });
+    const count = Number(res.lessonsCreated);
+    expect(isNaN(count)).toBe(false);
+    expect(count).toBeGreaterThan(0);
+  });
+
+  it('4. assignClassroomsAuto', async () => {
+    const res = await caller.generations.assignClassroomsAuto();
+    expect(res.assignedClassrooms).toBeGreaterThan(0);
+  });
+
+  it('5. generateSchedule', async () => {
+    const res = await caller.generations.generateSchedule({ totalWeeks: 16 });
+    expect(res).toHaveProperty('status', 'schedule generated');
+    expect(res.totalSlots).toBeGreaterThan(0);
+  });
+});
+describe('generators order validation', () => {
+  let caller2: Awaited<ReturnType<typeof createTestCaller>>;
+
+  beforeAll(async () => {
+    // полностью очищаем базу и наполняем справочниками (без генерации групп/юнитов)
+    await clearDatabase();
+    await seedTestData();
+    caller2 = await createTestCaller({ id: 1, role: 'admin' });
+  });
+
+  it('should fail if generateUnits is called before generateGroups', async () => {
+    // групп ещё нет, роутер должен выбросить ошибку
+    await expect(caller2.generations.generateUnits()).rejects.toThrow();
+  });
+
+  it('should return problems when generateLessons is called before generateUnits', async () => {
+    // создаём группы, но не юниты
+    await caller2.generations.generateGroups();
+    const result = await caller2.generations.generateLessons({ currentSemester: 1 });
+    // вместо исключения должны получить problems.no_units > 0
+    expect(result).toHaveProperty('problems');
+    expect(result.problems.no_units).toBeGreaterThan(0);
+  });
+});

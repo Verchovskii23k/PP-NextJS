@@ -1,36 +1,176 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 📅 Информационная система для учета и составления расписания университета
 
-## Getting Started
+Данный проект представляет собой попытку реализации системы для полностью автоматического составления расписания без конфликтов занятий.
 
-First, run the development server:
+Система позволяет вести справочники, генерировать учебные группы, юниты, занятия, назначать аудитории, автоматически верстать расписание и редактировать его вручную через drag‑and‑drop интерфейс с последующей оптимизацией.
+
+Данное приложение не позволяет зарегистрироваться в систему из вне, кроме самого первого сотрудника (администратора ИС). Дальнейший вход производится только по логину и паролю. Предусмотрено восстановление доступа по email.
+
+
+## 🧰 Технологический стек
+
+- **Фреймворк:** Next.js 15 (App Router)
+- **Язык:** TypeScript (строгий режим)
+- **API:** tRPC v11
+- **База данных:** PostgreSQL
+- **ORM:** Drizzle ORM + drizzle-kit
+- **Аутентификация:** логин + пароль, сессии в httpOnly cookie
+- **Восстановление пароля:** по email (через Mailpit в dev‑режиме)
+- **Управление состоянием:** TanStack React Query
+- **UI‑кит:** Tailwind CSS, next‑themes (тёмная/светлая тема), Lucide React
+- **Таблицы:** TanStack React Table
+- **Drag‑and‑Drop:** dnd‑kit
+- **Уведомления:** Sonner (тосты)
+- **Тестирование:** Vitest (132 unit‑теста), Playwright (E2E в планах)
+- **Почта (dev):** Mailpit (перехватывает письма на localhost:8025)
+
+## 📋 Требования
+
+- **Node.js** ≥ 20.17 (рекомендуется последняя LTS)
+- **npm** ≥ 9
+- **PostgreSQL** ≥ 14 (или совместимый)
+
+## 🚀 Быстрый старт (локальная разработка)
+
+### 1. Клонирование репозитория
 
 ```bash
+git clone <url-репозитория> ваша_папка
+cd ваша_папка
+```
+### 2. Установка зависимостей
+```bash
+npm install
+```
+### 3. Настройка окружения
+Создайте файл ```.env``` в корне проекта. В нем хранятся переменные окружения для подключения к базе данных и локального почтового сервера (.env.example в ```.env``` и заполните по образцу). Пример:
+```bash
+# База данных
+DATABASE_URL=postgresql://postgres:ваш_пароль@localhost:5432/university_schedule
+
+# Локальный почтовый сервер (Mailpit) – для восстановления пароля через почту
+SMTP_HOST=localhost
+SMTP_PORT=1025
+SMTP_FROM="Расписание университета <ваша_почта@mail.ru>"
+```
+Для запуска почтового сервиса, в корне проекта используйте команду:
+```bash
+mailpit.exe #для Windows
+```
+Почтовый сервис будет доступен на [http://localhost:8025](http://localhost:8025)
+
+Можно создать собственную почту, от имени которой будет приходить ссылка для восстановления пароля. Пример:
+```bash
+=== Реальные настройки (mail.ru) ===
+SMTP_HOST=smtp.mail.ru #почтовый домен
+SMTP_PORT=587 # порт почтового сервера
+SMTP_USER=ваша_почта@mail.ru # логин почтового сервера
+SMTP_PASS= # пароль приложения 
+SMTP_FROM="Расписание университета <ваша_почта@mail.ru>" # от кого будет приходить письмо
+```
+### 4. Создание базы данных и накат схемы
+В корне проекта последовательно выполните команды:
+```bash
+npm run db:generate #генерация миграций
+npx run db:push #применение миграций к базе данных
+npx tsc src/db/seed.ts #заполнение базы тестовыми данными
+```
+### 5. Запуск приложения
+В отдельном терминале откройте корень проекта и выполните команду:
+```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+```
+Перейдите по адресу [http://localhost:3000](http://localhost:3000) в браузере. Вам будет предложено зарегистрироваться (если этого не произошло перейдите по пути [http://localhost:3000/setup](http://localhost:3000/setup)). Заполните обязательные поля и нажмите кнопку "Зарегистрироваться". 
+
+Вы будете перенаправлены на страницу входа. Введите логин и пароль, которые вы указали при регистрации, и нажмите кнопку "Войти". Вас будет перенаправлены на главную страницу приложения в панель администратора.
+### 6. Тестирование
+Для запуска unit-тестов необходимо создать тестовое окружение.
+создайте файл .env.test и заполните его данными:
+```bash
+DATABASE_URL=postgresql://postgres:ваш_пароль@localhost:5432/university_schedule_test
+```
+В корне проекта выполните команду:
+```bash
+npm run test
+```
+### 7. Для запуска E2E-тестов необходимо создать тестовое окружение.
+создайте файл .env.test и заполните его данными:
+```bash
+DATABASE_URL=postgresql://postgres:ваш_пароль@localhost:5432/university_schedule_test
+```
+В корне проекта выполните команду:
+```bash
+npx playwright test
+```
+### 8. 📜 Доступные npm‑скрипты
+
+| Скрипт              | Описание                          |
+|:--------------------|:----------------------------------|
+|npm run db:generate  |	Генерация миграций Drizzle        | 
+|npm run db:push      |	Применение миграций к текущей БД  |
+|npm run type-check   |	Проверка типов TypeScript         |
+|npm run lint         |	Линтинг кода (ESLint)             |
+|npm run lint:fix     |	Автоисправление ошибок линтинга   |
+|npm run test:db:push |	Накат схемы на тестовую БД        |
+|npm test             |	Запуск всех тестов Vitest         |
+|npm run dev          |	Запуск сервера разработки Next.js |
+|npm run build	      | Сборка production‑версии          |
+|npm start            |	Запуск production‑сервера         |
+
+### 9. Структура проекта
+```
+src/
+├── app/                        # Next.js App Router
+│   ├── admin/                  # Административная панель (CRUD, генераторы, расписание)
+│   ├── login/                  # Страница входа
+│   ├── setup/                 # Первичная настройка администратора
+│   ├── api/trpc/[trpc]/       # Обработчик tRPC
+├── components/                 # Общие React‑компоненты
+│   ├── Providers.tsx           # ThemeProvider, Toaster, Header
+│   └── ...
+├── db/
+│   ├── index.ts               # Подключение к БД (drizzle)
+│   ├── schema.ts              # Схема Drizzle (таблицы)
+│   └── seed.ts                # Наполнение БД тестовыми данными
+├── lib/
+│   ├── safeDelete.ts           # Безопасное удаление записей (проверка внешних ключей)
+│   ├── clearGeneratedData.ts  # Очистка сгенерированных данных
+│   ├── table-meta.ts           # Метаданные таблиц для динамического CRUD
+├── server/
+│   ├── trpc/
+│   │   ├── context.ts          # Контекст tRPC
+│   │   ├── trpc.ts             # Инициализация tRPC и middleware
+│   │   ├── router.ts           # Корневой роутер
+│   │   └── routers/            # Роутеры tRPC
+│   │       ├── auth.ts
+│   │       ├── buildings.ts
+│   │       ├── ...             # Остальные CRUD‑роутеры
+│   │       ├── generations/    # Генераторы (группы, юниты, занятия, аудитории, расписание)
+│   │       └── __tests__/      # Unit‑тесты для роутеров
+├── trpc/
+│   ├── client.ts               # Клиент tRPC
+│   └── provider.tsx            # TRPCProvider + React Query (глобальный обработчик ошибок)
+├── test/
+│   ├── fixtures/
+│   │   └── fixtures.ts         # Фикстуры (наполнение тестовой БД)
+│   ├── trpc.ts                 # Утилита создания тестового caller'а
+│   └── setup.ts                # Глобальные моки (cookies, console.error)
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 10. 🔑 Аутентификация и безопасность
+* Вход осуществляется по логину и паролю (не по email). Email может быть указан у сотрудника/студента и используется только для восстановления пароля.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+* Все административные процедуры защищены через adminProcedure.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+* Пароли хэшируются с помощью bcryptjs.
 
-## Learn More
+* Сессии хранятся в httpOnly cookie, что предотвращает XSS‑атаки.
 
-To learn more about Next.js, take a look at the following resources:
+* При попытке удалить запись, на которую ссылаются другие таблицы, пользователь видит тост с понятным сообщением (благодаря safeDelete).
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 11. 🩺 Возможные проблемы и их решение
+* Ошибка подключения к БД – проверьте DATABASE_URL и доступность PostgreSQL.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+* Письма не отправляются – убедитесь, что Mailpit запущен и адрес [http://localhost:8025]http://localhost:8025 доступен. Для продакшена настройте реальный SMTP.
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+* Тесты падают с ошибками уникальности – выполните npm run test:db:push для тестовой БД и убедитесь, что в .env.test указана правильная строка подключения.
