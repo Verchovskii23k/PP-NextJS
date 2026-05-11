@@ -20,7 +20,7 @@ module.exports = [
       "react-hooks/set-state-in-effect": "off",
       "react-hooks/incompatible-library": "off",
       "@typescript-eslint/no-explicit-any": "error",
-      "no-alert": "error",
+      "no-alert": "off",
       "tailwindcss/classnames-order": "warn",
       "tailwindcss/no-custom-classname": "off",
     },

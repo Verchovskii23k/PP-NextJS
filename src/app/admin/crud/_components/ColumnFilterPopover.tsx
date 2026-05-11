@@ -80,22 +80,22 @@ export function ColumnFilterPopover({
   };
 
   return (
-    <div className="relative inline-block ml-1">
+    <div className="relative ml-1 inline-block">
       <button
         type="button"
         onClick={handleOpenClick}
-        className="text-muted-foreground hover:text-foreground text-xs"
+        className="text-xs text-muted-foreground hover:text-foreground"
       >
         🔍
       </button>
       {open && (
         <div
-          className="absolute left-0 top-full mt-1 z-50 w-56 bg-background border border-border rounded-lg shadow-lg p-2"
+          className="absolute left-0 top-full z-50 mt-1 w-56 rounded-lg border border-border bg-background p-2 shadow-lg"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="flex justify-between items-center mb-1">
+          <div className="mb-1 flex items-center justify-between">
             <span className="text-xs font-medium text-muted-foreground">Фильтр</span>
-            <button onClick={() => setOpen(false)} className="text-muted-foreground hover:text-foreground text-xs px-1">
+            <button onClick={() => setOpen(false)} className="px-1 text-xs text-muted-foreground hover:text-foreground">
               ✕
             </button>
           </div>
@@ -103,11 +103,11 @@ export function ColumnFilterPopover({
             placeholder="Поиск..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="w-full border border-border rounded px-2 py-1 text-sm mb-2 bg-background text-foreground placeholder:text-muted-foreground"
+            className="mb-2 w-full rounded border border-border bg-background px-2 py-1 text-sm text-foreground placeholder:text-muted-foreground"
           />
-          <div className="max-h-48 overflow-y-auto space-y-1">
+          <div className="max-h-48 space-y-1 overflow-y-auto">
             {filteredItems.map(id => (
-              <label key={String(id)} className="flex items-center space-x-2 text-sm cursor-pointer hover:bg-muted/50 px-1 py-0.5 rounded text-foreground">
+              <label key={String(id)} className="hover:bg-muted/50 flex cursor-pointer items-center space-x-2 rounded px-1 py-0.5 text-sm text-foreground">
                 <input
                   type="checkbox"
                   checked={!excludedSet.has(id)}
@@ -120,10 +120,10 @@ export function ColumnFilterPopover({
               <div className="text-sm text-muted-foreground">Нет значений</div>
             )}
           </div>
-          <div className="flex justify-between mt-2">
+          <div className="mt-2 flex justify-between">
             <button
               onClick={handleReset}
-              className="text-xs text-primary hover:text-primary/90"
+              className="hover:text-primary/90 text-xs text-primary"
             >
               Сбросить все
             </button>

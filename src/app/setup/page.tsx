@@ -30,18 +30,18 @@ export default function SetupPage() {
 
   if (done) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-background text-foreground">
-        <div className="bg-background border border-border rounded-xl shadow-lg p-8 max-w-md w-full text-center">
-          <div className="flex justify-center mb-4">
+      <div className="flex min-h-screen items-center justify-center bg-background text-foreground">
+        <div className="w-full max-w-md rounded-xl border border-border bg-background p-8 text-center shadow-lg">
+          <div className="mb-4 flex justify-center">
             <CheckCircle size={48} className="text-green-500" />
           </div>
-          <h2 className="text-2xl font-bold mb-2">Готово!</h2>
-          <p className="text-muted-foreground mb-6">
+          <h2 className="mb-2 text-2xl font-bold">Готово!</h2>
+          <p className="mb-6 text-muted-foreground">
             Первый администратор успешно создан. Теперь вы можете войти в систему.
           </p>
           <Link
             href="/login"
-            className="inline-block w-full bg-primary hover:bg-primary/90 text-white font-medium py-2 px-4 rounded transition-colors"
+            className="hover:bg-primary/90 inline-block w-full rounded bg-primary px-4 py-2 font-medium text-white transition-colors"
           >
             Войти
           </Link>
@@ -51,9 +51,9 @@ export default function SetupPage() {
   }
 
   return (
-    <div className="max-w-md mx-auto mt-20 p-6 border border-border rounded-lg bg-background text-foreground">
-      <h1 className="text-xl font-semibold mb-4">Первоначальная настройка</h1>
-      {error && <p className="text-red-500 mb-4">{error}</p>}
+    <div className="mx-auto mt-20 max-w-md rounded-lg border border-border bg-background p-6 text-foreground">
+      <h1 className="mb-4 text-xl font-semibold">Первоначальная настройка</h1>
+      {error && <p className="mb-4 text-red-500">{error}</p>}
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -70,7 +70,7 @@ export default function SetupPage() {
         }}
       >
         <input
-          className="border border-border rounded px-3 py-2 w-full mb-3 bg-background text-foreground placeholder:text-muted-foreground"
+          className="mb-3 w-full rounded border border-border bg-background px-3 py-2 text-foreground placeholder:text-muted-foreground"
           placeholder="Фамилия *"
           name="surname"
           value={form.surname}
@@ -78,7 +78,7 @@ export default function SetupPage() {
           required
         />
         <input
-          className="border border-border rounded px-3 py-2 w-full mb-3 bg-background text-foreground placeholder:text-muted-foreground"
+          className="mb-3 w-full rounded border border-border bg-background px-3 py-2 text-foreground placeholder:text-muted-foreground"
           placeholder="Имя *"
           name="name"
           value={form.name}
@@ -86,21 +86,21 @@ export default function SetupPage() {
           required
         />
         <input
-          className="border border-border rounded px-3 py-2 w-full mb-3 bg-background text-foreground placeholder:text-muted-foreground"
+          className="mb-3 w-full rounded border border-border bg-background px-3 py-2 text-foreground placeholder:text-muted-foreground"
           placeholder="Отчество (необязательно)"
           name="patronymic"
           value={form.patronymic}
           onChange={handleChange}
         />
         <input
-          className="border border-border rounded px-3 py-2 w-full mb-3 bg-background text-foreground placeholder:text-muted-foreground"
+          className="mb-3 w-full rounded border border-border bg-background px-3 py-2 text-foreground placeholder:text-muted-foreground"
           placeholder="Телефон (необязательно)"
           name="phone"
           value={form.phone}
           onChange={handleChange}
         />
         <input
-          className="border border-border rounded px-3 py-2 w-full mb-3 bg-background text-foreground placeholder:text-muted-foreground"
+          className="mb-3 w-full rounded border border-border bg-background px-3 py-2 text-foreground placeholder:text-muted-foreground"
           placeholder="Email (необязательно)"
           name="email"
           type="email"
@@ -110,7 +110,7 @@ export default function SetupPage() {
         {/* Логин с глазком */}
         <div className="relative mb-3">
           <input
-            className="border border-border rounded px-3 py-2 w-full bg-background text-foreground placeholder:text-muted-foreground pr-10"
+            className="w-full rounded border border-border bg-background px-3 py-2 pr-10 text-foreground placeholder:text-muted-foreground"
             type={showLogin ? "text" : "password"}
             placeholder="Логин *"
             name="login"
@@ -130,7 +130,7 @@ export default function SetupPage() {
         {/* Пароль с глазком */}
         <div className="relative mb-4">
           <input
-            className="border border-border rounded px-3 py-2 w-full bg-background text-foreground placeholder:text-muted-foreground pr-10"
+            className="w-full rounded border border-border bg-background px-3 py-2 pr-10 text-foreground placeholder:text-muted-foreground"
             type={showPassword ? "text" : "password"}
             placeholder="Пароль *"
             name="password"
@@ -148,7 +148,7 @@ export default function SetupPage() {
           </button>
         </div>
         <button
-          className="w-full bg-primary hover:bg-primary/90 text-white font-medium py-2 px-4 rounded transition-colors"
+          className="hover:bg-primary/90 w-full rounded bg-primary px-4 py-2 font-medium text-white transition-colors"
           type="submit"
           disabled={setupMutation.isPending}
         >

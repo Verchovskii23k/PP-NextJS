@@ -38,11 +38,12 @@ export const batchDeleteRouter = router({
           );
           result.deleted++;
         } catch (e: unknown) {
-          const code = (e as { code?: string }).code;
-          if (code === '23503' || (e instanceof Error && e.message.includes('foreign key'))) {
-            throw new TRPCError({ code: "BAD_REQUEST", message: "Невозможно удалить – запись используется" });
-          }
-          throw e;
+            const err = e as { code?: string; cause?: { code?: string }; message?: string };
+            const code = err.code || err.cause?.code;
+            if (code === '23503' || err.message?.includes('foreign key')) {
+                throw new TRPCError({ code: "BAD_REQUEST", message: "Невозможно удалить – запись используется" });
+            }
+            throw e;
         }
       }
       return result;

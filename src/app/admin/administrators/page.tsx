@@ -24,21 +24,21 @@ export default function AdministratorsPage() {
   if (error) return <div className="p-6 text-red-500">Ошибка: {error.message}</div>;
 
   return (
-    <div className="p-6 max-w-4xl mx-auto bg-background text-foreground">
-      <h1 className="text-2xl font-bold mb-6">Управление администраторами</h1>
+    <div className="mx-auto max-w-4xl bg-background p-6 text-foreground">
+      <h1 className="mb-6 text-2xl font-bold">Управление администраторами</h1>
       
       {mutError && (
-        <div className="bg-red-100 dark:bg-red-900/20 border border-red-400 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded mb-4">
+        <div className="mb-4 rounded border border-red-400 bg-red-100 px-4 py-3 text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400">
           {mutError}
         </div>
       )}
       {mutWarning && (
-        <div className="bg-yellow-100 dark:bg-yellow-900/20 border border-yellow-400 dark:border-yellow-800 text-yellow-700 dark:text-yellow-400 px-4 py-3 rounded mb-4">
+        <div className="mb-4 rounded border border-yellow-400 bg-yellow-100 px-4 py-3 text-yellow-700 dark:border-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400">
           {mutWarning}
         </div>
       )}
 
-      <div className="overflow-x-auto border border-border rounded-lg">
+      <div className="overflow-x-auto rounded-lg border border-border">
         <table className="w-full text-sm">
           <thead className="bg-muted">
             <tr>
@@ -82,7 +82,7 @@ export default function AdministratorsPage() {
                       title={isCurrentUser ? "Нельзя изменить свою роль" : ""}
                       className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
                         emp.isAdmin ? "bg-primary" : "bg-gray-300 dark:bg-gray-600"
-                      } ${isCurrentUser ? "opacity-50 cursor-not-allowed" : ""}`}
+                      } ${isCurrentUser ? "cursor-not-allowed opacity-50" : ""}`}
                     >
                       <span
                         className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${

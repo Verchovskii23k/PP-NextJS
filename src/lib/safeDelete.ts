@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { db } from "@/db";
 import { eq } from "drizzle-orm";
-import { getTableConfig, PgTable } from "drizzle-orm/pg-core";
+import { PgTable, getTableConfig } from "drizzle-orm/pg-core";
 
 export async function safeDelete(table: PgTable, id: number) {
   const tableConfig = getTableConfig(table);
@@ -12,8 +12,9 @@ export async function safeDelete(table: PgTable, id: number) {
     await db.delete(table).where(eq(idColumn, id));
     return { success: true };
   } catch (e: unknown) {
-    const code = (e as { code?: string }).code;
-    if (code === "23503") {
+    const err = e as { code?: string; cause?: { code?: string }; message?: string };
+    const code = err.code || err.cause?.code;
+    if (code === "23503" || err.message?.includes("foreign key constraint")) {
       throw new TRPCError({
         code: "BAD_REQUEST",
         message: "Невозможно удалить – запись используется в других таблицах",

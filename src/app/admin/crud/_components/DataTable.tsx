@@ -148,8 +148,8 @@ export function DataTable({ tableName }: DataTableProps) {
       toast(message);
       setSelectedIds(new Set());
       (utils as unknown as Record<string, { list?: { invalidate?: () => void } }>)[routerKey]?.list?.invalidate?.()
-    } catch (err: unknown) {
-      toast("Ошибка: " + (err instanceof Error ? err.message : "Неизвестная ошибка"));
+    } catch (e: unknown) {
+      toast.error("Ошибка: " + (e instanceof Error ? e.message : "Неизвестная ошибка"));
     }
   };
 
@@ -168,8 +168,8 @@ export function DataTable({ tableName }: DataTableProps) {
       } else {
         toast.error("Нет данных для экспорта");
       }
-    } catch (err: unknown) {
-      toast.error("Ошибка экспорта: " + (err instanceof Error ? err.message : "Неизвестная ошибка"));
+    } catch (e: unknown) {
+      toast.error("Ошибка экспорта: " + (e instanceof Error ? e.message : "Неизвестная ошибка"));
     }
   };
 
@@ -187,8 +187,8 @@ export function DataTable({ tableName }: DataTableProps) {
           `Импорт завершён:\nВсего: ${result.total}\nВставлено: ${result.inserted}\nОбновлено: ${result.updated}\nПропущено (совпадают): ${result.skipped}\nОшибок: ${result.errors.length}\n${result.errors.slice(0, 5).join("\n")}`
         );
         (utils as unknown as Record<string, { list?: { invalidate?: () => void } }>)[routerKey]?.list?.invalidate?.()
-      } catch (err: unknown) {
-        toast.error("Ошибка импорта: " + (err instanceof Error ? err.message : "Неизвестная ошибка"));
+      } catch (e: unknown) {
+        toast.error("Ошибка импорта: " + (e instanceof Error ? e.message : "Неизвестная ошибка"));
       } finally {
         if (fileInputRef.current) fileInputRef.current.value = "";
       }
@@ -208,7 +208,7 @@ export function DataTable({ tableName }: DataTableProps) {
             type="checkbox"
             checked={rows.length > 0 && selectedIds.size === rows.length}
             onChange={toggleSelectAll}
-            className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+            className="h-4 w-4 cursor-pointer rounded border-gray-300 text-primary focus:ring-primary"
           />
         ),
         cell: ({ row }) => (
@@ -216,7 +216,7 @@ export function DataTable({ tableName }: DataTableProps) {
             type="checkbox"
             checked={selectedIds.has(row.original.id)}
             onChange={() => toggleSelectOne(row.original.id)}
-            className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+            className="h-4 w-4 cursor-pointer rounded border-gray-300 text-primary focus:ring-primary"
           />
         ),
         enableSorting: false,
@@ -226,7 +226,7 @@ export function DataTable({ tableName }: DataTableProps) {
         id: "index",
         header: "№",
         cell: ({ row }) => (
-          <span className="text-muted-foreground text-xs">
+          <span className="text-xs text-muted-foreground">
             {pagination.pageIndex * pagination.pageSize + row.index + 1}
           </span>
         ),
@@ -286,7 +286,7 @@ export function DataTable({ tableName }: DataTableProps) {
       cell: ({ row }) => (
         <div className="flex gap-2">
           <button
-            className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm"
+            className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
             onClick={() => {
               setEditId(row.original.id);
               setShowForm(true);
@@ -295,7 +295,7 @@ export function DataTable({ tableName }: DataTableProps) {
             Ред.
           </button>
           <button
-            className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 text-sm"
+            className="text-sm text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
             onClick={async () => {
               if (!deleteMutation || !deleteMutation.mutateAsync) {
                 toast.error('Удаление недоступно');
@@ -355,15 +355,15 @@ export function DataTable({ tableName }: DataTableProps) {
 
   return (
     <div>
-      <div className="flex items-center gap-2 mb-4">
+      <div className="mb-4 flex items-center gap-2">
         <input
           placeholder="Поиск по всем полям..."
           value={globalFilter}
           onChange={e => setGlobalFilter(e.target.value)}
-          className="border border-border rounded px-3 py-1.5 text-sm max-w-sm bg-background text-foreground placeholder:text-muted-foreground"
+          className="max-w-sm rounded border border-border bg-background px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground"
         />
         <button
-          className="px-3 py-1.5 bg-primary text-white rounded text-sm hover:bg-primary/90"
+          className="hover:bg-primary/90 rounded bg-primary px-3 py-1.5 text-sm text-white"
           onClick={() => {
             setEditId(null);
             setShowForm(true);
@@ -372,7 +372,7 @@ export function DataTable({ tableName }: DataTableProps) {
           Добавить
         </button>
         <button
-          className="px-3 py-1.5 bg-green-600 text-white rounded text-sm hover:bg-green-700"
+          className="rounded bg-green-600 px-3 py-1.5 text-sm text-white hover:bg-green-700"
           onClick={handleExport}
           disabled={exportQuery.isFetching}
         >
@@ -386,7 +386,7 @@ export function DataTable({ tableName }: DataTableProps) {
           onChange={handleImport}
         />
         <button
-          className="px-3 py-1.5 bg-yellow-600 text-white rounded text-sm hover:bg-yellow-700"
+          className="rounded bg-yellow-600 px-3 py-1.5 text-sm text-white hover:bg-yellow-700"
           onClick={() => fileInputRef.current?.click()}
           disabled={importMutation.isPending}
         >
@@ -394,7 +394,7 @@ export function DataTable({ tableName }: DataTableProps) {
         </button>
         {selectedIds.size > 0 && (
           <button
-            className="px-3 py-1.5 bg-red-600 text-white rounded text-sm hover:bg-red-700"
+            className="rounded bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-700"
             onClick={handleDeleteSelected}
             disabled={deleteManyMutation.isPending}
           >
@@ -416,7 +416,7 @@ export function DataTable({ tableName }: DataTableProps) {
                     colSpan={header.colSpan}
                     className={`px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground ${
                       header.column.getCanSort()
-                        ? "cursor-pointer select-none hover:bg-muted/70"
+                        ? "hover:bg-muted/70 cursor-pointer select-none"
                         : ""
                     }`}
                     onClick={header.column.getToggleSortingHandler()}
@@ -432,14 +432,14 @@ export function DataTable({ tableName }: DataTableProps) {
               </tr>
             ))}
           </thead>
-          <tbody className="bg-background divide-y divide-border min-h-[300px]">
+          <tbody className="min-h-[300px] divide-y divide-border bg-background">
             {table.getRowModel().rows.length === 0 ? (
               <tr>
                 <td
                   colSpan={columns.length}
-                  className="px-4 py-4 text-center text-sm text-muted-foreground align-middle"
+                  className="px-4 py-4 text-center align-middle text-sm text-muted-foreground"
                 >
-                  <div className="flex items-center justify-center h-full min-h-[250px]">
+                  <div className="flex h-full min-h-[250px] items-center justify-center">
                     Нет данных
                   </div>
                 </td>
@@ -457,7 +457,7 @@ export function DataTable({ tableName }: DataTableProps) {
                     {row.getVisibleCells().map(cell => (
                       <td
                         key={cell.id}
-                        className="px-4 py-2 whitespace-nowrap text-sm text-foreground"
+                        className="whitespace-nowrap px-4 py-2 text-sm text-foreground"
                       >
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
                       </td>
@@ -471,20 +471,20 @@ export function DataTable({ tableName }: DataTableProps) {
       </div>
 
       {table.getPageCount() > 1 && (
-        <div className="flex items-center justify-between mt-4">
+        <div className="mt-4 flex items-center justify-between">
           <div className="text-sm text-muted-foreground">
             Страница {pagination.pageIndex + 1} из {table.getPageCount()}
           </div>
           <div className="flex gap-2">
             <button
-              className="px-3 py-1 border border-border bg-background text-foreground rounded text-sm disabled:opacity-50"
+              className="rounded border border-border bg-background px-3 py-1 text-sm text-foreground disabled:opacity-50"
               onClick={() => table.previousPage()}
               disabled={!table.getCanPreviousPage()}
             >
               Назад
             </button>
             <button
-              className="px-3 py-1 border border-border bg-background text-foreground rounded text-sm disabled:opacity-50"
+              className="rounded border border-border bg-background px-3 py-1 text-sm text-foreground disabled:opacity-50"
               onClick={() => table.nextPage()}
               disabled={!table.getCanNextPage()}
             >

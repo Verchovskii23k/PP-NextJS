@@ -84,13 +84,13 @@ function SortableItem({
       style={style}
       {...attributes}
       {...listeners}
-      className={`flex items-center gap-2 px-3 py-2 rounded cursor-grab ${
+      className={`flex cursor-grab items-center gap-2 rounded px-3 py-2 ${
         isActive
           ? "bg-primary text-white"
           : "hover:bg-muted/70 text-foreground"
       }`}
     >
-      <span className="text-muted-foreground cursor-grab select-none">⠿</span>
+      <span className="cursor-grab select-none text-muted-foreground">⠿</span>
       {icon && <span className="text-base leading-none">{icon}</span>}
       <button
         onClick={(e) => {
@@ -173,8 +173,8 @@ export default function AdminCrudPage() {
 
   return (
     <div className="flex h-screen">
-      <aside className="w-64 bg-muted p-4 overflow-y-auto border-r border-border">
-        <h2 className="text-lg font-semibold mb-4 text-foreground">Таблицы</h2>
+      <aside className="w-64 overflow-y-auto border-r border-border bg-muted p-4">
+        <h2 className="mb-4 text-lg font-semibold text-foreground">Таблицы</h2>
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
@@ -199,7 +199,7 @@ export default function AdminCrudPage() {
           </SortableContext>
         </DndContext>
       </aside>
-      <main className="flex-1 p-6 overflow-auto bg-background">
+      <main className="flex-1 overflow-auto bg-background p-6">
         {selectedTable ? (
           <>
             <div className="mb-4">
@@ -219,7 +219,7 @@ export default function AdminCrudPage() {
                       toast.error("Ошибка при сбросе: " + message);
                     }
                 }}
-                className="px-3 py-1.5 bg-red-600 text-white rounded text-sm hover:bg-red-700"
+                className="rounded bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-700"
               >
                 Сбросить всё
               </button>
@@ -227,7 +227,7 @@ export default function AdminCrudPage() {
             <DataTable tableName={selectedTable} />
           </>
         ) : (
-          <div className="text-muted-foreground mt-10 text-center">
+          <div className="mt-10 text-center text-muted-foreground">
             Выберите таблицу для просмотра и редактирования
           </div>
         )}

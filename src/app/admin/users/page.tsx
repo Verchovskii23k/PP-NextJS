@@ -16,11 +16,11 @@ export default function UsersPage() {
   if (error) return <div className="p-6 text-red-500">Ошибка: {error.message}</div>;
 
   return (
-    <div className="p-6 max-w-4xl mx-auto bg-background text-foreground">
-      <h1 className="text-2xl font-bold mb-6">Управление пользователями</h1>
+    <div className="mx-auto max-w-4xl bg-background p-6 text-foreground">
+      <h1 className="mb-6 text-2xl font-bold">Управление пользователями</h1>
 
       {resetResult && (
-        <div className="mb-4 p-3 border border-border rounded bg-muted">
+        <div className="mb-4 rounded border border-border bg-muted p-3">
           <p className="font-semibold">Учётные данные сброшены</p>
           {resetResult.emailSent ? (
             <p>Новые логин и пароль отправлены на email пользователя.</p>
@@ -34,7 +34,7 @@ export default function UsersPage() {
         </div>
       )}
 
-      <table className="w-full border border-border rounded-lg">
+      <table className="w-full rounded-lg border border-border">
         <thead className="bg-muted">
           <tr>
             <th className="p-2 text-left">ФИО</th>
@@ -69,7 +69,7 @@ export default function UsersPage() {
                     );
                   }}
                   disabled={resetMut.isPending}
-                  className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm"
+                  className="rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
                 >
                   Сбросить
                 </button>

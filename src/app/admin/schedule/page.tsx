@@ -59,9 +59,9 @@ function DraggableLesson({ entry, isEditMode }: { entry: ScheduleRow; isEditMode
       ref={setNodeRef}
       {...listeners}
       {...attributes}
-      className={`text-xs p-1 rounded leading-tight cursor-default ${isDragging ? "opacity-50" : ""} ${
-        isEditMode ? "hover:ring-2 hover:ring-blue-300 cursor-grab" : ""
-      } bg-card dark:bg-gray-700 text-foreground`}
+      className={`cursor-default rounded p-1 text-xs leading-tight ${isDragging ? "opacity-50" : ""} ${
+        isEditMode ? "cursor-grab hover:ring-2 hover:ring-blue-300" : ""
+      } bg-card text-foreground dark:bg-gray-700`}
       style={style}
     >
       {entry.displayText}
@@ -115,15 +115,15 @@ function DroppableArea({
   return (
     <div
       ref={setNodeRef}
-      className={`text-xs p-1 rounded leading-tight border ${bg} ${isEditMode ? "min-h-[1.5rem]" : ""}`}
+      className={`rounded border p-1 text-xs leading-tight ${bg} ${isEditMode ? "min-h-[1.5rem]" : ""}`}
       onClick={() => entry && isEditMode && onCellClick(entry)}
     >
       {entry ? (
-        <div className="flex items-center gap-1 p-1 rounded">
+        <div className="flex items-center gap-1 rounded p-1">
           <DraggableLesson entry={entry} isEditMode={isEditMode} />
         </div>
       ) : (
-        <span className="text-muted-foreground text-xs">—</span>
+        <span className="text-xs text-muted-foreground">—</span>
       )}
     </div>
   );
@@ -142,7 +142,7 @@ function BufferEntry({ entry }: { entry: ScheduleRow }) {
       ref={setNodeRef}
       {...listeners}
       {...attributes}
-      className={`flex items-center gap-1 text-xs p-1 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded mb-1 cursor-grab ${
+      className={`mb-1 flex cursor-grab items-center gap-1 rounded border border-amber-200 bg-amber-50 p-1 text-xs dark:border-amber-800 dark:bg-amber-900/20 ${
         isDragging ? "opacity-50" : ""
       }`}
       style={style}
@@ -159,11 +159,11 @@ function BufferZone({ entries, isEditMode }: { entries: ScheduleRow[]; isEditMod
   return (
     <div
       ref={setNodeRef}
-      className={`border border-dashed border-border bg-muted p-2 w-56 flex-shrink-0 overflow-y-auto rounded h-full ${
-        isOver ? "bg-blue-50 dark:bg-blue-900/30 ring-2 ring-blue-500" : ""
+      className={`h-full w-56 flex-shrink-0 overflow-y-auto rounded border border-dashed border-border bg-muted p-2 ${
+        isOver ? "bg-blue-50 ring-2 ring-blue-500 dark:bg-blue-900/30" : ""
       }`}
     >
-      <div className="text-xs font-bold mb-2 sticky top-0 bg-muted py-1 text-foreground">Буфер</div>
+      <div className="sticky top-0 mb-2 bg-muted py-1 text-xs font-bold text-foreground">Буфер</div>
       {entries.map((entry) => (
         <BufferEntry key={entry.id} entry={entry} />
       ))}
@@ -531,15 +531,15 @@ const handleCSV = () => {
     : Array.from(new Set((displayRows as AnyRow[])?.map((r) => r.studyGroupCode || "") || [])).sort();
 
   return (
-    <div className="p-4 bg-background text-foreground">
-      <h1 className="text-xl font-bold mb-4">Расписание</h1>
+    <div className="bg-background p-4 text-foreground">
+      <h1 className="mb-4 text-xl font-bold">Расписание</h1>
 
       {/* Легенда */}
-      <div className="flex flex-wrap gap-4 mb-4 p-3 bg-muted rounded border border-border text-sm">
+      <div className="mb-4 flex flex-wrap gap-4 rounded border border-border bg-muted p-3 text-sm">
         {activeWeeksData.map((week, idx) => (
           <div key={week.id} className="flex items-center gap-2">
             <span
-              className={`inline-block w-4 h-4 rounded ${WEEK_COLORS[idx % WEEK_COLORS.length].bg} ${WEEK_COLORS[idx % WEEK_COLORS.length].border}`}
+              className={`inline-block h-4 w-4 rounded ${WEEK_COLORS[idx % WEEK_COLORS.length].bg} ${WEEK_COLORS[idx % WEEK_COLORS.length].border}`}
             ></span>
             {week.type} (ID:{week.id})
           </div>
@@ -547,32 +547,32 @@ const handleCSV = () => {
         {editMode && (
           <>
             <div className="flex items-center gap-2">
-              <span className="inline-block w-4 h-4 rounded bg-green-300 dark:bg-green-900/20 border border-green-400 dark:border-green-800"></span> Свободно
+              <span className="inline-block h-4 w-4 rounded border border-green-400 bg-green-300 dark:border-green-800 dark:bg-green-900/20"></span> Свободно
             </div>
             <div className="flex items-center gap-2">
-              <span className="inline-block w-4 h-4 rounded bg-red-300 dark:bg-red-900/20 border border-red-400 dark:border-red-800"></span> Конфликт
+              <span className="inline-block h-4 w-4 rounded border border-red-400 bg-red-300 dark:border-red-800 dark:bg-red-900/20"></span> Конфликт
             </div>
             <div className="flex items-center gap-2">
-              <span className="inline-block w-4 h-4 rounded bg-blue-300 dark:bg-blue-900/20 border border-blue-400 dark:border-blue-800"></span> Обмен
+              <span className="inline-block h-4 w-4 rounded border border-blue-400 bg-blue-300 dark:border-blue-800 dark:bg-blue-900/20"></span> Обмен
             </div>
           </>
         )}
       </div>
 
       {confirmDialog.show && (
-        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
-          <div className="bg-background p-6 rounded shadow-lg border border-border max-w-md">
-            <p className="text-foreground mb-4">{confirmDialog.message}</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
+          <div className="max-w-md rounded border border-border bg-background p-6 shadow-lg">
+            <p className="mb-4 text-foreground">{confirmDialog.message}</p>
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => setConfirmDialog({ show: false, message: "", onConfirm: () => {} })}
-                className="px-4 py-2 border border-border rounded text-foreground hover:bg-muted"
+                className="rounded border border-border px-4 py-2 text-foreground hover:bg-muted"
               >
                 Отмена
               </button>
               <button
                 onClick={confirmDialog.onConfirm}
-                className="px-4 py-2 bg-primary text-white rounded hover:bg-primary/90"
+                className="hover:bg-primary/90 rounded bg-primary px-4 py-2 text-white"
               >
                 Подтвердить
               </button>
@@ -581,51 +581,51 @@ const handleCSV = () => {
         </div>
       )}
 
-      <div className="flex gap-4 mb-4">
-        <button onClick={() => setViewMode("units")} className={viewMode === "units" ? "font-bold border-b-2 border-blue-500" : ""}>
+      <div className="mb-4 flex gap-4">
+        <button onClick={() => setViewMode("units")} className={viewMode === "units" ? "border-b-2 border-blue-500 font-bold" : ""}>
           По юнитам
         </button>
-        <button onClick={() => setViewMode("groups")} className={viewMode === "groups" ? "font-bold border-b-2 border-blue-500" : ""}>
+        <button onClick={() => setViewMode("groups")} className={viewMode === "groups" ? "border-b-2 border-blue-500 font-bold" : ""}>
           По группам
         </button>
-        <button onClick={handlePrint} className="bg-blue-600 text-white px-3 py-1 rounded ml-2 hover:bg-blue-700">
+        <button onClick={handlePrint} className="ml-2 rounded bg-blue-600 px-3 py-1 text-white hover:bg-blue-700">
           🖨️ Печать
         </button>
-        <button onClick={handleCSV} className="bg-green-600 text-white px-3 py-1 rounded ml-2 hover:bg-green-700">
+        <button onClick={handleCSV} className="ml-2 rounded bg-green-600 px-3 py-1 text-white hover:bg-green-700">
           📥 CSV
         </button>
         <button
           onClick={() => optimizeScheduleMut.mutate()}
           disabled={editMode || optimizeScheduleMut.isPending}
-          className="px-3 py-1 rounded bg-purple-600 hover:bg-purple-700 text-white disabled:bg-gray-400"
+          className="rounded bg-purple-600 px-3 py-1 text-white hover:bg-purple-700 disabled:bg-gray-400"
         >
           {optimizeScheduleMut.isPending ? "Оптимизация..." : "Оптимизировать"}
         </button>
         {viewMode === "units" && (
-          <button onClick={() => setEditMode(!editMode)} className="ml-auto bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600">
+          <button onClick={() => setEditMode(!editMode)} className="ml-auto rounded bg-blue-500 px-3 py-1 text-white hover:bg-blue-600">
             {editMode ? "Завершить редактирование" : "Редактировать"}
           </button>
         )}
       </div>
 
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-        <div className="flex gap-4 items-stretch" style={{ minHeight: "400px" }}>
+        <div className="flex items-stretch gap-4" style={{ minHeight: "400px" }}>
           {editMode && <BufferZone entries={bufferEntries} isEditMode={editMode} />}
 
           <div className="flex-1 overflow-auto" id="schedule-table">
             {days && pairs && displayRows && (
-              <div className="overflow-x-auto border border-border rounded-md">
-                <table className="border-collapse text-sm w-full">
+              <div className="overflow-x-auto rounded-md border border-border">
+                <table className="w-full border-collapse text-sm">
                   <thead>
                     <tr className="bg-muted">
-                      <th className="sticky left-0 z-20 bg-muted border border-border p-2 w-[70px] min-w-[70px] text-foreground">
+                      <th className="sticky left-0 z-20 w-[70px] min-w-[70px] border border-border bg-muted p-2 text-foreground">
                         День
                       </th>
-                      <th className="sticky left-[70px] z-20 bg-muted border border-border p-2 w-[50px] min-w-[50px] text-foreground">
+                      <th className="sticky left-[70px] z-20 w-[50px] min-w-[50px] border border-border bg-muted p-2 text-foreground">
                         Пара
                       </th>
                       {unitKeys.map((code) => (
-                        <th key={code} className="border border-border p-2 bg-blue-50 dark:bg-blue-900/30 text-foreground whitespace-nowrap min-w-[180px]">
+                        <th key={code} className="min-w-[180px] whitespace-nowrap border border-border bg-blue-50 p-2 text-foreground dark:bg-blue-900/30">
                           {code}
                         </th>
                       ))}
@@ -640,16 +640,16 @@ const handleCSV = () => {
                             {isFirstPairOfDay && (
                               <td
                                 rowSpan={pairs.length}
-                                className="sticky left-0 z-10 bg-background border border-border p-2 font-medium text-center align-top"
+                                className="sticky left-0 z-10 border border-border bg-background p-2 text-center align-top font-medium"
                               >
                                 {day.name}
                               </td>
                             )}
-                            <td className="sticky left-[70px] z-10 bg-background border border-border p-2 text-center align-top">
+                            <td className="sticky left-[70px] z-10 border border-border bg-background p-2 text-center align-top">
                               {pair.number}
                             </td>
                             {unitKeys.map((code) => (
-                              <td key={`${day.id}-${pair.id}-${code}`} className="border border-border p-1 min-w-[180px] align-top">
+                              <td key={`${day.id}-${pair.id}-${code}`} className="min-w-[180px] border border-border p-1 align-top">
                                 <div className="flex flex-col gap-1">
                                   {activeWeeksData.map((week, weekIdx) => {
 
@@ -695,7 +695,7 @@ const handleCSV = () => {
 
         <DragOverlay>
           {activeDragEntry ? (
-            <div className="bg-background border border-border shadow p-2 rounded text-xs text-foreground">
+            <div className="rounded border border-border bg-background p-2 text-xs text-foreground shadow">
               {activeDragEntry.displayText}
             </div>
           ) : null}
@@ -703,20 +703,20 @@ const handleCSV = () => {
       </DndContext>
 
       {selectedEntry && (
-        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
-          <div className="bg-background p-6 rounded shadow-lg w-80 border border-border">
-            <h2 className="font-bold mb-4 text-foreground">Редактирование занятия</h2>
-            <div className="text-sm mb-2 text-foreground">{selectedEntry.displayText}</div>
-            <label className="block mb-2 text-foreground">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
+          <div className="w-80 rounded border border-border bg-background p-6 shadow-lg">
+            <h2 className="mb-4 font-bold text-foreground">Редактирование занятия</h2>
+            <div className="mb-2 text-sm text-foreground">{selectedEntry.displayText}</div>
+            <label className="mb-2 block text-foreground">
               Номер слияния:
               <input
                 type="number"
                 value={flagForm.mergeNumber}
                 onChange={(e) => setFlagForm({ ...flagForm, mergeNumber: +e.target.value })}
-                className="border border-border rounded px-2 py-1 w-full bg-background text-foreground"
+                className="w-full rounded border border-border bg-background px-2 py-1 text-foreground"
               />
             </label>
-            <label className="block mb-2 text-foreground">
+            <label className="mb-2 block text-foreground">
               <input
                 type="checkbox"
                 checked={flagForm.positionFlag}
@@ -724,7 +724,7 @@ const handleCSV = () => {
               />
               <span className="ml-2">Закрепить позицию занятия</span>
             </label>
-            <label className="block mb-4 text-foreground">
+            <label className="mb-4 block text-foreground">
               <input
                 type="checkbox"
                 checked={flagForm.classroomFlag}
@@ -733,10 +733,10 @@ const handleCSV = () => {
               <span className="ml-2">Закрепить аудиторию</span>
             </label>
             <div className="flex justify-end gap-2">
-              <button onClick={() => setSelectedEntry(null)} className="bg-muted text-foreground px-3 py-1 rounded hover:bg-muted/70">
+              <button onClick={() => setSelectedEntry(null)} className="hover:bg-muted/70 rounded bg-muted px-3 py-1 text-foreground">
                 Отмена
               </button>
-              <button onClick={saveFlags} className="bg-primary text-white px-3 py-1 rounded hover:bg-primary/90">
+              <button onClick={saveFlags} className="hover:bg-primary/90 rounded bg-primary px-3 py-1 text-white">
                 Сохранить
               </button>
             </div>

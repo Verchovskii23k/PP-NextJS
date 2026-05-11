@@ -28,12 +28,12 @@ const sections = [
 
 export default function AdminDashboard() {
   return (
-    <div className="p-6 max-w-5xl mx-auto">
-      <h1 className="text-2xl font-bold mb-6 text-foreground">
+    <div className="mx-auto max-w-5xl p-6">
+      <h1 className="mb-6 text-2xl font-bold text-foreground">
         Панель администратора
       </h1>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {sections.map(({ title, description, href, icon: Icon, available }) => {
           const commonClasses =
             "relative flex flex-col items-start p-5 rounded-xl border bg-background shadow-sm transition-all duration-200";
@@ -45,29 +45,29 @@ export default function AdminDashboard() {
           if (!available) {
             return (
               <div key={title} className={`${commonClasses} ${interactiveClasses}`}>
-                <div className="flex items-center justify-between w-full mb-2">
-                  <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                <div className="mb-2 flex w-full items-center justify-between">
+                  <div className="bg-primary/10 rounded-lg p-2 text-primary">
                     <Icon size={24} />
                   </div>
-                  <span className="text-xs font-medium text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/30 px-2 py-0.5 rounded-full">
+                  <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-600 dark:bg-orange-900/30 dark:text-orange-400">
                     Скоро
                   </span>
                 </div>
-                <h2 className="text-base font-semibold text-foreground mt-1">{title}</h2>
-                <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{description}</p>
+                <h2 className="mt-1 text-base font-semibold text-foreground">{title}</h2>
+                <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{description}</p>
               </div>
             );
           }
 
           return (
             <Link key={title} href={href} className={`${commonClasses} ${interactiveClasses}`}>
-              <div className="flex items-center justify-between w-full mb-2">
-                <div className="p-2 rounded-lg bg-primary/10 text-primary">
+              <div className="mb-2 flex w-full items-center justify-between">
+                <div className="bg-primary/10 rounded-lg p-2 text-primary">
                   <Icon size={24} />
                 </div>
               </div>
-              <h2 className="text-base font-semibold text-foreground mt-1">{title}</h2>
-              <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{description}</p>
+              <h2 className="mt-1 text-base font-semibold text-foreground">{title}</h2>
+              <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{description}</p>
             </Link>
           );
         })}

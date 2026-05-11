@@ -54,8 +54,8 @@ export default function OptimizationSettingsPage() {
   if (isLoading) return <div className="p-6">Загрузка...</div>;
 
   return (
-    <div className="p-6 max-w-xl mx-auto bg-background text-foreground">
-      <h1 className="text-2xl font-bold mb-6">Параметры оптимизации</h1>
+    <div className="mx-auto max-w-xl bg-background p-6 text-foreground">
+      <h1 className="mb-6 text-2xl font-bold">Параметры оптимизации</h1>
       <div className="space-y-4">
         {[
           { label: "Штраф за окна у преподавателя", field: "teacherWindow", val: weights.teacherWindow },
@@ -75,12 +75,12 @@ export default function OptimizationSettingsPage() {
               onChange={(e) =>
                 setWeights({ ...weights, [item.field]: Number(e.target.value) })
               }
-              className="border border-border rounded px-2 py-1 w-24"
+              className="w-24 rounded border border-border px-2 py-1"
             />
             <button
               onClick={() => handleSave(item.field, item.val)}
               disabled={updateMut.isPending}
-              className="bg-primary text-white px-3 py-1 rounded text-sm"
+              className="rounded bg-primary px-3 py-1 text-sm text-white"
             >
               Сохранить
             </button>

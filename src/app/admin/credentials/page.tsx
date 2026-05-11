@@ -43,23 +43,23 @@ export default function CredentialsPage() {
   };
 
   return (
-    <div className="p-6 max-w-3xl mx-auto bg-background text-foreground">
-      <h1 className="text-2xl font-bold mb-6">Генерация логинов и паролей</h1>
+    <div className="mx-auto max-w-3xl bg-background p-6 text-foreground">
+      <h1 className="mb-6 text-2xl font-bold">Генерация логинов и паролей</h1>
       {error && (
-        <div className="bg-red-100 dark:bg-red-900/20 border border-red-400 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded mb-4">
+        <div className="mb-4 rounded border border-red-400 bg-red-100 px-4 py-3 text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400">
           {error}
         </div>
       )}
 
-      <div className="bg-background border border-border rounded-lg shadow-sm p-4 mb-6">
-        <h2 className="text-lg font-semibold mb-2">Параметры</h2>
-        <div className="flex flex-wrap gap-4 mb-3">
+      <div className="mb-6 rounded-lg border border-border bg-background p-4 shadow-sm">
+        <h2 className="mb-2 text-lg font-semibold">Параметры</h2>
+        <div className="mb-3 flex flex-wrap gap-4">
           <div>
             <label className="text-sm text-muted-foreground">Уровень защиты</label>
             <select
               value={credSecurity}
               onChange={(e) => setCredSecurity(e.target.value as  SecurityLevel)}
-              className="border border-border rounded px-2 py-1 bg-background text-foreground ml-2"
+              className="ml-2 rounded border border-border bg-background px-2 py-1 text-foreground"
             >
               <option value="low">Низкий (s_фамилия / t_фамилия)</option>
               <option value="medium">Средний (случайный 8‑12 символов)</option>
@@ -75,7 +75,7 @@ export default function CredentialsPage() {
                 max={32}
                 value={credLength}
                 onChange={(e) => setCredLength(Number(e.target.value))}
-                className="border border-border rounded px-2 py-1 w-20 bg-background text-foreground ml-2"
+                className="ml-2 w-20 rounded border border-border bg-background px-2 py-1 text-foreground"
               />
             </div>
           )}
@@ -104,7 +104,7 @@ export default function CredentialsPage() {
         </div>
 
         <button
-          className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded disabled:opacity-50"
+          className="hover:bg-primary/90 rounded bg-primary px-4 py-2 text-white disabled:opacity-50"
           onClick={() =>
             credMut.mutate({
               securityLevel: credSecurity,
@@ -121,11 +121,11 @@ export default function CredentialsPage() {
         </button>
 
         {credResult && (
-          <div className="mt-4 p-3 border border-border rounded bg-muted">
-            <p className="text-sm mb-2">
+          <div className="mt-4 rounded border border-border bg-muted p-3">
+            <p className="mb-2 text-sm">
               Создано записей: <strong>{credResult.count}</strong>
             </p>
-            <div className="max-h-48 overflow-y-auto mb-3 text-xs">
+            <div className="mb-3 max-h-48 overflow-y-auto text-xs">
               <table className="w-full">
                 <thead>
                   <tr className="text-left text-muted-foreground">
@@ -149,15 +149,15 @@ export default function CredentialsPage() {
             </div>
             <button
               onClick={downloadCredentials}
-              className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm"
+              className="rounded bg-green-600 px-3 py-1 text-sm text-white hover:bg-green-700"
             >
               Скачать CSV
             </button>
           </div>
         )}
       </div>
-      <div className="bg-background border border-border rounded-lg shadow-sm p-4 mt-4">
-        <h2 className="text-lg font-semibold mb-2 text-red-600">Опасная зона</h2>
+      <div className="mt-4 rounded-lg border border-border bg-background p-4 shadow-sm">
+        <h2 className="mb-2 text-lg font-semibold text-red-600">Опасная зона</h2>
         <button
           onClick={() => {
             if (window.confirm("Удалить ВСЕ учётные записи (логины/пароли) студентов и сотрудников? Это действие нельзя отменить!")) {
@@ -165,7 +165,7 @@ export default function CredentialsPage() {
             }
           }}
           disabled={clearAllMut.isPending}
-          className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded disabled:opacity-50"
+          className="rounded bg-red-600 px-4 py-2 text-white hover:bg-red-700 disabled:opacity-50"
         >
           {clearAllMut.isPending ? "Удаление..." : "Сбросить все учётные записи"}
         </button>

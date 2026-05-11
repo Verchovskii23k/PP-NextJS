@@ -111,19 +111,19 @@ export default function GenerationsPage() {
   if (thresholdLoading || weeksLoading) return <div className="p-6 text-foreground">Загрузка настроек...</div>;
 
   return (
-    <div className="p-6 max-w-3xl mx-auto bg-background text-foreground">
-      <h1 className="text-2xl font-bold mb-6">Системные генераторы</h1>
+    <div className="mx-auto max-w-3xl bg-background p-6 text-foreground">
+      <h1 className="mb-6 text-2xl font-bold">Системные генераторы</h1>
       {error && (
-        <div className="bg-red-100 dark:bg-red-900/20 border border-red-400 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded mb-4">
+        <div className="mb-4 rounded border border-red-400 bg-red-100 px-4 py-3 text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400">
           {error}
         </div>
       )}
 
       {/* Карточка: Группы */}
-      <div className="bg-background border border-border rounded-lg shadow-sm p-4 mb-4">
-        <h2 className="text-lg font-semibold mb-2">1. Учебные группы</h2>
+      <div className="mb-4 rounded-lg border border-border bg-background p-4 shadow-sm">
+        <h2 className="mb-2 text-lg font-semibold">1. Учебные группы</h2>
         <button
-          className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded disabled:opacity-50"
+          className="hover:bg-primary/90 rounded bg-primary px-4 py-2 text-white disabled:opacity-50"
           onClick={() => groups.mutate()}
           disabled={groups.isPending}
         >
@@ -132,26 +132,26 @@ export default function GenerationsPage() {
       </div>
 
       {/* Карточка: Юниты + порог подгруппы + семестр */}
-      <div className="bg-background border border-border rounded-lg shadow-sm p-4 mb-4">
-        <h2 className="text-lg font-semibold mb-2">2. Юниты</h2>
+      <div className="mb-4 rounded-lg border border-border bg-background p-4 shadow-sm">
+        <h2 className="mb-2 text-lg font-semibold">2. Юниты</h2>
         <div className="flex flex-wrap items-center gap-3">
           <label className="text-sm text-muted-foreground">Макс. размер подгруппы:</label>
           <input
             type="number"
             value={threshold ?? ""}
             onChange={(e) => setThreshold(Number(e.target.value))}
-            className="border border-border rounded px-2 py-1 w-24 bg-background text-foreground placeholder:text-muted-foreground"
+            className="w-24 rounded border border-border bg-background px-2 py-1 text-foreground placeholder:text-muted-foreground"
             placeholder="..."
           />
           <button
-            className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm"
+            className="rounded bg-green-600 px-3 py-1 text-sm text-white hover:bg-green-700"
             onClick={handleSaveThreshold}
             disabled={updateThreshold.isPending}
           >
             {updateThreshold.isPending ? "..." : "ОК"}
           </button>
           <button
-            className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded disabled:opacity-50"
+            className="hover:bg-primary/90 rounded bg-primary px-4 py-2 text-white disabled:opacity-50"
             onClick={() => units.mutate()}
             disabled={units.isPending}
           >
@@ -165,11 +165,11 @@ export default function GenerationsPage() {
               max={12}
               value={semesterInput ?? ""}
               onChange={(e) => setSemesterInput(Number(e.target.value))}
-              className="border border-border rounded px-2 py-1 w-20 bg-background text-foreground placeholder:text-muted-foreground"
+              className="w-20 rounded border border-border bg-background px-2 py-1 text-foreground placeholder:text-muted-foreground"
               placeholder="1"
             />
             <button
-              className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-sm"
+              className="rounded bg-green-600 px-2 py-1 text-sm text-white hover:bg-green-700"
               onClick={handleSaveSemester}
               disabled={updateSemester.isPending}
             >
@@ -180,10 +180,10 @@ export default function GenerationsPage() {
       </div>
 
       {/* Карточка: Занятия */}
-      <div className="bg-background border border-border rounded-lg shadow-sm p-4 mb-4">
-        <h2 className="text-lg font-semibold mb-2">3. Занятия</h2>
+      <div className="mb-4 rounded-lg border border-border bg-background p-4 shadow-sm">
+        <h2 className="mb-2 text-lg font-semibold">3. Занятия</h2>
         <button
-          className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded disabled:opacity-50"
+          className="hover:bg-primary/90 rounded bg-primary px-4 py-2 text-white disabled:opacity-50"
           onClick={() => lessons.mutate({ currentSemester: semesterInput })}
           disabled={lessons.isPending}
         >
@@ -192,10 +192,10 @@ export default function GenerationsPage() {
       </div>
 
       {/* Карточка: Аудитории */}
-      <div className="bg-background border border-border rounded-lg shadow-sm p-4 mb-4">
-        <h2 className="text-lg font-semibold mb-2">4. Аудиторные назначения</h2>
+      <div className="mb-4 rounded-lg border border-border bg-background p-4 shadow-sm">
+        <h2 className="mb-2 text-lg font-semibold">4. Аудиторные назначения</h2>
         <button
-          className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded disabled:opacity-50"
+          className="hover:bg-primary/90 rounded bg-primary px-4 py-2 text-white disabled:opacity-50"
           onClick={() => classrooms.mutate()}
           disabled={classrooms.isPending}
         >
@@ -204,20 +204,20 @@ export default function GenerationsPage() {
       </div>
 
       {/* Карточка: Расписание + настройки */}
-      <div className="bg-background border border-border rounded-lg shadow-sm p-4 mb-4">
-        <h2 className="text-lg font-semibold mb-2">5. Расписание</h2>
-        <div className="flex flex-wrap items-center gap-4 mb-3" >
+      <div className="mb-4 rounded-lg border border-border bg-background p-4 shadow-sm">
+        <h2 className="mb-2 text-lg font-semibold">5. Расписание</h2>
+        <div className="mb-3 flex flex-wrap items-center gap-4" >
           <div className="flex items-center gap-2">
             <label className="text-sm text-muted-foreground">Всего недель:</label>
             <input
               type="number"
               value={totalWeeksInput ?? ""}
               onChange={(e) => setTotalWeeksInput(Number(e.target.value))}
-              className="border border-border rounded px-2 py-1 w-20 bg-background text-foreground placeholder:text-muted-foreground"
+              className="w-20 rounded border border-border bg-background px-2 py-1 text-foreground placeholder:text-muted-foreground"
               placeholder="16"
             />
             <button
-              className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-sm"
+              className="rounded bg-green-600 px-2 py-1 text-sm text-white hover:bg-green-700"
               onClick={handleSaveTotalWeeks}
               disabled={updateTotalWeeks.isPending}
             >
@@ -226,7 +226,7 @@ export default function GenerationsPage() {
           </div>
         </div>
         <button
-          className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded disabled:opacity-50"
+          className="hover:bg-primary/90 rounded bg-primary px-4 py-2 text-white disabled:opacity-50"
           onClick={() =>
             schedule.mutate({
               totalWeeks: totalWeeksInput ?? 16,

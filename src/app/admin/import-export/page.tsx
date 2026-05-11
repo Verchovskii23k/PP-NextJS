@@ -73,27 +73,27 @@ export default function ImportExportPage() {
     };
 
   return (
-    <div className="max-w-3xl mx-auto p-6 bg-background text-foreground">
-      <h1 className="text-2xl font-bold mb-6">Импорт / Экспорт данных</h1>
+    <div className="mx-auto max-w-3xl bg-background p-6 text-foreground">
+      <h1 className="mb-6 text-2xl font-bold">Импорт / Экспорт данных</h1>
 
       <div className="space-y-6">
-        <section className="bg-muted p-4 rounded-lg border border-border">
-          <h2 className="text-lg font-semibold mb-2">Экспорт справочников</h2>
-          <p className="text-sm text-muted-foreground mb-3">
+        <section className="rounded-lg border border-border bg-muted p-4">
+          <h2 className="mb-2 text-lg font-semibold">Экспорт справочников</h2>
+          <p className="mb-3 text-sm text-muted-foreground">
             Скачать все справочные таблицы в формате JSON (исключая расписание, занятия и учётные записи).
           </p>
           <button
             onClick={handleExport}
             disabled={isExporting}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded disabled:opacity-50"
+            className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:opacity-50"
           >
             {isExporting ? "Экспорт..." : "Скачать JSON"}
           </button>
         </section>
 
-        <section className="bg-muted p-4 rounded-lg border border-border">
-          <h2 className="text-lg font-semibold mb-2">Импорт справочников</h2>
-          <p className="text-sm text-muted-foreground mb-3">
+        <section className="rounded-lg border border-border bg-muted p-4">
+          <h2 className="mb-2 text-lg font-semibold">Импорт справочников</h2>
+          <p className="mb-3 text-sm text-muted-foreground">
             Загрузите JSON-файл, экспортированный из этой системы. <br />
             <strong>Внимание:</strong> дубликаты в таблицах сотрудников и студентов будут созданы заново. Остальные записи обновятся при совпадении уникальных полей.
           </p>
@@ -102,33 +102,33 @@ export default function ImportExportPage() {
             accept=".json"
             onChange={handleImport}
             disabled={isImporting}
-            className="block w-full text-sm text-foreground
-              file:mr-4 file:py-2 file:px-4
-              file:rounded file:border-0
+            className="hover:file:bg-primary/90 block w-full text-sm
+              text-foreground file:mr-4 file:rounded
+              file:border-0 file:bg-primary
+              file:px-4 file:py-2
               file:text-sm file:font-medium
-              file:bg-primary file:text-white
-              hover:file:bg-primary/90
+              file:text-white
               disabled:opacity-50"
           />
           {isImporting && <p className="mt-2 text-sm text-blue-600">Импорт выполняется...</p>}
         </section>
 
         {message && (
-          <div className="bg-green-100 dark:bg-green-900/20 border border-green-400 dark:border-green-800 text-green-700 dark:text-green-400 p-3 rounded">
+          <div className="rounded border border-green-400 bg-green-100 p-3 text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-400">
             {message}
           </div>
         )}
 
         {importResult && (
-          <div className="bg-card border border-border rounded p-4">
-            <h3 className="font-semibold mb-2">Результаты импорта</h3>
+          <div className="bg-card rounded border border-border p-4">
+            <h3 className="mb-2 font-semibold">Результаты импорта</h3>
             <div className="space-y-2 text-sm">
               {Object.entries(importResult as Record<string, { inserted: number; updated: number; skipped: number; errors: string[] }>).map(([table, stats]) => (
                 <div key={table} className="border-t border-border pt-2">
                   <strong>{table}</strong>: вставлено {stats.inserted}, обновлено {stats.updated}, пропущено {stats.skipped}
                   {stats.errors.length > 0 && (
                     <details className="mt-1">
-                      <summary className="text-red-500 cursor-pointer">
+                      <summary className="cursor-pointer text-red-500">
                         Ошибки ({stats.errors.length})
                       </summary>
                       <ul className="list-disc pl-5 text-red-600 dark:text-red-400">

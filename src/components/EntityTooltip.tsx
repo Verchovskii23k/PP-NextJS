@@ -87,7 +87,7 @@ export function EntityTooltip({ tableName, id, children }: EntityTooltipProps) {
           tableName={field.references!.table}
           id={row[field.dbName] as number}
         >
-          <span className="text-blue-600 font-medium hover:bg-blue-100 cursor-pointer">
+          <span className="cursor-pointer font-medium text-blue-600 hover:bg-blue-100">
             {String(row[field.dbName])}
           </span>
         </EntityTooltip>
@@ -100,7 +100,7 @@ export function EntityTooltip({ tableName, id, children }: EntityTooltipProps) {
     <span ref={triggerRef} className="relative inline-block">
       <span
         onClick={handleToggle}
-        className="text-blue-600 font-medium hover:bg-blue-100 cursor-pointer select-none"
+        className="cursor-pointer select-none font-medium text-blue-600 hover:bg-blue-100"
       >
         {children}
       </span>
@@ -108,9 +108,9 @@ export function EntityTooltip({ tableName, id, children }: EntityTooltipProps) {
         <div
           ref={tooltipRef}
           style={posStyle}
-          className="bg-white border border-gray-300 shadow-lg rounded-md p-2 text-sm min-w-[240px] max-w-[90vw] max-h-[80vh] overflow-y-auto"
+          className="max-h-[80vh] min-w-[240px] max-w-[90vw] overflow-y-auto rounded-md border border-gray-300 bg-white p-2 text-sm shadow-lg"
         >
-          <div className="font-semibold mb-1">{meta.nameRu}</div>
+          <div className="mb-1 font-semibold">{meta.nameRu}</div>
           {isLoading && <div className="text-gray-500">Загрузка...</div>}
           {data === null && <div className="text-red-500">Не найдено</div>}
           {data && typeof data === 'object' ? (

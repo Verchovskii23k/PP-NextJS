@@ -23,9 +23,9 @@ export default function LoginPage() {
   }, []);
 
   return (
-    <div className="max-w-md mx-auto mt-20 p-6 border border-border rounded-lg bg-background text-foreground">
-      <h1 className="text-xl font-semibold mb-4">Вход</h1>
-      {error && <p className="text-red-500 mb-4">{error}</p>}
+    <div className="mx-auto mt-20 max-w-md rounded-lg border border-border bg-background p-6 text-foreground">
+      <h1 className="mb-4 text-xl font-semibold">Вход</h1>
+      {error && <p className="mb-4 text-red-500">{error}</p>}
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -33,7 +33,7 @@ export default function LoginPage() {
         }}
       >
         <input
-          className="border border-border rounded px-3 py-2 w-full mb-3 bg-background text-foreground placeholder:text-muted-foreground"
+          className="mb-3 w-full rounded border border-border bg-background px-3 py-2 text-foreground placeholder:text-muted-foreground"
           placeholder="Логин"
           value={login}
           onChange={(e) => setLogin(e.target.value)}
@@ -41,7 +41,7 @@ export default function LoginPage() {
         />
         <div className="relative mb-4">
           <input
-            className="border border-border rounded px-3 py-2 w-full bg-background text-foreground placeholder:text-muted-foreground pr-10"
+            className="w-full rounded border border-border bg-background px-3 py-2 pr-10 text-foreground placeholder:text-muted-foreground"
             type={showPassword ? "text" : "password"}
             placeholder="Пароль"
             value={password}
@@ -57,13 +57,13 @@ export default function LoginPage() {
           </button>
         </div>
         <button
-          className="w-full bg-primary hover:bg-primary/90 text-white font-medium py-2 px-4 rounded transition-colors"
+          className="hover:bg-primary/90 w-full rounded bg-primary px-4 py-2 font-medium text-white transition-colors"
           type="submit"
           disabled={loginMut.isPending}
         >
           {loginMut.isPending ? "Вход..." : "Войти"}
         </button>
-        <p className="mt-4 text-sm text-center text-muted-foreground">
+        <p className="mt-4 text-center text-sm text-muted-foreground">
           <Link href="/forgot-password" className="hover:underline">
             Забыли пароль?
           </Link>

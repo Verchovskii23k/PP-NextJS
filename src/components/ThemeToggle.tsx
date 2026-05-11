@@ -15,11 +15,11 @@ export default function ThemeToggle() {
   if (!mounted) {
     return (
       <button
-        className="p-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800"
+        className="rounded-lg border border-gray-300 bg-white p-2 dark:border-gray-600 dark:bg-gray-800"
         aria-label="Переключить тему"
         disabled
       >
-        <div className="w-5 h-5" />
+        <div className="h-5 w-5" />
       </button>
     );
   }
@@ -27,7 +27,7 @@ export default function ThemeToggle() {
   return (
     <button
       onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-      className="p-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+      className="rounded-lg border border-gray-300 bg-white p-2 transition-colors hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:hover:bg-gray-700"
       aria-label="Переключить тему"
     >
       {theme === "dark" ? <Sun size={20} /> : <Moon size={20} />}

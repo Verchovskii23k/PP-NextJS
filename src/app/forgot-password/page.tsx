@@ -37,24 +37,24 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="max-w-md mx-auto mt-20 p-6 border border-border rounded-lg bg-background text-foreground">
-      <h1 className="text-xl font-semibold mb-4">Восстановление пароля</h1>
+    <div className="mx-auto mt-20 max-w-md rounded-lg border border-border bg-background p-6 text-foreground">
+      <h1 className="mb-4 text-xl font-semibold">Восстановление пароля</h1>
 
       {message && (
-        <div className="bg-green-100 dark:bg-green-900/20 border border-green-400 dark:border-green-800 text-green-700 dark:text-green-400 p-4 rounded mb-4">
+        <div className="mb-4 rounded border border-green-400 bg-green-100 p-4 text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-400">
           {message}
         </div>
       )}
       {token && (
-        <div className="bg-yellow-100 dark:bg-yellow-900/20 border border-yellow-400 dark:border-yellow-800 text-yellow-700 dark:text-yellow-400 p-4 rounded mb-4">
+        <div className="mb-4 rounded border border-yellow-400 bg-yellow-100 p-4 text-yellow-700 dark:border-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400">
           <p className="mb-2">Ваш токен восстановления:</p>
           <div className="flex items-center gap-2">
-            <div className="flex-1 bg-background border border-border rounded px-3 py-2 font-mono text-sm break-all">
+            <div className="flex-1 break-all rounded border border-border bg-background px-3 py-2 font-mono text-sm">
               {token}
             </div>
             <button
               onClick={copyToken}
-              className="p-2 rounded bg-background border border-border hover:bg-muted transition-colors"
+              className="rounded border border-border bg-background p-2 transition-colors hover:bg-muted"
               title="Копировать токен"
             >
               {copied ? <Check size={18} className="text-green-500" /> : <Copy size={18} />}
@@ -78,21 +78,21 @@ export default function ForgotPasswordPage() {
         >
           <label className="text-sm text-muted-foreground">Логин</label>
           <input
-            className="border border-border rounded px-3 py-2 w-full mb-3 bg-background text-foreground"
+            className="mb-3 w-full rounded border border-border bg-background px-3 py-2 text-foreground"
             value={login}
             onChange={(e) => setLogin(e.target.value)}
           />
           <label className="text-sm text-muted-foreground">Email</label>
           <input
-            className="border border-border rounded px-3 py-2 w-full mb-3 bg-background text-foreground"
+            className="mb-3 w-full rounded border border-border bg-background px-3 py-2 text-foreground"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
-          {error && <p className="text-red-500 mb-3">{error}</p>}
+          {error && <p className="mb-3 text-red-500">{error}</p>}
           <button
             type="submit"
-            className="w-full bg-primary hover:bg-primary/90 text-white font-medium py-2 px-4 rounded"
+            className="hover:bg-primary/90 w-full rounded bg-primary px-4 py-2 font-medium text-white"
             disabled={forgotMut.isPending}
           >
             {forgotMut.isPending ? "Отправка..." : "Получить инструкцию"}
@@ -100,7 +100,7 @@ export default function ForgotPasswordPage() {
         </form>
       )}
 
-      <p className="mt-4 text-sm text-muted-foreground text-center">
+      <p className="mt-4 text-center text-sm text-muted-foreground">
         <Link href="/login" className="hover:underline">← Вернуться ко входу</Link>
       </p>
     </div>

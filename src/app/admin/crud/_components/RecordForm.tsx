@@ -177,14 +177,14 @@ export function RecordForm({ tableName, editId, onClose }: RecordFormProps) {
 
       return (
         <div key={field.dbName} className="mb-3">
-          <label className="block text-sm font-medium mb-1 text-foreground">
+          <label className="mb-1 block text-sm font-medium text-foreground">
             {field.displayName}
-            {field.required && <span className="text-red-500 ml-1">*</span>}
+            {field.required && <span className="ml-1 text-red-500">*</span>}
           </label>
           <select
             value={(value as string | number | undefined) ?? ""}
             onChange={(e) => handleChange(field.dbName, e.target.value === "" ? null : Number(e.target.value))}
-            className={`border rounded px-3 py-1.5 w-full bg-background text-foreground ${hasError ? "border-red-500" : "border-border"}`}
+            className={`w-full rounded border bg-background px-3 py-1.5 text-foreground ${hasError ? "border-red-500" : "border-border"}`}
             disabled={optionsLoading}
           >
             <option value="">-- Не выбрано --</option>
@@ -194,7 +194,7 @@ export function RecordForm({ tableName, editId, onClose }: RecordFormProps) {
               </option>
             ))}
           </select>
-          {hasError && <p className="text-red-500 text-xs mt-1">{errorMsg}</p>}
+          {hasError && <p className="mt-1 text-xs text-red-500">{errorMsg}</p>}
         </div>
       );
     }
@@ -204,9 +204,9 @@ export function RecordForm({ tableName, editId, onClose }: RecordFormProps) {
       const isActive = !!value;
       return (
         <div key={field.dbName} className="mb-3">
-          <label className="block text-sm font-medium mb-1 text-foreground">
+          <label className="mb-1 block text-sm font-medium text-foreground">
             {field.displayName}
-            {field.required && <span className="text-red-500 ml-1">*</span>}
+            {field.required && <span className="ml-1 text-red-500">*</span>}
           </label>
           <button
             type="button"
@@ -218,7 +218,7 @@ export function RecordForm({ tableName, editId, onClose }: RecordFormProps) {
           <span className="ml-2 text-xs text-muted-foreground">
             {isActive ? (field.displayName === "Активен" ? "Да" : "Вкл") : (field.displayName === "Активен" ? "Нет" : "Выкл")}
           </span>
-          {hasError && <p className="text-red-500 text-xs mt-1">{errorMsg}</p>}
+          {hasError && <p className="mt-1 text-xs text-red-500">{errorMsg}</p>}
         </div>
       );
     }
@@ -226,9 +226,9 @@ export function RecordForm({ tableName, editId, onClose }: RecordFormProps) {
     // текстовое / числовое
     return (
       <div key={field.dbName} className="mb-3">
-        <label className="block text-sm font-medium mb-1 text-foreground">
+        <label className="mb-1 block text-sm font-medium text-foreground">
           {field.displayName}
-          {field.required && <span className="text-red-500 ml-1">*</span>}
+          {field.required && <span className="ml-1 text-red-500">*</span>}
         </label>
         <input
           type={isNumericField(field) ? "number" : "text"}
@@ -241,9 +241,9 @@ export function RecordForm({ tableName, editId, onClose }: RecordFormProps) {
               handleChange(field.dbName, e.target.value);
             }
           }}
-          className={`border rounded px-3 py-1.5 w-full bg-background text-foreground ${hasError ? "border-red-500" : "border-border"}`}
+          className={`w-full rounded border bg-background px-3 py-1.5 text-foreground ${hasError ? "border-red-500" : "border-border"}`}
         />
-        {hasError && <p className="text-red-500 text-xs mt-1">{errorMsg}</p>}
+        {hasError && <p className="mt-1 text-xs text-red-500">{errorMsg}</p>}
       </div>
     );
   };
@@ -251,19 +251,19 @@ export function RecordForm({ tableName, editId, onClose }: RecordFormProps) {
   const isPending = createMutation?.isPending || updateMutation?.isPending;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-      <div className="bg-background border border-border rounded-lg shadow-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <h2 className="text-lg font-semibold mb-4 text-foreground">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg border border-border bg-background p-6 shadow-xl">
+        <h2 className="mb-4 text-lg font-semibold text-foreground">
           {editId ? `Редактировать запись (ID: ${editId})` : `Создать запись в таблице «${meta.nameRu}»`}
         </h2>
         <form onSubmit={handleSubmit}>
           {meta.fields.map(renderField)}
-          {errors._form && <p className="text-red-500 text-sm mb-3">{errors._form}</p>}
-          <div className="flex justify-end gap-2 mt-4">
-            <button type="button" onClick={onClose} className="px-4 py-1.5 border border-border bg-background text-foreground rounded text-sm hover:bg-muted/50" disabled={isPending}>
+          {errors._form && <p className="mb-3 text-sm text-red-500">{errors._form}</p>}
+          <div className="mt-4 flex justify-end gap-2">
+            <button type="button" onClick={onClose} className="hover:bg-muted/50 rounded border border-border bg-background px-4 py-1.5 text-sm text-foreground" disabled={isPending}>
               Отмена
             </button>
-            <button type="submit" className="px-4 py-1.5 bg-primary text-white rounded text-sm hover:bg-primary/90" disabled={isPending}>
+            <button type="submit" className="hover:bg-primary/90 rounded bg-primary px-4 py-1.5 text-sm text-white" disabled={isPending}>
               {isPending ? "Сохранение..." : "Сохранить"}
             </button>
           </div>

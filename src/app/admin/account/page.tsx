@@ -57,12 +57,12 @@ export default function AccountPage() {
 
   // Основной интерфейс (только для авторизованных)
   return (
-    <div className="p-6 max-w-lg mx-auto bg-background text-foreground">
-      <h1 className="text-2xl font-bold mb-6">Настройки аккаунта</h1>
+    <div className="mx-auto max-w-lg bg-background p-6 text-foreground">
+      <h1 className="mb-6 text-2xl font-bold">Настройки аккаунта</h1>
 
       {/* Смена логина */}
-      <div className="bg-background border border-border rounded-lg shadow-sm p-4 mb-6">
-        <h2 className="text-lg font-semibold mb-3">Сменить логин</h2>
+      <div className="mb-6 rounded-lg border border-border bg-background p-4 shadow-sm">
+        <h2 className="mb-3 text-lg font-semibold">Сменить логин</h2>
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -75,7 +75,7 @@ export default function AccountPage() {
               type={showLogin ? "text" : "password"}
               value={newLogin}
               onChange={(e) => setNewLogin(e.target.value)}
-              className="border border-border rounded px-3 py-2 w-full bg-background text-foreground pr-10"
+              className="w-full rounded border border-border bg-background px-3 py-2 pr-10 text-foreground"
               required
             />
             <button
@@ -88,12 +88,12 @@ export default function AccountPage() {
             </button>
           </div>
           {loginError && (
-            <p className="text-red-500 text-sm mb-2">{loginError}</p>
+            <p className="mb-2 text-sm text-red-500">{loginError}</p>
           )}
           <button
             type="submit"
             disabled={changeLoginMut.isPending}
-            className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded disabled:opacity-50"
+            className="hover:bg-primary/90 rounded bg-primary px-4 py-2 text-white disabled:opacity-50"
           >
             {changeLoginMut.isPending ? "Сохранение..." : "Сохранить"}
           </button>
@@ -101,8 +101,8 @@ export default function AccountPage() {
       </div>
 
       {/* Смена пароля */}
-      <div className="bg-background border border-border rounded-lg shadow-sm p-4">
-        <h2 className="text-lg font-semibold mb-3">Сменить пароль</h2>
+      <div className="rounded-lg border border-border bg-background p-4 shadow-sm">
+        <h2 className="mb-3 text-lg font-semibold">Сменить пароль</h2>
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -115,7 +115,7 @@ export default function AccountPage() {
               type={showCurrentPassword ? "text" : "password"}
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
-              className="border border-border rounded px-3 py-2 w-full bg-background text-foreground pr-10"
+              className="w-full rounded border border-border bg-background px-3 py-2 pr-10 text-foreground"
               required
             />
             <button
@@ -133,7 +133,7 @@ export default function AccountPage() {
               type={showNewPassword ? "text" : "password"}
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              className="border border-border rounded px-3 py-2 w-full bg-background text-foreground pr-10"
+              className="w-full rounded border border-border bg-background px-3 py-2 pr-10 text-foreground"
               required
               minLength={6}
             />
@@ -147,12 +147,12 @@ export default function AccountPage() {
             </button>
           </div>
           {passwordError && (
-            <p className="text-red-500 text-sm mb-2">{passwordError}</p>
+            <p className="mb-2 text-sm text-red-500">{passwordError}</p>
           )}
           <button
             type="submit"
             disabled={changePasswordMut.isPending}
-            className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded disabled:opacity-50"
+            className="hover:bg-primary/90 rounded bg-primary px-4 py-2 text-white disabled:opacity-50"
           >
             {changePasswordMut.isPending ? "Сохранение..." : "Сменить пароль"}
           </button>

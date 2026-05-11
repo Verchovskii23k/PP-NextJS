@@ -25,8 +25,8 @@ export default function ResetPasswordPage() {
   });
 
   return (
-    <div className="max-w-md mx-auto mt-20 p-6 border border-border rounded-lg bg-background text-foreground">
-      <h1 className="text-xl font-semibold mb-4">Новый пароль{newLogin ? " и логин" : ""}</h1>
+    <div className="mx-auto mt-20 max-w-md rounded-lg border border-border bg-background p-6 text-foreground">
+      <h1 className="mb-4 text-xl font-semibold">Новый пароль{newLogin ? " и логин" : ""}</h1>
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -40,7 +40,7 @@ export default function ResetPasswordPage() {
       >
         <label className="text-sm text-muted-foreground">Токен</label>
         <input
-          className="border border-border rounded px-3 py-2 w-full mb-3 bg-background text-foreground"
+          className="mb-3 w-full rounded border border-border bg-background px-3 py-2 text-foreground"
           value={token}
           onChange={(e) => setToken(e.target.value)}
           required
@@ -51,7 +51,7 @@ export default function ResetPasswordPage() {
           Новый логин (необязательно)
         </label>
         <input
-          className="border border-border rounded px-3 py-2 w-full mb-3 bg-background text-foreground"
+          className="mb-3 w-full rounded border border-border bg-background px-3 py-2 text-foreground"
           value={newLogin}
           onChange={(e) => setNewLogin(e.target.value)}
           placeholder="Оставьте пустым, чтобы не менять"
@@ -63,7 +63,7 @@ export default function ResetPasswordPage() {
         <div className="relative mb-3">
           <input
             type={showPassword ? "text" : "password"}
-            className="border border-border rounded px-3 py-2 w-full bg-background text-foreground pr-10"
+            className="w-full rounded border border-border bg-background px-3 py-2 pr-10 text-foreground"
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
             required
@@ -79,11 +79,11 @@ export default function ResetPasswordPage() {
           </button>
         </div>
 
-        {error && <p className="text-red-500 mb-3">{error}</p>}
+        {error && <p className="mb-3 text-red-500">{error}</p>}
 
         <button
           type="submit"
-          className="w-full bg-primary hover:bg-primary/90 text-white font-medium py-2 px-4 rounded"
+          className="hover:bg-primary/90 w-full rounded bg-primary px-4 py-2 font-medium text-white"
           disabled={resetMut.isPending}
         >
           {resetMut.isPending ? "Сохранение..." : "Сохранить"}
