@@ -4,7 +4,7 @@ import { useState } from "react";
 
 export default function ImportExportPage() {
   const [message, setMessage] = useState("");
-  const [importResult, setImportResult] = useState<any>(null);
+  const [importResult, setImportResult] = useState<Record<string, { inserted: number; updated: number; skipped: number; errors: string[] }> | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
 
@@ -41,8 +41,9 @@ export default function ImportExportPage() {
         URL.revokeObjectURL(url);
         setMessage("Экспорт выполнен");
       }
-    } catch (e: any) {
-      setMessage(`Ошибка экспорта: ${e.message}`);
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Неизвестная ошибка";
+      setMessage(`Ошибка экспорта: ${message}`);
     }
     setIsExporting(false);
   };
@@ -62,8 +63,9 @@ export default function ImportExportPage() {
         const data = JSON.parse(raw);
         // Передаём сам объект, без обёртки
         await importMutation.mutateAsync(data);
-        } catch (err: any) {
-        setMessage(`Ошибка чтения файла: ${err.message}`);
+        } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : "Неизвестная ошибка";
+        setMessage(`Ошибка экспорта: ${message}`);
         setIsImporting(false);
         }
     };
@@ -121,7 +123,7 @@ export default function ImportExportPage() {
           <div className="bg-card border border-border rounded p-4">
             <h3 className="font-semibold mb-2">Результаты импорта</h3>
             <div className="space-y-2 text-sm">
-              {Object.entries(importResult).map(([table, stats]: [string, any]) => (
+              {Object.entries(importResult as Record<string, { inserted: number; updated: number; skipped: number; errors: string[] }>).map(([table, stats]) => (
                 <div key={table} className="border-t border-border pt-2">
                   <strong>{table}</strong>: вставлено {stats.inserted}, обновлено {stats.updated}, пропущено {stats.skipped}
                   {stats.errors.length > 0 && (

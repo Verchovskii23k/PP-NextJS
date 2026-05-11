@@ -2,7 +2,7 @@ import { z } from "zod";
 import { router, adminProcedure } from "../trpc";
 import { students } from "@/db/schema";
 import { eq } from "drizzle-orm";
-
+import { safeDelete } from "@/lib/safeDelete";
 export const studentsRouter = router({
   list: adminProcedure.query(async ({ ctx }) => {
     return ctx.db.select().from(students);
@@ -40,23 +40,14 @@ update: adminProcedure
     const { id, ...data } = input;
     return ctx.db.update(students).set(data).where(eq(students.id, id)).returning();
   }),
-  delete: adminProcedure
-    .input(z.object({ id: z.number() }))
-    .mutation(async ({ ctx, input }) => {
-      try {
-        await ctx.db.delete(students).where(eq(students.id, input.id));
-        return { success: true };
-      } catch (e: any) {
-        if (e?.code === '23503' || e?.message?.includes('foreign key') || e?.cause?.code === '23503') {
-          throw new Error('Невозможно удалить – запись используется в других таблицах');
-        }
-        throw e;
-      }
-    }),
     get: adminProcedure
       .input(z.object({ id: z.number() }))
       .query(async ({ ctx, input }) => {
         const rows = await ctx.db.select().from(students).where(eq(students.id, input.id)).limit(1);
         return rows[0] ?? null;
     }),
+
+    delete: adminProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => safeDelete(students, input.id)),
 });

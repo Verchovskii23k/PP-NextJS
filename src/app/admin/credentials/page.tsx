@@ -1,7 +1,7 @@
 "use client";
 import { trpc } from "@/trpc/client";
 import { useState } from "react";
-
+type SecurityLevel = "low" | "medium" | "high"
 export default function CredentialsPage() {
   const [error, setError] = useState<string | null>(null);
   const [credSecurity, setCredSecurity] = useState<"low" | "medium" | "high">("medium");
@@ -58,7 +58,7 @@ export default function CredentialsPage() {
             <label className="text-sm text-muted-foreground">Уровень защиты</label>
             <select
               value={credSecurity}
-              onChange={(e) => setCredSecurity(e.target.value as any)}
+              onChange={(e) => setCredSecurity(e.target.value as  SecurityLevel)}
               className="border border-border rounded px-2 py-1 bg-background text-foreground ml-2"
             >
               <option value="low">Низкий (s_фамилия / t_фамилия)</option>

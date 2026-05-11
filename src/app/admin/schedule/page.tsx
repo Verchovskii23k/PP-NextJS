@@ -1,6 +1,6 @@
 // src/app/admin/schedule/page.tsx
 "use client";
-
+import {toast} from "sonner"
 import { trpc } from "@/trpc/client";
 import { useState, useCallback } from "react";
 import {
@@ -31,7 +31,8 @@ type ScheduleRow = {
   lessonId: number | null;
   isBuffered: boolean;
 };
-
+type AnyRow = ScheduleRow & { studyGroupCode?: string };
+type ScheduleRowWithGroup = ScheduleRow & { studyGroupCode: string };
 type WeekInfo = { id: number; type: string };
 
 // Цвета для разных недель
@@ -208,10 +209,10 @@ export default function AdminSchedulePage() {
   const moveFromBufferMut = trpc.scheduleDisplay.moveFromBuffer.useMutation();
   const optimizeScheduleMut = trpc.scheduleDisplay.optimizeSchedule.useMutation({
     onSuccess: (data) => {
-      alert(`Оптимизация завершена. Итераций: ${data.iterations}, улучшение: с ${data.initialScore} до ${data.finalScore}`);
+      toast(`Оптимизация завершена. Итераций: ${data.iterations}, улучшение: с ${data.initialScore} до ${data.finalScore}`);
       refreshData();
     },
-    onError: (e) => alert(e.message),
+    onError: (e) => {toast(e.message)}
   });
 
   const refreshData = useCallback(() => {
@@ -247,14 +248,14 @@ export default function AdminSchedulePage() {
         } else if (status === "swap") {
           const swapId = slotSwapIds[targetId];
           if (!swapId) {
-            alert("Занятие для обмена не найдено");
+            toast("Занятие для обмена не найдено");
             return;
           }
           await swapMutation.mutateAsync({ id1: entry.id, id2: swapId });
         }
         refreshData();
-      } catch (e: any) {
-        alert(e.message);
+      } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : "Неизвестная ошибка"; toast.error(message)
       }
     },
     [slotStatuses, slotSwapIds, moveMutation, swapMutation, refreshData]
@@ -280,7 +281,7 @@ export default function AdminSchedulePage() {
       const newStatuses: Record<string, "free" | "conflict" | "swap"> = {};
       const newSwapIds: Record<string, number> = {};
       for (const [key, val] of Object.entries(result)) {
-        newStatuses[key] = val.status as any;
+        newStatuses[key] = val.status as "free" | "conflict" | "swap";
         if (val.status === "swap" && val.swapId) newSwapIds[key] = val.swapId;
       }
       setSlotStatuses(newStatuses);
@@ -327,7 +328,7 @@ export default function AdminSchedulePage() {
       const result = await checkSlots.mutateAsync({ movingId: entry.id, slots });
       const status = result[`week-${targetWeekId}-${targetDayId}-${targetPairId}-${targetUnitCode}`]?.status;
       if (status !== "free") {
-        alert("Невозможно разместить: конфликт");
+        toast.error("Невозможно разместить: конфликт");
         return;
       }
       await moveFromBufferMut.mutateAsync({ id: entry.id, targetWeekId, targetDayId, targetPairId, targetUnitCode });
@@ -396,7 +397,7 @@ const handlePrint = () => {
       }
     }
   } else if (viewMode === "groups" && groupsData) {
-    const groupCodes = Array.from(new Set(groupsData.rows.map((r: any) => r.studyGroupCode))).sort();
+    const groupCodes = Array.from(new Set(groupsData.rows.map((r: ScheduleRowWithGroup) => r.studyGroupCode))).sort();
     headerCells.push("День", "Пара", "Неделя", ...groupCodes);
 
     for (const day of groupsData.days) {
@@ -409,7 +410,7 @@ const handlePrint = () => {
           ];
           for (const code of groupCodes) {
             const entry = groupsData.rows.find(
-              (r: any) => r.studyGroupCode === code && r.dayOfWeekId === day.id && r.pairNumberId === pair.id && r.weekId === week.id
+              (r: ScheduleRowWithGroup) => r.studyGroupCode === code && r.dayOfWeekId === day.id && r.pairNumberId === pair.id && r.weekId === week.id
             );
             row.push(entry ? entry.displayText : "—");
           }
@@ -486,7 +487,7 @@ const handleCSV = () => {
       }
     }
   } else if (viewMode === "groups" && groupsData) {
-    const groupCodes = Array.from(new Set(groupsData.rows.map((r: any) => r.studyGroupCode))).sort();
+    const groupCodes = Array.from(new Set(groupsData.rows.map((r: ScheduleRowWithGroup) => r.studyGroupCode))).sort();
     groupCodes.forEach(code => header.push(code));
     rows.push(header);
 
@@ -496,7 +497,7 @@ const handleCSV = () => {
           const row = [day.name, String(pair.number), week.type];
           for (const code of groupCodes) {
             const entry = groupsData.rows.find(
-              (r: any) => r.studyGroupCode === code && r.dayOfWeekId === day.id && r.pairNumberId === pair.id && r.weekId === week.id
+              (r) => r.studyGroupCode === code && r.dayOfWeekId === day.id && r.pairNumberId === pair.id && r.weekId === week.id
             );
             row.push(entry ? entry.displayText : "—");
           }
@@ -522,12 +523,12 @@ const handleCSV = () => {
   if (viewMode === "groups" && groupsLoading) return <div className="p-6">Загрузка...</div>;
 
   const bufferEntries = bufferData || [];
-  const displayRows = viewMode === "units" ? unitsData?.rows : groupsData?.rows;
+  const displayRows = viewMode === "units" ? unitsData?.rows : (groupsData?.rows as ScheduleRowWithGroup[] | undefined);
   const days = viewMode === "units" ? unitsData?.days : groupsData?.days;
   const pairs = viewMode === "units" ? unitsData?.pairs : groupsData?.pairs;
   const unitKeys = viewMode === "units"
     ? Array.from(new Set(displayRows?.map((r) => r.unitCode) || [])).sort()
-    : Array.from(new Set(displayRows?.map((r: any) => r.studyGroupCode) || [])).sort();
+    : Array.from(new Set((displayRows as AnyRow[])?.map((r) => r.studyGroupCode || "") || [])).sort();
 
   return (
     <div className="p-4 bg-background text-foreground">
@@ -651,12 +652,13 @@ const handleCSV = () => {
                               <td key={`${day.id}-${pair.id}-${code}`} className="border border-border p-1 min-w-[180px] align-top">
                                 <div className="flex flex-col gap-1">
                                   {activeWeeksData.map((week, weekIdx) => {
-                                    const matchFn = (r: any) =>
+
+                                    const matchFn = (r: AnyRow) =>
                                       viewMode === "units"
                                         ? r.unitCode === code
                                         : r.studyGroupCode === code;
                                     const entry = displayRows.find(
-                                      (r: any) =>
+                                      (r) =>
                                         matchFn(r) &&
                                         r.dayOfWeekId === day.id &&
                                         r.pairNumberId === pair.id &&

@@ -20,7 +20,7 @@ import {
   employees,
   hourTypeMapping,
 } from "@/db/schema";
-import { eq, inArray, and, asc, gte, isNull, or } from "drizzle-orm";
+import { eq, inArray, and, asc, gte, isNull, or, SQL } from "drizzle-orm";
 
 type SlotKey = string;
 type ScheduleEntry = typeof sdTable.$inferSelect;
@@ -356,7 +356,6 @@ async function syncLessonClassroom(lessonId: number, classroomId: number) {
 
 async function findSuitableClassroomForGroup(
   group: MergeGroup,
-  ctx: OptimizationContext
 ): Promise<number | null> {
   const firstEntry = group.entries[0];
   const [lesson] = await db
@@ -387,7 +386,7 @@ async function findSuitableClassroomForGroup(
   type ClassroomPriorityKey = keyof Pick<typeof classrooms, "priorityLecture" | "priorityWorkshop" | "priorityGuidedStudy" | "priorityLab">;
   const priorityColumn = mapping.priorityColumn as ClassroomPriorityKey;
 
-  const conditions: any[] = [
+  const conditions: SQL<unknown>[] = [
     eq(classrooms.isActive, true),
     gte(classrooms.capacity, group.totalStudents)
   ];
@@ -395,7 +394,7 @@ async function findSuitableClassroomForGroup(
     conditions.push(or(
       eq(classrooms.departmentId, deptId),
       isNull(classrooms.departmentId)
-    ));
+    ) as SQL<unknown>);
   }
 
   const candidates = await db
@@ -587,28 +586,29 @@ function evaluateState(ctx: OptimizationContext): number {
 }
 
 function forcePlaceGroup(
-  ctx: OptimizationContext,
+  _ctx: OptimizationContext,
   group: MergeGroup,
   targetWeek: number,
   targetDay: number,
   targetPair: number
 ): boolean {
+  if (!_ctx) throw new Error("unreachable");
   const key = slotKey(targetWeek, targetDay, targetPair);
-  const occ = ctx.occupancyBySlot.get(key);
+  const occ = _ctx.occupancyBySlot.get(key);
   if (!occ) {
-    moveGroupToSlot(ctx, group, targetWeek, targetDay, targetPair);
+    moveGroupToSlot(_ctx, group, targetWeek, targetDay, targetPair);
     return true;
   }
 
-  const conflictingEntries = ctx.entries.filter(e => 
+  const conflictingEntries = _ctx.entries.filter(e => 
     e.weekId === targetWeek && 
     e.dayOfWeekId === targetDay && 
     e.pairNumberId === targetPair &&
-    group.entries.some(ge => !canMoveToSlot(ctx, ge, targetWeek, targetDay, targetPair))
+    group.entries.some(ge => !canMoveToSlot(_ctx, ge, targetWeek, targetDay, targetPair))
   );
 
   if (conflictingEntries.length === 0) {
-    moveGroupToSlot(ctx, group, targetWeek, targetDay, targetPair);
+    moveGroupToSlot(_ctx, group, targetWeek, targetDay, targetPair);
     return true;
   }
 
@@ -617,9 +617,9 @@ function forcePlaceGroup(
   for (const entry of conflictingEntries) {
     let found = false;
     for (let attempt = 0; attempt < 20 && !found; attempt++) {
-      const randSlot = ctx.slots[Math.floor(Math.random() * ctx.slots.length)];
+      const randSlot = _ctx.slots[Math.floor(Math.random() * _ctx.slots.length)];
       if (randSlot.weekId === targetWeek && randSlot.dayId === targetDay && randSlot.pairId === targetPair) continue;
-      if (canMoveToSlot(ctx, entry, randSlot.weekId, randSlot.dayId, randSlot.pairId)) {
+      if (canMoveToSlot(_ctx, entry, randSlot.weekId, randSlot.dayId, randSlot.pairId)) {
         moves.push({
           entry,
           oldSlot: { week: entry.weekId, day: entry.dayOfWeekId, pair: entry.pairNumberId },
@@ -632,13 +632,13 @@ function forcePlaceGroup(
   }
 
   for (const move of moves) {
-    updateOccupancy(ctx, move.entry, move.oldSlot.week, move.oldSlot.day, move.oldSlot.pair, move.newSlot.week, move.newSlot.day, move.newSlot.pair);
+    updateOccupancy(_ctx, move.entry, move.oldSlot.week, move.oldSlot.day, move.oldSlot.pair, move.newSlot.week, move.newSlot.day, move.newSlot.pair);
     move.entry.weekId = move.newSlot.week;
     move.entry.dayOfWeekId = move.newSlot.day;
     move.entry.pairNumberId = move.newSlot.pair;
   }
 
-  moveGroupToSlot(ctx, group, targetWeek, targetDay, targetPair);
+  moveGroupToSlot(_ctx, group, targetWeek, targetDay, targetPair);
   return true;
 }
 
@@ -669,7 +669,7 @@ export async function optimizeSchedule() {
           const newScore = evaluateState(ctx);
 
           if (newScore < currentScore) {
-            const classroomId = await findSuitableClassroomForGroup(group, ctx);
+            const classroomId = await findSuitableClassroomForGroup(group);
             if (classroomId !== null) {
               for (const entry of group.entries) {
                 entry.classroomId = classroomId;
@@ -709,7 +709,7 @@ export async function optimizeSchedule() {
           if (forcePlaceGroup(ctx, group, targetSlot.weekId, targetSlot.dayId, targetSlot.pairId)) {
             const newScore = evaluateState(ctx);
             if (newScore < currentScore) {
-              const classroomId = await findSuitableClassroomForGroup(group, ctx);
+              const classroomId = await findSuitableClassroomForGroup(group);
               if (classroomId !== null) {
                 for (const entry of group.entries) {
                   entry.classroomId = classroomId;

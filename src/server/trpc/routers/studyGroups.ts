@@ -2,7 +2,7 @@ import { z } from "zod";
 import { router, adminProcedure } from "../trpc";
 import { studyGroups, profiles, specialties, employees, employeesDepartments, institutes, departments } from "@/db/schema";
 import { eq, asc, sql, and } from "drizzle-orm";
-
+import { safeDelete } from "@/lib/safeDelete";
 export const studyGroupsRouter = router({
   list: adminProcedure.query(async ({ ctx }) => {
     return ctx.db
@@ -133,17 +133,7 @@ export const studyGroupsRouter = router({
       }
       return ctx.db.update(studyGroups).set({ ...data, curatorId }).where(eq(studyGroups.id, id)).returning();
     }),
-  delete: adminProcedure
+delete: adminProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ ctx, input }) => {
-      try {
-        await ctx.db.delete(studyGroups).where(eq(studyGroups.id, input.id));
-        return { success: true };
-      } catch (e: any) {
-        if (e?.code === '23503' || e?.message?.includes('foreign key') || e?.cause?.code === '23503') {
-          throw new Error('Невозможно удалить – запись используется в других таблицах');
-        }
-        throw e;
-      }
-    }),
+    .mutation(async ({ input }) => safeDelete(studyGroups, input.id)),
 });

@@ -20,6 +20,7 @@ import { tablesMeta } from "@/lib/table-meta";
 import { RecordForm } from "./RecordForm";
 import { ForeignKeyCell } from "./ForeignKeyCell";
 import { ColumnFilterPopover } from "./ColumnFilterPopover";
+import { toast } from "sonner";
 
 interface BaseRow extends Record<string, unknown> {
   id: number;
@@ -82,12 +83,12 @@ export function DataTable({ tableName }: DataTableProps) {
     error: { message: "" } as { message: string },
   };
 
-  const rows: BaseRow[] = rawData ?? [];
+  const rows: BaseRow[] = React.useMemo(() => rawData ?? [], [rawData]);
   const utils = trpc.useUtils();
 
   const deleteMutation = router?.delete?.useMutation?.({
     onSuccess: () => {
-      (utils as any)[routerKey]?.list?.invalidate?.();
+      (utils as unknown as Record<string, { list?: { invalidate?: () => void } }>)[routerKey]?.list?.invalidate?.()
     },
   });
 
@@ -110,13 +111,13 @@ export function DataTable({ tableName }: DataTableProps) {
   }, [tableName]);
 
   // ---------- вспомогательные функции ----------
-  const toggleSelectAll = () => {
+  const toggleSelectAll = React.useCallback(() => {
     if (selectedIds.size === rows.length && rows.length > 0) {
       setSelectedIds(new Set());
     } else {
       setSelectedIds(new Set(rows.map((r) => r.id)));
     }
-  };
+  }, [selectedIds, rows]);
 
   const toggleSelectOne = (id: number) => {
     setSelectedIds((prev) => {
@@ -144,11 +145,11 @@ export function DataTable({ tableName }: DataTableProps) {
           .map((e) => `ID ${e.id}: ${e.message}`)
           .join("\n")}`;
       }
-      alert(message);
+      toast(message);
       setSelectedIds(new Set());
-      (utils as any)[routerKey]?.list?.invalidate?.();
+      (utils as unknown as Record<string, { list?: { invalidate?: () => void } }>)[routerKey]?.list?.invalidate?.()
     } catch (err: unknown) {
-      alert("Ошибка: " + (err instanceof Error ? err.message : "Неизвестная ошибка"));
+      toast("Ошибка: " + (err instanceof Error ? err.message : "Неизвестная ошибка"));
     }
   };
 
@@ -165,10 +166,10 @@ export function DataTable({ tableName }: DataTableProps) {
         a.click();
         URL.revokeObjectURL(url);
       } else {
-        alert("Нет данных для экспорта");
+        toast.error("Нет данных для экспорта");
       }
     } catch (err: unknown) {
-      alert("Ошибка экспорта: " + (err instanceof Error ? err.message : "Неизвестная ошибка"));
+      toast.error("Ошибка экспорта: " + (err instanceof Error ? err.message : "Неизвестная ошибка"));
     }
   };
 
@@ -182,12 +183,12 @@ export function DataTable({ tableName }: DataTableProps) {
         const json = JSON.parse(content);
         if (!Array.isArray(json)) throw new Error("Файл должен содержать массив объектов");
         const result = await importMutation.mutateAsync({ tableName, data: json });
-        alert(
+        toast.success(
           `Импорт завершён:\nВсего: ${result.total}\nВставлено: ${result.inserted}\nОбновлено: ${result.updated}\nПропущено (совпадают): ${result.skipped}\nОшибок: ${result.errors.length}\n${result.errors.slice(0, 5).join("\n")}`
         );
-        (utils as any)[routerKey]?.list?.invalidate?.();
+        (utils as unknown as Record<string, { list?: { invalidate?: () => void } }>)[routerKey]?.list?.invalidate?.()
       } catch (err: unknown) {
-        alert("Ошибка импорта: " + (err instanceof Error ? err.message : "Неизвестная ошибка"));
+        toast.error("Ошибка импорта: " + (err instanceof Error ? err.message : "Неизвестная ошибка"));
       } finally {
         if (fileInputRef.current) fileInputRef.current.value = "";
       }
@@ -297,16 +298,16 @@ export function DataTable({ tableName }: DataTableProps) {
             className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 text-sm"
             onClick={async () => {
               if (!deleteMutation || !deleteMutation.mutateAsync) {
-                alert('Удаление недоступно');
+                toast.error('Удаление недоступно');
                 return;
               }
               if (!window.confirm(`Удалить запись с ID ${row.original.id}?`)) return;
               try {
                 await deleteMutation.mutateAsync({ id: row.original.id });
-                (utils as any)[routerKey]?.list?.invalidate?.();
+                (utils as unknown as Record<string, { list?: { invalidate?: () => void } }>)[routerKey]?.list?.invalidate?.()
               } catch (e: unknown) {
-                alert(e instanceof Error ? e.message : "Ошибка");
-                (utils as any)[routerKey]?.list?.invalidate?.();
+                toast.error(e instanceof Error ? e.message : "Ошибка");
+                (utils as unknown as Record<string, { list?: { invalidate?: () => void } }>)[routerKey]?.list?.invalidate?.()
               }
             }}
           >
@@ -318,10 +319,6 @@ export function DataTable({ tableName }: DataTableProps) {
 
     return cols;  
   }, [metaExists, meta, rows, selectedIds, toggleSelectAll, pagination.pageIndex, pagination.pageSize, columnFilters, deleteMutation, utils, routerKey]);
-
-  if (!metaExists) {
-    return <div>Таблица не найдена</div>;
-  }
 
   React.useEffect(() => {
     const validIds = new Set(columns.map(col => col.id));
@@ -348,6 +345,10 @@ export function DataTable({ tableName }: DataTableProps) {
       arrayFilter: arrayFilterFn,
     },
   });
+
+  if (!metaExists) {
+    return <div>Таблица не найдена</div>;
+  }
 
   if (isLoading) return <div>Загрузка...</div>;
   if (isError && error) return <div className="text-red-500">Ошибка: {error.message}</div>;
@@ -500,7 +501,7 @@ export function DataTable({ tableName }: DataTableProps) {
           onClose={() => {
             setShowForm(false);
             setEditId(null);
-            (utils as any)[routerKey]?.list?.invalidate?.();
+            (utils as unknown as Record<string, { list?: { invalidate?: () => void } }>)[routerKey]?.list?.invalidate?.()
           }}
         />
       )}

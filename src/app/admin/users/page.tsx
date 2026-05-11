@@ -1,6 +1,7 @@
 "use client";
 import { trpc } from "@/trpc/client";
 import { useState } from "react";
+import { toast } from "sonner";
 
 export default function UsersPage() {
   const { data, isLoading, error } = trpc.userManagement.listUsers.useQuery();
@@ -63,7 +64,7 @@ export default function UsersPage() {
                             setResetResult({ emailSent: data.emailSent });
                           }
                         },
-                        onError: (e) => alert(e.message),
+                        onError: (e) => toast.error(e.message),
                       }
                     );
                   }}

@@ -189,7 +189,7 @@ export const generateScheduleRouter = router({
 
       // Вставка schedule
       if (scheduleRows.length > 0) {
-        const cleanRows = scheduleRows.map(({ _unitCode, ...rest }) => rest);
+        const cleanRows = scheduleRows.map(({...rest }) => rest);
         await ctx.db.insert(schedule).values(cleanRows);
       }
 

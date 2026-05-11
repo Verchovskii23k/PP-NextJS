@@ -19,6 +19,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { toast } from "sonner";
 
 // Иконки для таблиц (можно эмодзи или текст)
 const TABLE_ICONS: Record<string, string> = {
@@ -103,39 +104,35 @@ function SortableItem({
     </li>
   );
 }
-
+function getDefaultOrder(): string[] {
+  return tableNames
+    .map(t => t.key)
+    .sort((a, b) => {
+      const labelA = tableNames.find(t => t.key === a)?.label ?? a;
+      const labelB = tableNames.find(t => t.key === b)?.label ?? b;
+      return labelA.localeCompare(labelB, "ru");
+    });
+}
 export default function AdminCrudPage() {
   const [selectedTable, setSelectedTable] = useState<string | null>(null);
   const resetMutation = trpc.generations.resetGeneratedData.useMutation();
-  const [order, setOrder] = useState<string[]>([]);
-
-  useEffect(() => {
+  const [order, setOrder] = useState<string[]>(() => {
     const stored = localStorage.getItem("crud_table_order");
     let initialOrder: string[];
     if (stored) {
       try {
-        initialOrder = JSON.parse(stored) as string[];
+        initialOrder = JSON.parse(stored);
         const allKeys = tableNames.map(t => t.key);
         const missing = allKeys.filter(k => !initialOrder.includes(k));
         initialOrder = [...initialOrder.filter(k => allKeys.includes(k)), ...missing];
       } catch {
-        initialOrder = tableNames.map(t => t.key).sort((a, b) => {
-          const labelA = tableNames.find(t => t.key === a)?.label ?? a;
-          const labelB = tableNames.find(t => t.key === b)?.label ?? b;
-          return labelA.localeCompare(labelB, "ru");
-        });
+        initialOrder = getDefaultOrder();
       }
     } else {
-      initialOrder = tableNames
-        .map(t => t.key)
-        .sort((a, b) => {
-          const labelA = tableNames.find(t => t.key === a)?.label ?? a;
-          const labelB = tableNames.find(t => t.key === b)?.label ?? b;
-          return labelA.localeCompare(labelB, "ru");
-        });
+      initialOrder = getDefaultOrder();
     }
-    setOrder(initialOrder);
-  }, []);
+    return initialOrder;
+  });
 
   useEffect(() => {
     if (order.length > 0) {
@@ -161,11 +158,14 @@ export default function AdminCrudPage() {
   const sortedTableList = order
     .map(key => {
       const meta = tableNames.find(t => t.key === key);
-      return meta
-        ? { key, label: meta.label, icon: TABLE_ICONS[key] || "📄" }
-        : null;
+      if (!meta) return null;
+      return {
+        key,
+        label: meta.label,
+        icon: TABLE_ICONS[key] ?? "📄",   // гарантированно string
+      };
     })
-    .filter(Boolean) as { key: string; label: string; icon?: string }[];
+    .filter(Boolean) as { key: string; label: string; icon: string }[];
 
   const handleSelectTable = (tableKey: string) => {
     setSelectedTable(tableKey);
@@ -213,10 +213,11 @@ export default function AdminCrudPage() {
                     return;
                   try {
                     await resetMutation.mutateAsync();
-                    alert("Все сгенерированные данные удалены. Запустите генерацию заново.");
-                  } catch (e: any) {
-                    alert("Ошибка при сбросе: " + e.message);
-                  }
+                    toast.success("Все сгенерированные данные удалены. Запустите генерацию заново.");
+                    } catch (e: unknown) {
+                      const message = e instanceof Error ? e.message : "Неизвестная ошибка";
+                      toast.error("Ошибка при сбросе: " + message);
+                    }
                 }}
                 className="px-3 py-1.5 bg-red-600 text-white rounded text-sm hover:bg-red-700"
               >

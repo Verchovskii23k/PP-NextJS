@@ -9,7 +9,7 @@ function toCamelCase(str: string): string {
 }
 
 // Рекурсивное преобразование ключей объекта
-function mapKeysToCamel(obj: any): any {
+function mapKeysToCamel(obj: unknown): unknown {
   if (Array.isArray(obj)) return obj.map(mapKeysToCamel);
   if (obj !== null && typeof obj === "object") {
     return Object.fromEntries(
@@ -43,8 +43,8 @@ export const lookupRouter = router({
         );
         if (rows.length === 0) return null;
         return mapKeysToCamel(rows[0]); // отдаём объект с camelCase-ключами
-      } catch (error) {
-        console.error(error);
+      } catch (e: unknown) {
+        console.error(e);
         throw new Error(`Ошибка загрузки данных из таблицы "${input.tableName}"`);
       }
     }),

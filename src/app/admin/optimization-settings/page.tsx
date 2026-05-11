@@ -2,6 +2,7 @@
 "use client";
 import { trpc } from "@/trpc/client";
 import { useState } from "react";
+import { toast } from "sonner";
 
 const KEYS = {
   teacherWindow: "opt_weight_teacher_window",
@@ -41,12 +42,12 @@ export default function OptimizationSettingsPage() {
   const [weights, setWeights] = useState(initWeights);
 
   const updateMut = trpc.settings.update.useMutation({
-    onSuccess: () => alert("Сохранено"),
-    onError: (e) => alert(e.message),
+    onSuccess: () => {toast.success("Сохранено")},
+    onError: (e) => {toast.error(e.message)}
   });
 
   const handleSave = (field: string, value: number) => {
-    const key = (KEYS as any)[field];
+    const key = (KEYS as Record<string, string>)[field];
     updateMut.mutate({ key, value: String(value) });
   };
 

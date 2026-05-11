@@ -5,15 +5,6 @@ import { sql } from "drizzle-orm";
 import { tablesMeta } from "@/lib/table-meta";
 
 const ALLOWED_TABLES = Object.keys(tablesMeta);
-
-// Экранирование для SQL
-// function escapeSqlString(value: any): string {
-//   if (value === null || value === undefined) return "NULL";
-//   if (typeof value === "number") return String(value);
-//   if (typeof value === "boolean") return value ? "TRUE" : "FALSE";
-//   return `'${String(value).replace(/'/g, "''")}'`;
-// }
-
 export const crudImportExportRouter = router({
   exportAll: adminProcedure
     .input(z.object({ tableName: z.string().refine(t => ALLOWED_TABLES.includes(t)) }))
@@ -51,13 +42,13 @@ export const crudImportExportRouter = router({
         }
 
         // Преобразуем camelCase → snake_case, если нужно
-        const dbRow: any = {};
+        const dbRow: Record<string, unknown> = {};
         for (const [key, val] of Object.entries(row)) {
           const snakeKey = key.replace(/[A-Z]/g, l => `_${l.toLowerCase()}`);
           dbRow[snakeKey] = val;
         }
 
-        const { id: _, ...values } = dbRow;
+        const {...values } = dbRow;
 
         // Проверяем, есть ли хоть одно поле для вставки/обновления
         if (Object.keys(values).length === 0) {
@@ -115,9 +106,10 @@ export const crudImportExportRouter = router({
           );
           results.updated++;
         }
-      } catch (error: any) {
-        console.error(`Import error for id=${row.id}:`, error);
-        results.errors.push(`id=${row.id}: ${error.message}`);
+      } catch (e: unknown) {
+        console.error(`Import error for id=${row.id}:`, e);
+        const message = e instanceof Error ? e.message : "Неизвестная ошибка";
+        results.errors.push(`id=${row.id}: ${message}`);
       }
     }
     return results;

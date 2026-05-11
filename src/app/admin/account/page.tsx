@@ -3,6 +3,7 @@ import { trpc } from "@/trpc/client";
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
+import { toast } from "sonner";
 
 export default function AccountPage() {
   // Проверка авторизации
@@ -16,7 +17,7 @@ export default function AccountPage() {
     onSuccess: () => {
       setNewLogin("");
       setLoginError(null);
-      alert("Логин успешно изменён");
+      toast("Логин успешно изменён");
     },
     onError: (e) => setLoginError(e.message),
   });
@@ -32,7 +33,7 @@ export default function AccountPage() {
       setCurrentPassword("");
       setNewPassword("");
       setPasswordError(null);
-      alert("Пароль успешно изменён");
+      toast("Пароль успешно изменён");
     },
     onError: (e) => setPasswordError(e.message),
   });

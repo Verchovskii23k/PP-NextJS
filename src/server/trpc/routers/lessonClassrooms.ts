@@ -6,12 +6,13 @@ import {
   disciplines, lessonTypes, employeesDepartments, employees, units,
   scheduleDisplay
 } from "@/db/schema";
+import { db } from "@/db";
 import { eq, sql } from "drizzle-orm";
 
 // Функция пересчёта displayText для всех слотов урока
-async function syncScheduleDisplayForLesson(db: any, lessonId: number) {
+async function syncScheduleDisplayForLesson(localDb: typeof db, lessonId: number) {
   // Находим все отображаемые слоты этого урока
-  const rows = await db
+  const rows = await localDb
     .select({
       id: scheduleDisplay.id,
       lessonId: scheduleDisplay.lessonId,
@@ -49,7 +50,7 @@ async function syncScheduleDisplayForLesson(db: any, lessonId: number) {
     const room = row.buildingNumber ? `${row.buildingNumber}-${row.roomNumber}` : 'б/а';
     const text = `[${row.unitCode}] ${typeAbbr}${disc} – ${teacher}, ${room}`;
 
-    await db
+    await localDb
       .update(scheduleDisplay)
       .set({ displayText: text })
       .where(eq(scheduleDisplay.id, row.id));

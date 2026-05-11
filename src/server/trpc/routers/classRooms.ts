@@ -6,6 +6,7 @@ import {
   lessons, units, unitRoots, studyGroups, unitTypes, disciplines,
 } from "@/db/schema";
 import { eq, sql, and, gte, isNull, or, SQL } from "drizzle-orm";  // добавлен SQL
+import { safeDelete } from "@/lib/safeDelete";
 
 export const classroomsRouter = router({
   list: adminProcedure
@@ -153,17 +154,7 @@ export const classroomsRouter = router({
       return ctx.db.update(classrooms).set(data).where(eq(classrooms.id, id)).returning();
     }),
 
-  delete: adminProcedure
+delete: adminProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ ctx, input }) => {
-      try {
-        await ctx.db.delete(classrooms).where(eq(classrooms.id, input.id));
-        return { success: true };
-      } catch (e: any) {
-        if (e?.code === '23503' || e?.message?.includes('foreign key') || e?.cause?.code === '23503') {
-          throw new Error('Невозможно удалить – запись используется в других таблицах');
-        }
-        throw e;
-      }
-    }),
+    .mutation(async ({ input }) => safeDelete(classrooms, input.id)),
 });

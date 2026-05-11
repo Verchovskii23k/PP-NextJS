@@ -1,12 +1,12 @@
 "use client";
 import { trpc } from "@/trpc/client";
 import { useState, useEffect } from "react";
+import { toast } from "sonner";
 
 export default function GenerationsPage() {
   const [error, setError] = useState<string | null>(null);
   const utils = trpc.useUtils();
 
-  // ---------- Порог подгруппы (из unit_types) ----------
   const { data: subgroupType, isLoading: thresholdLoading } =
     trpc.unitTypes.getByName.useQuery({ name: "ПОДГРУППА" });
 
@@ -16,11 +16,8 @@ export default function GenerationsPage() {
   });
 
   const [threshold, setThreshold] = useState<number | undefined>(undefined);
-
   useEffect(() => {
-    if (subgroupType?.maxSize !== undefined) {
-      setThreshold(subgroupType.maxSize);
-    }
+    if (subgroupType?.maxSize !== undefined) setThreshold(subgroupType.maxSize);
   }, [subgroupType]);
 
   const handleSaveThreshold = () => {
@@ -28,7 +25,6 @@ export default function GenerationsPage() {
     updateThreshold.mutate({ id: subgroupType.id, maxSize: threshold });
   };
 
-  // ---------- Всего недель (из settings) ----------
   const { data: totalWeeksSetting, isLoading: weeksLoading } =
     trpc.settings.get.useQuery({ key: "total_weeks" });
 
@@ -51,7 +47,6 @@ export default function GenerationsPage() {
     updateTotalWeeks.mutate({ key: "total_weeks", value: String(totalWeeksInput) });
   };
 
-  // ---------- Текущий семестр (из settings) ----------
   const { data: semesterSetting } = trpc.settings.get.useQuery({ key: "current_semester" });
   const updateSemester = trpc.settings.update.useMutation({
     onSuccess: () => utils.settings.get.invalidate({ key: "current_semester" }),
@@ -71,13 +66,12 @@ export default function GenerationsPage() {
     updateSemester.mutate({ key: "current_semester", value: String(semesterInput) });
   };
 
-  // ---------- Мутации генераций ----------
   const groups = trpc.generations.generateGroups.useMutation({
     onSuccess: (data) => {
       setError(null);
       utils.students.list.invalidate();
       utils.studyGroups.list.invalidate();
-      alert(`Групп: ${data.createdGroups}, студентов: ${data.assignedStudents}`);
+      toast.success(`Групп: ${data.createdGroups}, студентов: ${data.assignedStudents}`);
     },
     onError: (e) => setError(e.message),
   });
@@ -85,7 +79,7 @@ export default function GenerationsPage() {
   const units = trpc.generations.generateUnits.useMutation({
     onSuccess: (data) => {
       setError(null);
-      alert(`Создано юнитов: ${data.createdUnits}`);
+      toast.success(`Создано юнитов: ${data.createdUnits}`);
     },
     onError: (e) => setError(e.message),
   });
@@ -93,7 +87,7 @@ export default function GenerationsPage() {
   const lessons = trpc.generations.generateLessons.useMutation({
     onSuccess: (data) => {
       setError(null);
-      alert(`Создано занятий: ${data.lessonsCreated}`);
+      toast.success(`Создано занятий: ${data.lessonsCreated}`);
     },
     onError: (e) => setError(e.message),
   });
@@ -101,7 +95,7 @@ export default function GenerationsPage() {
   const classrooms = trpc.generations.assignClassroomsAuto.useMutation({
     onSuccess: (data) => {
       setError(null);
-      alert(`Назначено аудиторий: ${data.assignedClassrooms}`);
+      toast.success(`Назначено аудиторий: ${data.assignedClassrooms}`);
     },
     onError: (e) => setError(e.message),
   });
@@ -109,12 +103,11 @@ export default function GenerationsPage() {
   const schedule = trpc.generations.generateSchedule.useMutation({
     onSuccess: () => {
       setError(null);
-      alert("Расписание сгенерировано");
+      toast.success("Расписание сгенерировано");
     },
     onError: (e) => setError(e.message),
   });
 
-  // ---------- Рендер ----------
   if (thresholdLoading || weeksLoading) return <div className="p-6 text-foreground">Загрузка настроек...</div>;
 
   return (
@@ -213,7 +206,7 @@ export default function GenerationsPage() {
       {/* Карточка: Расписание + настройки */}
       <div className="bg-background border border-border rounded-lg shadow-sm p-4 mb-4">
         <h2 className="text-lg font-semibold mb-2">5. Расписание</h2>
-        <div className="flex flex-wrap items-center gap-4 mb-3">
+        <div className="flex flex-wrap items-center gap-4 mb-3" >
           <div className="flex items-center gap-2">
             <label className="text-sm text-muted-foreground">Всего недель:</label>
             <input

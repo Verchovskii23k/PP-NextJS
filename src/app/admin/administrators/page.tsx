@@ -68,8 +68,8 @@ export default function AdministratorsPage() {
                           { employeeId: emp.id, isAdmin: !emp.isAdmin },
                           {
                             onSuccess: (data) => {
-                              if ((data as any).warning) {
-                                setMutWarning((data as any).warning);
+                              if ((data as { warning?: string }).warning) {
+                                setMutWarning((data as { warning?: string }).warning ?? null);
                               }
                               // Инвалидируем список, чтобы toggle сразу обновился
                               utils.adminManagement.listEmployeesWithAdminFlag.invalidate();

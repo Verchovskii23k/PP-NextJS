@@ -3,7 +3,7 @@ import { z } from "zod";
 import { router, adminProcedure } from "../trpc";
 import { institutes, departments, studyGroups } from "@/db/schema";
 import { eq } from "drizzle-orm";
-
+import { safeDelete } from "@/lib/safeDelete";
 const instituteCreateSchema = z.object({
   universityCode: z.number().int().positive(),
   name: z.string().min(1),
@@ -72,17 +72,7 @@ export const institutesRouter = router({
         .where(eq(institutes.id, id))
         .returning();
     }),
-  delete: adminProcedure
+delete: adminProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ ctx, input }) => {
-      try {
-        await ctx.db.delete(institutes).where(eq(institutes.id, input.id));
-        return { success: true };
-      } catch (e: any) {
-        if (e?.code === '23503' || e?.message?.includes('foreign key') || e?.cause?.code === '23503') {
-          throw new Error('Невозможно удалить – запись используется в других таблицах');
-        }
-        throw e;
-      }
-    }),
+    .mutation(async ({ input }) => safeDelete(institutes, input.id)),
 });

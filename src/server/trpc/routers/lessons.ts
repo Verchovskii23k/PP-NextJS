@@ -3,7 +3,7 @@ import { z } from "zod";
 import { router, adminProcedure } from "../trpc";
 import { lessons, disciplines, lessonTypes, employeesDepartments, employees, units } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
-
+import { safeDelete } from "@/lib/safeDelete";
 export const lessonsRouter = router({
 list: adminProcedure.query(async ({ ctx }) => {
   return ctx.db
@@ -42,12 +42,12 @@ get: adminProcedure
         disciplineId: lessons.disciplineId,
         teacherId: lessons.teacherId,
         countPerSemester: lessons.countPerSemester,
-display: sql<string>`
-  ${units.code} || '-' || ${lessonTypes.abbreviation} || '-' ||
-  ${disciplines.abbreviation} || '-' ||
-  ${employees.surname} || ' ' || left(${employees.name},1) || '.' ||
-  left(${employees.patronymic},1) || '.'
-`.as('display'),
+        display: sql<string>`
+          ${units.code} || '-' || ${lessonTypes.abbreviation} || '-' ||
+          ${disciplines.abbreviation} || '-' ||
+          ${employees.surname} || ' ' || left(${employees.name},1) || '.' ||
+          left(${employees.patronymic},1) || '.'
+        `.as('display'),
       })
       .from(lessons)
       .innerJoin(disciplines, eq(lessons.disciplineId, disciplines.id))
@@ -87,17 +87,7 @@ display: sql<string>`
       const { id, ...data } = input;
       return ctx.db.update(lessons).set(data).where(eq(lessons.id, id)).returning();
     }),
-  delete: adminProcedure
+delete: adminProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ ctx, input }) => {
-      try {
-        await ctx.db.delete(lessons).where(eq(lessons.id, input.id));
-        return { success: true };
-      } catch (e: any) {
-        if (e?.code === '23503' || e?.message?.includes('foreign key') || e?.cause?.code === '23503') {
-          throw new Error('Невозможно удалить – запись используется в других таблицах');
-        }
-        throw e;
-      }
-    }),
+    .mutation(async ({ input }) => safeDelete(lessons, input.id)),
 });

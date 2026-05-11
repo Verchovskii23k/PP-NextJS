@@ -101,10 +101,10 @@ login: publicProcedure
         maxAge: 60 * 60 * 24 * 7,
       });
       return { success: true };
-    } catch (error: any) {
-      console.error("Login error:", error);
-      if (error.message === "Invalid credentials") {
-        throw error; // пробрасываем, чтобы клиент получил корректную ошибку
+    } catch (e: unknown) {
+      console.error("Login error:", e);
+      if (e instanceof Error && e.message === "Invalid credentials") {
+        throw e; // пробрасываем, чтобы клиент получил корректную ошибку
       }
       // Остальные ошибки (например, БД недоступна) превращаем в универсальное сообщение
       throw new Error("Внутренняя ошибка сервера. Попробуйте позже.");

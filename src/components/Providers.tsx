@@ -4,7 +4,7 @@ import { TRPCProvider } from "@/trpc/provider";
 import ThemeToggle from "./ThemeToggle";
 import Link from "next/link";
 import { Home, LogOut } from "lucide-react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { trpc } from "@/trpc/client";
 
 function HeaderContent() {

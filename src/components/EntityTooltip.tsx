@@ -15,16 +15,16 @@ export function EntityTooltip({ tableName, id, children }: EntityTooltipProps) {
   const triggerRef = useRef<HTMLSpanElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
   const [posStyle, setPosStyle] = useState<React.CSSProperties>({});
-    const meta = tablesMeta[tableName];
+  const meta = tablesMeta[tableName];
   const { data, isLoading } = trpc.lookup.getRow.useQuery(
-    { tableName: meta.dbTableName, id },
+    { tableName: meta?.dbTableName ?? "", id },
     { enabled: show, staleTime: 60_000 }
   );
-    const handleToggle = useCallback((e: React.MouseEvent) => {
+
+  const handleToggle = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     setShow(prev => !prev);
   }, []);
-  
 
   useEffect(() => {
     if (!show) return;
@@ -78,11 +78,23 @@ export function EntityTooltip({ tableName, id, children }: EntityTooltipProps) {
     requestAnimationFrame(updatePosition);
   }, [show, data]);
 
-  
   if (!meta) return <>{children}</>;
 
-
-
+  const renderFieldValue = (field: typeof meta.fields[number], row: Record<string, unknown>) => {
+    if (field.isFK && row[field.dbName] != null) {
+      return (
+        <EntityTooltip
+          tableName={field.references!.table}
+          id={row[field.dbName] as number}
+        >
+          <span className="text-blue-600 font-medium hover:bg-blue-100 cursor-pointer">
+            {String(row[field.dbName])}
+          </span>
+        </EntityTooltip>
+      );
+    }
+    return <span>{row[field.dbName] !== undefined ? String(row[field.dbName]) : "—"}</span>;
+  };
 
   return (
     <span ref={triggerRef} className="relative inline-block">
@@ -101,24 +113,14 @@ export function EntityTooltip({ tableName, id, children }: EntityTooltipProps) {
           <div className="font-semibold mb-1">{meta.nameRu}</div>
           {isLoading && <div className="text-gray-500">Загрузка...</div>}
           {data === null && <div className="text-red-500">Не найдено</div>}
-          {data && typeof data === 'object' &&
+          {data && typeof data === 'object' ? (
             meta.fields.map((field) => (
               <div key={field.dbName} className="flex justify-between gap-4">
                 <span className="text-gray-600">{field.displayName}:</span>
-                {field.isFK && (data as Record<string, unknown>)[field.dbName] != null ? (
-                  <EntityTooltip
-                    tableName={field.references!.table}
-                    id={(data as Record<string, unknown>)[field.dbName] as number}
-                  >
-                    <span className="text-blue-600 font-medium hover:bg-blue-100 cursor-pointer">
-                      {(data as Record<string, unknown>)[field.dbName] as string}
-                    </span>
-                  </EntityTooltip>
-                ) : (
-                  <span>{(data as Record<string, unknown>)[field.dbName] !== undefined ? String((data as Record<string, unknown>)[field.dbName]) : "—"}</span>
-                )}
+                {renderFieldValue(field, data as Record<string, unknown>)}
               </div>
-            ))}
+            ))
+          ) : null}
         </div>
       )}
     </span>

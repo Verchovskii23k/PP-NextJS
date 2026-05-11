@@ -2,7 +2,7 @@ import { z } from "zod";
 import { router, adminProcedure } from "../trpc";
 import { lessonTypes } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
-
+import { safeDelete } from "@/lib/safeDelete";
 export const lessonTypesRouter = router({
   list: adminProcedure.query(async ({ ctx }) => {
     return ctx.db
@@ -61,17 +61,7 @@ export const lessonTypesRouter = router({
       const { id, ...data } = input;
       return ctx.db.update(lessonTypes).set(data).where(eq(lessonTypes.id, id)).returning();
     }),
-  delete: adminProcedure
+delete: adminProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ ctx, input }) => {
-      try {
-        await ctx.db.delete(lessonTypes).where(eq(lessonTypes.id, input.id));
-        return { success: true };
-      } catch (e: any) {
-        if (e?.code === '23503' || e?.message?.includes('foreign key') || e?.cause?.code === '23503') {
-          throw new Error('Невозможно удалить – запись используется в других таблицах');
-        }
-        throw e;
-      }
-    }),
+    .mutation(async ({ input }) => safeDelete(lessonTypes, input.id)),
 });

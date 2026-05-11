@@ -6,7 +6,7 @@ import {
   employeesDepartments, employees, institutes, studyGroups
 } from "@/db/schema";
 import { eq, asc, sql } from "drizzle-orm";
-
+import { safeDelete } from "@/lib/safeDelete";
 export const departmentsRouter = router({
   list: adminProcedure.query(async ({ ctx }) => {
     return ctx.db
@@ -102,26 +102,13 @@ export const departmentsRouter = router({
         await ctx.db.update(classrooms).set({ isActive: false }).where(eq(classrooms.departmentId, id));
         await ctx.db.update(employeesDepartments).set({ isActive: false }).where(eq(employeesDepartments.departmentId, id));
       }
-      // const cleanData = Object.fromEntries(
-      //   Object.entries({ ...data, headId, isActive }).filter(([_, v]) => v !== undefined)
-      // );
       return ctx.db
         .update(departments)
         .set({ ...data, headId, isActive })
         .where(eq(departments.id, id))
         .returning();
     }),
-  delete: adminProcedure
+delete: adminProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ ctx, input }) => {
-      try {
-        await ctx.db.delete(departments).where(eq(departments.id, input.id));
-        return { success: true };
-      } catch (e: any) {
-        if (e?.code === '23503' || e?.message?.includes('foreign key') || e?.cause?.code === '23503') {
-          throw new Error('Невозможно удалить – запись используется в других таблицах');
-        }
-        throw e;
-      }
-    }),
+    .mutation(async ({ input }) => safeDelete(departments, input.id)),
 });

@@ -25,7 +25,7 @@ export const generateLessonsRouter = router({
     .input(z.object({
       currentSemester: z.coerce.number().int().optional()
     }).optional())
-    .mutation(async ({ ctx, input }) => {
+    .mutation(async ({ ctx }) => {
       // 1. Очистка зависимых таблиц
       await ctx.db.transaction(async (tx) => {
         await tx.delete(schedule);

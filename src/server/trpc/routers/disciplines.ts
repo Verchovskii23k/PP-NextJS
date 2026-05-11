@@ -2,7 +2,7 @@ import { z } from "zod";
 import { router, adminProcedure } from "../trpc";
 import { disciplines, curriculum, disciplineTeachers } from "@/db/schema";
 import { eq } from "drizzle-orm";
-
+import { safeDelete } from "@/lib/safeDelete";
 export const disciplinesRouter = router({
   list: adminProcedure.query(async ({ ctx }) => {
     return ctx.db.select().from(disciplines);
@@ -36,26 +36,13 @@ export const disciplinesRouter = router({
         await ctx.db.update(curriculum).set({ isActive: false }).where(eq(curriculum.disciplineId, id));
         await ctx.db.update(disciplineTeachers).set({ isActive: false }).where(eq(disciplineTeachers.disciplineId, id));
       }
-      const cleanData = Object.fromEntries(
-        Object.entries({ ...data, isActive }).filter(([_, v]) => v !== undefined)
-      );
       return ctx.db
         .update(disciplines)
         .set({ ...data, isActive })
         .where(eq(disciplines.id, id))
         .returning();
     }),
-  delete: adminProcedure
+delete: adminProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ ctx, input }) => {
-      try {
-        await ctx.db.delete(disciplines).where(eq(disciplines.id, input.id));
-        return { success: true };
-      } catch (e: any) {
-        if (e?.code === '23503' || e?.message?.includes('foreign key') || e?.cause?.code === '23503') {
-          throw new Error('Невозможно удалить – запись используется в других таблицах');
-        }
-        throw e;
-      }
-    }),
+    .mutation(async ({ input }) => safeDelete(disciplines, input.id)),
 });

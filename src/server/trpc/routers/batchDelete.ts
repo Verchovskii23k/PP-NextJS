@@ -3,6 +3,7 @@ import { router, adminProcedure } from "../trpc";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { tablesMeta } from "@/lib/table-meta";
+import { TRPCError } from "@trpc/server";
 
 // Таблицы, которые разрешено массово удалять (все, кроме системных)
 const ALLOWED_DELETE_TABLES = Object.keys(tablesMeta).filter(
@@ -36,20 +37,14 @@ export const batchDeleteRouter = router({
             sql`DELETE FROM ${sql.identifier(dbTableName)} WHERE id = ${id}`
           );
           result.deleted++;
-        } catch (err: any) {
-          // Игнорируем ошибки внешнего ключа (код 23503), остальные логируем
-          if (
-            err?.code === "23503" ||
-            err?.message?.includes("foreign key") ||
-            err?.cause?.code === "23503"
-          ) {
-            result.errors.push({ id, message: "Запись используется в других таблицах" });
-          } else {
-            result.errors.push({ id, message: err.message });
+        } catch (e: unknown) {
+          const code = (e as { code?: string }).code;
+          if (code === '23503' || (e instanceof Error && e.message.includes('foreign key'))) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "Невозможно удалить – запись используется" });
           }
+          throw e;
         }
       }
-
       return result;
     }),
 });

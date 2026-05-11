@@ -6,7 +6,7 @@ import {
   disciplines, units, unitRoots,
   studyGroups, unitTypes, hourTypeMapping
 } from "@/db/schema";
-import { eq, sql, and, gte, isNull, or } from "drizzle-orm";
+import { eq, sql, and, gte, isNull, or, SQL } from "drizzle-orm";
 
 export const assignClassroomsRouter = router({
   assignClassroomsAuto: adminProcedure
@@ -86,7 +86,7 @@ export const assignClassroomsRouter = router({
         const priorityColumn = mapping.priorityColumn as ClassroomPriorityKey;
 
         // --- фильтрация кандидатов ---
-        const conditions: any[] = [
+        const conditions: SQL<unknown>[] = [
           eq(classrooms.isActive, true),
           gte(classrooms.capacity, unitSize)
         ];
@@ -94,7 +94,7 @@ export const assignClassroomsRouter = router({
           conditions.push(or(
             eq(classrooms.departmentId, deptId),
             isNull(classrooms.departmentId)
-          ));
+          ) as SQL<unknown>);
         }
 
         const candidates = await ctx.db

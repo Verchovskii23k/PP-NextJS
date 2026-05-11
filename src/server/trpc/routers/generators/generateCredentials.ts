@@ -93,8 +93,6 @@ export const generateCredentialsRouter = router({
       const adminRole = roleRecords.find(r => r.name === "admin");
       if (!teacherRole || !studentRole || !adminRole) throw new Error("Роли 'teacher', 'student' и 'admin' должны существовать");
 
-      const isLoginUnique = async () => true;
-
       const processPerson = async (
         person: { id: number; surname: string; name: string; patronymic?: string | null; isAdmin?: boolean },
         type: "employee" | "student"

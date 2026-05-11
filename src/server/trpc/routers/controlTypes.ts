@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { router, adminProcedure } from "../trpc";
-import { classrooms, controlTypes } from "@/db/schema";
+import { controlTypes } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { safeDelete } from "@/lib/safeDelete";
 
 export const controlTypesRouter = router({
   list: adminProcedure.query(async ({ ctx }) => ctx.db.select().from(controlTypes)),
@@ -30,16 +31,6 @@ export const controlTypesRouter = router({
       return ctx.db.update(controlTypes).set(data).where(eq(controlTypes.id, id)).returning();
     }),
   delete: adminProcedure
-    .input(z.object({ id: z.number() }))
-    .mutation(async ({ ctx, input }) => {
-      try {
-        await ctx.db.delete(controlTypes).where(eq(controlTypes.id, input.id));
-        return { success: true };
-      } catch (e: any) {
-        if (e?.code === '23503' || e?.message?.includes('foreign key') || e?.cause?.code === '23503') {
-          throw new Error('Невозможно удалить – запись используется в других таблицах');
-        }
-        throw e;
-      }
-    }),
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => safeDelete(controlTypes, input.id)),
 });

@@ -26,13 +26,11 @@ export async function createSession(userId: number): Promise<string> {
     expiresAt,
   });
 
-  // Периодически чистим просроченные сессии (можно вынести в cron)
+  // Периодически чистим просроченные сессии
   await db
     .delete(sessions)
-    .where(eq(sessions.expiresAt, new Date())) // упрощённо для примера, лучше поставить условие < now()
-    .execute(); // но для простоты удалим все просроченные
-  // Лучше так:
-  // await db.delete(sessions).where(lt(sessions.expiresAt, new Date()));
+    .where(eq(sessions.expiresAt, new Date()))
+    .execute();
 
   return token;
 }

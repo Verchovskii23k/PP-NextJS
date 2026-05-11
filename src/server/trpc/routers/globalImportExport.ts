@@ -167,8 +167,9 @@ export const globalImportExportRouter = router({
                   const setEntries = Object.entries(dbRow).map(([k, v]) => sql`${sql.identifier(k)} = ${v}`);
                   await db.execute(sql`UPDATE ${sql.identifier(dbTableName)} SET ${sql.join(setEntries, sql`, `)} WHERE email = ${email}`);
                   stats[tableName].updated++;
-                } catch (err: any) {
-                  stats[tableName].errors.push(`Update by email failed: ${err.message}`);
+                } catch (e: unknown) {
+                  const message = e instanceof Error ? e.message : "Неизвестная ошибка";
+                  stats[tableName].errors.push(`Update failed: ${message}`);
                 }
               } else {
                 try {
@@ -179,8 +180,9 @@ export const globalImportExportRouter = router({
                         VALUES (${sql.join(values.map(v => sql`${v}`), sql`, `)})`
                   );
                   stats[tableName].inserted++;
-                } catch (err: any) {
-                  stats[tableName].errors.push(`Insert failed: ${err.message}`);
+                } catch (e: unknown) {
+                  const message = e instanceof Error ? e.message : "Неизвестная ошибка";
+                  stats[tableName].errors.push(`Update failed: ${message}`);
                 }
               }
               continue;
@@ -206,8 +208,9 @@ export const globalImportExportRouter = router({
                       VALUES (${sql.join(values.map(v => sql`${v}`), sql`, `)})`
                 );
                 stats[tableName].inserted++;
-              } catch (err: any) {
-                stats[tableName].errors.push(`Insert failed: ${err.message}`);
+              } catch (e: unknown) {
+                const message = e instanceof Error ? e.message : "Неизвестная ошибка";
+                stats[tableName].errors.push(`Update failed: ${message}`);
               }
             } else {
               let changed = false;
@@ -225,13 +228,15 @@ export const globalImportExportRouter = router({
                     sql`UPDATE ${sql.identifier(dbTableName)} SET ${sql.join(setEntries, sql`, `)} WHERE ${whereClause}`
                   );
                   stats[tableName].updated++;
-                } catch (err: any) {
-                  stats[tableName].errors.push(`Update failed: ${err.message}`);
+                } catch (e: unknown) {
+                  const message = e instanceof Error ? e.message : "Неизвестная ошибка";
+                  stats[tableName].errors.push(`Update failed: ${message}`);
                 }
               }
             }
-          } catch (err: any) {
-            stats[tableName].errors.push(`Row processing error: ${err.message}`);
+          } catch (e: unknown) {
+            const message = e instanceof Error ? e.message : "Неизвестная ошибка";
+            stats[tableName].errors.push(`Update failed: ${message}`);
           }
         }
       }
