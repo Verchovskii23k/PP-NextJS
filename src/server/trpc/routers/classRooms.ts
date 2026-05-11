@@ -5,7 +5,7 @@ import {
   classrooms, buildings, departments,
   lessons, units, unitRoots, studyGroups, unitTypes, disciplines,
 } from "@/db/schema";
-import { eq, sql, and, gte, isNull, or } from "drizzle-orm";
+import { eq, sql, and, gte, isNull, or, SQL } from "drizzle-orm";  // добавлен SQL
 
 export const classroomsRouter = router({
   list: adminProcedure
@@ -29,7 +29,7 @@ export const classroomsRouter = router({
         .from(classrooms)
         .leftJoin(buildings, eq(classrooms.buildingId, buildings.id))
         .leftJoin(departments, eq(classrooms.departmentId, departments.id))
-        .where(eq(classrooms.isActive, true));
+        // .where(eq(classrooms.isActive, true));
 
       if (input?.lessonId) {
         const [lesson] = await ctx.db
@@ -81,11 +81,11 @@ export const classroomsRouter = router({
         const deptId = disc?.departmentId ?? null;
 
         // Фильтрация
-        const conditions = [
-          gte(classrooms.capacity, unitSize),
-        ];
+        const conditions: SQL<unknown>[] = [ gte(classrooms.capacity, unitSize) ];
         if (deptId !== null) {
-          conditions.push(or(eq(classrooms.departmentId, deptId), isNull(classrooms.departmentId)));
+          conditions.push(or(eq(classrooms.departmentId, deptId), isNull(classrooms.departmentId)) as SQL<unknown>);
+        } else {
+          conditions.push(isNull(classrooms.departmentId) as SQL<unknown>);
         }
         return baseQuery.where(and(...conditions));
       }

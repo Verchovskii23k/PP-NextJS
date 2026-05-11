@@ -7,12 +7,12 @@ import { tablesMeta } from "@/lib/table-meta";
 const ALLOWED_TABLES = Object.keys(tablesMeta);
 
 // Экранирование для SQL
-function escapeSqlString(value: any): string {
-  if (value === null || value === undefined) return "NULL";
-  if (typeof value === "number") return String(value);
-  if (typeof value === "boolean") return value ? "TRUE" : "FALSE";
-  return `'${String(value).replace(/'/g, "''")}'`;
-}
+// function escapeSqlString(value: any): string {
+//   if (value === null || value === undefined) return "NULL";
+//   if (typeof value === "number") return String(value);
+//   if (typeof value === "boolean") return value ? "TRUE" : "FALSE";
+//   return `'${String(value).replace(/'/g, "''")}'`;
+// }
 
 export const crudImportExportRouter = router({
   exportAll: adminProcedure
@@ -87,10 +87,10 @@ export const crudImportExportRouter = router({
         if (!existing) {
           // INSERT с параметрами
           const columns = Object.keys(values);
-          const placeholders = columns.map(() => sql.param("?")); // так не работает, лучше собрать массив
-          const insertSql = sql`INSERT INTO ${sql.identifier(dbTableName)} (${sql.raw(columns.join(", "))}) VALUES (${sql.join(Object.values(values).map(() => sql`?`), sql`, `)})`;
-          // Передаём значения отдельно
-          await ctx.db.execute(insertSql, Object.values(values));
+          const valueLiterals = Object.values(values).map(v => sql`${v}`);
+          await ctx.db.execute(
+            sql`INSERT INTO ${sql.identifier(dbTableName)} (${sql.join(columns.map(c => sql.identifier(c)), sql`, `)}) VALUES (${sql.join(valueLiterals, sql`, `)})`
+          );
           results.inserted++;
         } else {
           // Проверяем, нужно ли обновление
@@ -109,12 +109,10 @@ export const crudImportExportRouter = router({
             continue;
           }
           // UPDATE с параметрами
-          const setClause = sql.join(
-            Object.keys(values).map(k => sql`${sql.identifier(k)} = ?`),
-            sql`, `
+          const setParts = Object.entries(values).map(([k, v]) => sql`${sql.identifier(k)} = ${v}`);
+          await ctx.db.execute(
+            sql`UPDATE ${sql.identifier(dbTableName)} SET ${sql.join(setParts, sql`, `)} WHERE id = ${id}`
           );
-          const updateSql = sql`UPDATE ${sql.identifier(dbTableName)} SET ${setClause} WHERE id = ${id}`;
-          await ctx.db.execute(updateSql, Object.values(values));
           results.updated++;
         }
       } catch (error: any) {

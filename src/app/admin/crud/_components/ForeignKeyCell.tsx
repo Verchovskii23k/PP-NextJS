@@ -8,6 +8,7 @@ interface ForeignKeyCellProps {
   table: string;
   id: number;
   displayField: string;
+  dbTableName?: string
 }
 
 // Тип для роутера, который содержит только get

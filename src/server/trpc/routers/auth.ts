@@ -175,7 +175,7 @@ login: publicProcedure
   changeLogin: protectedProcedure
     .input(z.object({ newLogin: z.string().min(3) }))
     .mutation(async ({ ctx, input }) => {
-      const userId = ctx.user.id;
+      const userId = ctx.user!.id;
 
       // Получаем текущий хэш пароля
       const [currentUser] = await ctx.db
@@ -219,7 +219,7 @@ login: publicProcedure
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const userId = ctx.user.id;
+      const userId = ctx.user!.id;
 
       const [user] = await ctx.db
         .select({

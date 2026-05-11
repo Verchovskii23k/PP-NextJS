@@ -44,9 +44,9 @@ export const lessonTypesRouter = router({
       return rows[0] ?? null;
     }),
   create: adminProcedure
-    .input(z.object({ 
-      name: z.string().min(1), 
-      abbreviation: z.string().optional(),
+    .input(z.object({
+      name: z.string().min(1),
+      abbreviation: z.string().min(1),   // обязательно
       isActive: z.boolean().default(true)
     }))
     .mutation(async ({ ctx, input }) => ctx.db.insert(lessonTypes).values(input).returning()),

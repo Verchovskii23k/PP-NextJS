@@ -40,8 +40,8 @@ export default function GenerationsPage() {
   const [totalWeeksInput, setTotalWeeksInput] = useState<number | undefined>(undefined);
 
   useEffect(() => {
-    if (totalWeeksSetting?.value) {
-      const num = Number(totalWeeksSetting.value);
+    if (totalWeeksSetting) {
+      const num = Number(totalWeeksSetting);
       if (!isNaN(num)) setTotalWeeksInput(num);
     }
   }, [totalWeeksSetting]);
@@ -60,8 +60,8 @@ export default function GenerationsPage() {
   const [semesterInput, setSemesterInput] = useState<number | undefined>(undefined);
 
   useEffect(() => {
-    if (semesterSetting?.value) {
-      const num = Number(semesterSetting.value);
+    if (semesterSetting) {
+      const num = Number(semesterSetting);
       if (!isNaN(num)) setSemesterInput(num);
     }
   }, [semesterSetting]);

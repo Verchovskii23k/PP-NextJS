@@ -316,8 +316,8 @@ export function DataTable({ tableName }: DataTableProps) {
       ),
     });
 
-    return cols;
-  }, [meta, rows, selectedIds, columnFilters, pagination.pageIndex, pagination.pageSize, deleteMutation]);
+    return cols;  
+  }, [metaExists, meta, rows, selectedIds, toggleSelectAll, pagination.pageIndex, pagination.pageSize, columnFilters, deleteMutation, utils, routerKey]);
 
   if (!metaExists) {
     return <div>Таблица не найдена</div>;

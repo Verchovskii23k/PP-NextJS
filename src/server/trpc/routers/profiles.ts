@@ -46,15 +46,21 @@ export const profilesRouter = router({
         .limit(1);
       return rows[0] ?? null;
     }),
-  create: adminProcedure
-    .input(z.object({
-      name: z.string().min(1),
-      specialtyId: z.coerce.number().int(),
-      letterCode: z.string().optional(),
-      educationId: z.coerce.number().int().nullable().optional(),
-      isActive: z.boolean().default(true),
-    }))
-    .mutation(async ({ ctx, input }) => ctx.db.insert(profiles).values(input).returning()),
+    create: adminProcedure
+      .input(z.object({
+        name: z.string().min(1),
+        specialtyId: z.coerce.number().int(),
+        letterCode: z.string().min(1),   // стало обязательным (было optional)
+        educationId: z.coerce.number().int().nullable().optional(),
+        isActive: z.boolean().default(true),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const clean = {
+          ...input,
+          educationId: input.educationId ?? null,
+        };
+        return ctx.db.insert(profiles).values(clean).returning();
+      }),
   update: adminProcedure
     .input(z.object({
       id: z.number(),

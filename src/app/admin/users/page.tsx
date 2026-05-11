@@ -53,11 +53,15 @@ export default function UsersPage() {
                       { userId: user.id },
                       {
                         onSuccess: (data) => {
-                          setResetResult({
-                            emailSent: data.emailSent,
-                            login: data.login,
-                            password: data.password,
-                          });
+                          if ('login' in data && 'password' in data) {
+                            setResetResult({
+                              emailSent: data.emailSent,
+                              login: data.login,
+                              password: data.password,
+                            });
+                          } else {
+                            setResetResult({ emailSent: data.emailSent });
+                          }
                         },
                         onError: (e) => alert(e.message),
                       }

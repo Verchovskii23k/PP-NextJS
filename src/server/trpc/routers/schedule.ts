@@ -19,7 +19,7 @@ export const scheduleRouter = router({
     .query(async ({ ctx, input }) => {
       const conditions = [];
 
-      if (input.weekNumber) conditions.push(eq(schedule.weekNumber, input.weekNumber));
+      if (input.weekNumber) conditions.push(eq(schedule.weekId, input.weekNumber  ));
       if (input.dayOfWeekId) conditions.push(eq(schedule.dayOfWeekId, input.dayOfWeekId));
       if (input.classroomId) conditions.push(eq(schedule.classroomId, input.classroomId));
 
@@ -37,7 +37,7 @@ export const scheduleRouter = router({
       const data = await ctx.db
         .select({
           scheduleId: schedule.id,
-          weekNumber: schedule.weekNumber,
+          weekNumber: schedule.weekId,
           dayOfWeek: daysOfWeek.name,
           pairNumber: pairs.number,
           lessonId: schedule.lessonId,
@@ -62,7 +62,7 @@ export const scheduleRouter = router({
         .innerJoin(daysOfWeek, eq(schedule.dayOfWeekId, daysOfWeek.id))
         .innerJoin(pairs, eq(schedule.pairNumberId, pairs.id))
         .where(and(...conditions))
-        .orderBy(schedule.weekNumber, daysOfWeek.id, pairs.number);
+        .orderBy(schedule.weekId, daysOfWeek.id, pairs.number);
 
       // Фильтрация по группе и преподавателю пост-запросом (т.к. связи сложные)
       let filtered = data;
@@ -82,7 +82,7 @@ export const scheduleRouter = router({
   // Справочные данные для фильтров
   filters: publicProcedure.query(async ({ ctx }) => {
     const [weeks, days, pairsList, groups, teachers, classroomsList] = await Promise.all([
-      ctx.db.selectDistinct({ weekNumber: schedule.weekNumber }).from(schedule).orderBy(schedule.weekNumber),
+      ctx.db.selectDistinct({ weekNumber: schedule.weekId }).from(schedule).orderBy(schedule.weekId),
       ctx.db.select().from(daysOfWeek).orderBy(daysOfWeek.id),
       ctx.db.select().from(pairs).orderBy(pairs.number),
       ctx.db.select({ id: studyGroups.id, code: studyGroups.code }).from(studyGroups),

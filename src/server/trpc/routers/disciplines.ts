@@ -16,7 +16,7 @@ export const disciplinesRouter = router({
   create: adminProcedure
     .input(z.object({
       name: z.string().min(1),
-      abbreviation: z.string().optional(),
+      abbreviation: z.string().min(1),   // было optional
       departmentId: z.coerce.number().int(),
       isActive: z.boolean().default(true),
     }))
@@ -36,7 +36,9 @@ export const disciplinesRouter = router({
         await ctx.db.update(curriculum).set({ isActive: false }).where(eq(curriculum.disciplineId, id));
         await ctx.db.update(disciplineTeachers).set({ isActive: false }).where(eq(disciplineTeachers.disciplineId, id));
       }
-
+      const cleanData = Object.fromEntries(
+        Object.entries({ ...data, isActive }).filter(([_, v]) => v !== undefined)
+      );
       return ctx.db
         .update(disciplines)
         .set({ ...data, isActive })

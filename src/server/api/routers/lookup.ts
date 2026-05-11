@@ -1,6 +1,7 @@
-// lookup.ts
+// src/server/trpc/routers/lookup.ts
 import { z } from "zod";
-import { router, publicProcedure } from "@/server/trpc";
+import { router, publicProcedure } from "../../trpc/trpc";      // <-- изменили
+import type { Context } from "../../trpc/context";              // импорт типа Context
 import { sql } from "drizzle-orm";
 
 function toCamelCase(str: string): string {
@@ -17,10 +18,12 @@ function mapKeysToCamel(obj: unknown): unknown {
   return obj;
 }
 
+const inputSchema = z.object({ tableName: z.string(), id: z.number() }); 
+
 export const lookupRouter = router({
   getRow: publicProcedure
-    .input(z.object({ tableName: z.string(), id: z.number() }))
-    .query(async ({ ctx, input }) => {
+    .input(inputSchema)
+    .query(async ({ ctx, input } : {ctx: Context, input: z.infer<typeof inputSchema> }) => {
       const allowedTables = [
         "institutes", "buildings", "departments", "specialties", "profiles",
         "disciplines", "unit_types", "lesson_types", "classrooms", "employees",

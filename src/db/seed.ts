@@ -98,7 +98,6 @@ await db.delete(settings);
 
   // Индексы теперь снова английские
   const ltByIdx = [
-    null,
     ltMap.get("lecture")!,
     ltMap.get("workshop")!,
     ltMap.get("guidedStudy")!,

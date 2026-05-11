@@ -25,11 +25,11 @@ type ScheduleRow = {
   pairNumberId: number;
   unitCode: string;
   displayText: string;
-  mergeNumber: number;
-  positionFlag: boolean;
-  classroomFlag: boolean;
+  mergeNumber: number | null;       // было number
+  positionFlag: boolean | null;     // было boolean
+  classroomFlag: boolean | null;    // было boolean
   lessonId: number | null;
-  isBuffered: boolean; // ✅ новое поле
+  isBuffered: boolean;
 };
 
 type WeekInfo = { id: number; type: string };
@@ -356,9 +356,9 @@ export default function AdminSchedulePage() {
   const openFlagEditor = (entry: ScheduleRow) => {
     setSelectedEntry(entry);
     setFlagForm({
-      mergeNumber: entry.mergeNumber,
-      positionFlag: entry.positionFlag,
-      classroomFlag: entry.classroomFlag,
+      mergeNumber: entry.mergeNumber ?? 0,
+      positionFlag: entry.positionFlag ?? false,
+      classroomFlag: entry.classroomFlag ?? false,
     });
   };
 

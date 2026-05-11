@@ -53,14 +53,12 @@ export const generateLessonsRouter = router({
         priorityGuidedStudy: "priority_guided_study",
         priorityLab: "priority_lab",
       };
-      console.log(`${settings.value}`)
       const [semesterSetting] = await ctx.db
-            .select({ value: settings.value })
-            .from(settings)
-            .where(eq(settings.key, "current_semester"))
-            .limit(1);
-      const currentSemester = semesterSetting ? (semesterSetting.value) : 1;
-      console.log(`[generateLessons] current_semester = ${currentSemester}`);
+        .select({ value: settings.value })
+        .from(settings)
+        .where(eq(settings.key, "current_semester"))
+        .limit(1);
+      const currentSemester = semesterSetting ? Number(semesterSetting.value) : 1;   // Число!
 
       // 3. Все учебные планы с фильтром по семестру
       const plans = await ctx.db

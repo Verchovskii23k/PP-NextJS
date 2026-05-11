@@ -10,15 +10,20 @@ export const unitTypesRouter = router({
   create: adminProcedure
     .input(z.object({
       name: z.string().min(1),
-      maxSize: z.coerce.number().int().optional(),
+      maxSize: z.coerce.number().int(),   // обязательно
       priorityLecture: z.coerce.number().int().optional(),
       priorityWorkshop: z.coerce.number().int().optional(),
       priorityGuidedStudy: z.coerce.number().int().optional(),
       priorityLab: z.coerce.number().int().optional(),
-      isActive: z.boolean().default(true)
+      isActive: z.boolean().default(true),
     }))
     .mutation(async ({ ctx, input }) => {
-      return ctx.db.insert(unitTypes).values(input).returning();
+      const data = { ...input };
+      // Удаляем undefined, чтобы Drizzle использовал default
+      Object.keys(data).forEach(k => {
+        if (data[k as keyof typeof data] === undefined) delete data[k as keyof typeof data];
+      });
+      return ctx.db.insert(unitTypes).values(data).returning();
     }),
   update: adminProcedure
     .input(z.object({

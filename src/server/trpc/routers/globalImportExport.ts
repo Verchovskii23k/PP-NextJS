@@ -1,3 +1,4 @@
+// src/server/trpc/routers/globalImportExport.ts
 import { z } from "zod";
 import { router, adminProcedure } from "../trpc";
 import { sql } from "drizzle-orm";
@@ -79,7 +80,7 @@ function snakeToCamel(str: string) {
 }
 
 function camelToSnake(str: string) {
-  return str.replace(/[A-Z]/g, l => `_${l.toLowerCase()}`);
+  return str.replace(/[A-Z]/g, (l) => `_${l.toLowerCase()}`);
 }
 
 function transformKeysToCamel(obj: unknown): unknown {
@@ -103,8 +104,12 @@ export const globalImportExportRouter = router({
       if (EXCLUDED_TABLES.has(tableName)) continue;
       const dbTableName = tablesMeta[tableName]?.dbTableName || tableName;
       try {
-        const rows = await db.execute(sql`SELECT * FROM ${sql.identifier(dbTableName)}`);
-        result[tableName] = (rows as unknown[]).map(row => transformKeysToCamel(row));
+        const rows = await db.execute(
+          sql`SELECT * FROM ${sql.identifier(dbTableName)}`
+        );
+        result[tableName] = (rows as unknown[]).map((row) =>
+          transformKeysToCamel(row)
+        );
       } catch (e) {
         console.error(`Export error for table ${tableName}:`, e);
         result[tableName] = [];
@@ -121,7 +126,6 @@ export const globalImportExportRouter = router({
 
       for (const tableName of IMPORT_ORDER) {
         if (EXCLUDED_TABLES.has(tableName)) continue;
-
         const rows = input[tableName];
         if (!rows || rows.length === 0) continue;
 
@@ -129,12 +133,11 @@ export const globalImportExportRouter = router({
         stats[tableName] = { inserted: 0, updated: 0, skipped: 0, errors: [] };
 
         const uniqueKeys = UNIQUE_KEYS[tableName] || [];
-        // Разрешённые поля – snake_case версии dbName из метаданных
         const allowedFields = (tablesMeta[tableName]?.fields || []).map(f => camelToSnake(f.dbName));
 
-        for (const row of rows) {
+        for (const _row of rows) {
+          const row = _row as Record<string, unknown>;
           try {
-            // Преобразуем camelCase → snake_case, удаляем id и поля не из схемы
             const dbRow: Record<string, unknown> = {};
             for (const [key, val] of Object.entries(row)) {
               if (key === "id") continue;
@@ -149,30 +152,25 @@ export const globalImportExportRouter = router({
               continue;
             }
 
-            // ---------- employees / students (уникальный email) ----------
+            // employees / students
             if (tableName === "employees" || tableName === "students") {
               const email = dbRow["email"];
-              let existingByEmail: unknown = null;
+              let existingByEmail: Record<string, unknown> | null = null;
               if (email) {
-                const existingRows = await db.execute(
+                const existingRows = (await db.execute(
                   sql`SELECT * FROM ${sql.identifier(dbTableName)} WHERE email = ${email} LIMIT 1`
-                ) as unknown[];
-                if (existingRows.length > 0) existingByEmail = existingRows[0];
+                )) as unknown[];
+                if (existingRows.length > 0) existingByEmail = existingRows[0] as Record<string, unknown>;
               }
-
               if (existingByEmail) {
-                // Обновление по email
                 try {
                   const setEntries = Object.entries(dbRow).map(([k, v]) => sql`${sql.identifier(k)} = ${v}`);
-                  await db.execute(
-                    sql`UPDATE ${sql.identifier(dbTableName)} SET ${sql.join(setEntries, sql`, `)} WHERE email = ${email}`
-                  );
+                  await db.execute(sql`UPDATE ${sql.identifier(dbTableName)} SET ${sql.join(setEntries, sql`, `)} WHERE email = ${email}`);
                   stats[tableName].updated++;
                 } catch (err: any) {
                   stats[tableName].errors.push(`Update by email failed: ${err.message}`);
                 }
               } else {
-                // Вставка
                 try {
                   const columns = Object.keys(dbRow);
                   const values = Object.values(dbRow);
@@ -188,24 +186,18 @@ export const globalImportExportRouter = router({
               continue;
             }
 
-            // ---------- Остальные таблицы ----------
-            // Поиск существующей записи по уникальным ключам
-            let existing: unknown = null;
+            // остальные таблицы
+            let existing: Record<string, unknown> | null = null;
             if (uniqueKeys.length > 0 && uniqueKeys.every(k => dbRow[k] !== undefined && dbRow[k] !== null)) {
               const conditions = uniqueKeys.map(k => sql`${sql.identifier(k)} = ${dbRow[k]}`);
-              const whereClause = conditions.length > 1
-                ? sql.join(conditions, sql` AND `)
-                : conditions[0];
-
-              const existingRows = await db.execute(
+              const whereClause = conditions.length > 1 ? sql.join(conditions, sql` AND `) : conditions[0];
+              const existingRows = (await db.execute(
                 sql`SELECT * FROM ${sql.identifier(dbTableName)} WHERE ${whereClause} LIMIT 1`
-              ) as unknown[];
-
-              if (existingRows.length > 0) existing = existingRows[0];
+              )) as unknown[];
+              if (existingRows.length > 0) existing = existingRows[0] as Record<string, unknown>;
             }
 
             if (!existing) {
-              // Вставка
               try {
                 const columns = Object.keys(dbRow);
                 const values = Object.values(dbRow);
@@ -218,23 +210,17 @@ export const globalImportExportRouter = router({
                 stats[tableName].errors.push(`Insert failed: ${err.message}`);
               }
             } else {
-              // Проверка изменений
               let changed = false;
               for (const [k, v] of Object.entries(dbRow)) {
-                if (existing[k] !== v) {
-                  changed = true;
-                  break;
-                }
+                if (existing[k] !== v) { changed = true; break; }
               }
               if (!changed) {
                 stats[tableName].skipped++;
               } else {
                 try {
                   const setEntries = Object.entries(dbRow).map(([k, v]) => sql`${sql.identifier(k)} = ${v}`);
-                  const keyConditions = uniqueKeys.map(k => sql`${sql.identifier(k)} = ${existing[k]}`);
-                  const whereClause = keyConditions.length > 1
-                    ? sql.join(keyConditions, sql` AND `)
-                    : keyConditions[0];
+                  const keyConditions = uniqueKeys.map(k => sql`${sql.identifier(k)} = ${existing![k]}`);
+                  const whereClause = keyConditions.length > 1 ? sql.join(keyConditions, sql` AND `) : keyConditions[0];
                   await db.execute(
                     sql`UPDATE ${sql.identifier(dbTableName)} SET ${sql.join(setEntries, sql`, `)} WHERE ${whereClause}`
                   );
@@ -249,7 +235,6 @@ export const globalImportExportRouter = router({
           }
         }
       }
-
       return stats;
     }),
 });

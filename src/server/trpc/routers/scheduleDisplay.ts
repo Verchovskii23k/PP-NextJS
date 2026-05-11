@@ -1,11 +1,8 @@
 // src/server/trpc/routers/scheduleDisplay.ts
 import { z } from "zod";
 import { router, adminProcedure } from "../trpc";
-import {
-  scheduleDisplay, daysOfWeek, pairs, unitRoots, studyGroups, unitTypes,
-  employeesDepartments, classrooms, buildings, weeks, lessonTypes, disciplines
-} from "@/db/schema";
-import { lessons, lessonClassrooms, schedule, employees, units } from "@/db/schema";
+import { scheduleDisplay, daysOfWeek, pairs, unitRoots, studyGroups, weeks } from "@/db/schema";
+import { lessons, lessonClassrooms } from "@/db/schema";
 import { eq, inArray, asc, and } from "drizzle-orm";
 import { optimizeSchedule } from "./scheduleOptimizer";
 
@@ -120,7 +117,11 @@ getByStudyGroups: adminProcedure
           eq(scheduleDisplay.isBuffered, false)
         ));
       for (const row of groupRows) {
-        allRows.push({ ...row, studyGroupCode: groupCode });
+        allRows.push({
+          ...row, studyGroupCode: groupCode,
+          classroomId: null,
+          isBuffered: false
+        });
       }
     }
 
@@ -206,12 +207,16 @@ getByStudyGroups: adminProcedure
         .where(eq(unitRoots.unitCode, m.unitCode));
       const movingGroupIds = new Set(movingUnitGroups.map(r => r.studyGroupId));
 
-      const [mTeacher, mClassroom] = await Promise.all([
-        ctx.db.select({ teacherId: lessons.teacherId }).from(lessons).where(eq(lessons.id, m.lessonId)).limit(1),
-        ctx.db.select({ classroomId: lessonClassrooms.classroomId }).from(lessonClassrooms).where(eq(lessonClassrooms.lessonId, m.lessonId)).limit(1),
-      ]);
-      const mTeacherId = mTeacher[0]?.teacherId ?? null;
-      const mClassroomId = mClassroom[0]?.classroomId ?? null;
+      let mTeacherId: number | null = null;
+      let mClassroomId: number | null = null;
+      if (m.lessonId != null) {
+        const [mTeacher, mClassroom] = await Promise.all([
+          ctx.db.select({ teacherId: lessons.teacherId }).from(lessons).where(eq(lessons.id, m.lessonId)).limit(1),
+          ctx.db.select({ classroomId: lessonClassrooms.classroomId }).from(lessonClassrooms).where(eq(lessonClassrooms.lessonId, m.lessonId)).limit(1),
+        ]);
+        mTeacherId = mTeacher[0]?.teacherId ?? null;
+        mClassroomId = mClassroom[0]?.classroomId ?? null;
+      }
 
       const oldSlot = m.isBuffered ? null : {
         weekId: m.weekId,
@@ -247,12 +252,16 @@ getByStudyGroups: adminProcedure
             .where(eq(unitRoots.unitCode, other.unitCode));
           const otherGroupIds = new Set(otherUnitGroups.map(r => r.studyGroupId));
 
-          const [otherTeacher, otherClassroom] = await Promise.all([
-            ctx.db.select({ teacherId: lessons.teacherId }).from(lessons).where(eq(lessons.id, other.lessonId)).limit(1),
-            ctx.db.select({ classroomId: lessonClassrooms.classroomId }).from(lessonClassrooms).where(eq(lessonClassrooms.lessonId, other.lessonId)).limit(1),
-          ]);
-          const oTeacherId = otherTeacher[0]?.teacherId ?? null;
-          const oClassroomId = otherClassroom[0]?.classroomId ?? null;
+          let oTeacherId: number | null = null;
+          let oClassroomId: number | null = null;
+          if (other.lessonId != null) {
+            const [otherTeacher, otherClassroom] = await Promise.all([
+              ctx.db.select({ teacherId: lessons.teacherId }).from(lessons).where(eq(lessons.id, other.lessonId)).limit(1),
+              ctx.db.select({ classroomId: lessonClassrooms.classroomId }).from(lessonClassrooms).where(eq(lessonClassrooms.lessonId, other.lessonId)).limit(1),
+            ]);
+            oTeacherId = otherTeacher[0]?.teacherId ?? null;
+            oClassroomId = otherClassroom[0]?.classroomId ?? null;
+          }
 
           if (
             ([...movingGroupIds].some(g => otherGroupIds.has(g))) ||
@@ -275,19 +284,27 @@ getByStudyGroups: adminProcedure
             continue;
           }
 
-          const [sameTeacher, sameClassroom] = await Promise.all([
-            ctx.db.select({ teacherId: lessons.teacherId }).from(lessons).where(eq(lessons.id, sameUnitEntry.lessonId)).limit(1),
-            ctx.db.select({ classroomId: lessonClassrooms.classroomId }).from(lessonClassrooms).where(eq(lessonClassrooms.lessonId, sameUnitEntry.lessonId)).limit(1),
-          ]);
-          const sTeacherId = sameTeacher[0]?.teacherId ?? null;
-          const sClassroomId = sameClassroom[0]?.classroomId ?? null;
+          let sTeacherId: number | null = null;
+          let sClassroomId: number | null = null;
+          if (sameUnitEntry.lessonId != null) {
+            const [sameTeacher, sameClassroom] = await Promise.all([
+              ctx.db.select({ teacherId: lessons.teacherId }).from(lessons).where(eq(lessons.id, sameUnitEntry.lessonId)).limit(1),
+              ctx.db.select({ classroomId: lessonClassrooms.classroomId }).from(lessonClassrooms).where(eq(lessonClassrooms.lessonId, sameUnitEntry.lessonId)).limit(1),
+            ]);
+            sTeacherId = sameTeacher[0]?.teacherId ?? null;
+            sClassroomId = sameClassroom[0]?.classroomId ?? null;
+          }
 
-          const [mDisc, sDisc] = await Promise.all([
-            ctx.db.select({ disciplineId: lessons.disciplineId }).from(lessons).where(eq(lessons.id, m.lessonId)).limit(1),
-            ctx.db.select({ disciplineId: lessons.disciplineId }).from(lessons).where(eq(lessons.id, sameUnitEntry.lessonId)).limit(1),
-          ]);
+          let mDisc: number | null = null;
+          let sDisc: number | null = null;
+          if (m.lessonId != null) {
+            [mDisc] = (await ctx.db.select({ disciplineId: lessons.disciplineId }).from(lessons).where(eq(lessons.id, m.lessonId)).limit(1)).map(r => r.disciplineId) as number[];
+          }
+          if (sameUnitEntry.lessonId != null) {
+            [sDisc] = (await ctx.db.select({ disciplineId: lessons.disciplineId }).from(lessons).where(eq(lessons.id, sameUnitEntry.lessonId)).limit(1)).map(r => r.disciplineId) as number[];
+          }
 
-          if (mTeacherId === sTeacherId && mClassroomId === sClassroomId && mDisc[0]?.disciplineId === sDisc[0]?.disciplineId) {
+          if (mTeacherId === sTeacherId && mClassroomId === sClassroomId && mDisc === sDisc) {
             results[key] = { status: 'conflict' };
             continue;
           }
@@ -318,12 +335,16 @@ getByStudyGroups: adminProcedure
                 .where(eq(unitRoots.unitCode, oldOther.unitCode));
               const oldOtherGroupIds = new Set(oldOtherUnitGroups.map(r => r.studyGroupId));
 
-              const [oldOtherTeacher, oldOtherClassroom] = await Promise.all([
-                ctx.db.select({ teacherId: lessons.teacherId }).from(lessons).where(eq(lessons.id, oldOther.lessonId)).limit(1),
-                ctx.db.select({ classroomId: lessonClassrooms.classroomId }).from(lessonClassrooms).where(eq(lessonClassrooms.lessonId, oldOther.lessonId)).limit(1),
-              ]);
-              const ooTId = oldOtherTeacher[0]?.teacherId ?? null;
-              const ooCId = oldOtherClassroom[0]?.classroomId ?? null;
+              let ooTId: number | null = null;
+              let ooCId: number | null = null;
+              if (oldOther.lessonId != null) {
+                const [oldOtherTeacher, oldOtherClassroom] = await Promise.all([
+                  ctx.db.select({ teacherId: lessons.teacherId }).from(lessons).where(eq(lessons.id, oldOther.lessonId)).limit(1),
+                  ctx.db.select({ classroomId: lessonClassrooms.classroomId }).from(lessonClassrooms).where(eq(lessonClassrooms.lessonId, oldOther.lessonId)).limit(1),
+                ]);
+                ooTId = oldOtherTeacher[0]?.teacherId ?? null;
+                ooCId = oldOtherClassroom[0]?.classroomId ?? null;
+              }
 
               if (
                 ([...sameGroupIds].some(g => oldOtherGroupIds.has(g))) ||

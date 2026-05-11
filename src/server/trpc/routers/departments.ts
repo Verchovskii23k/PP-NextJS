@@ -46,16 +46,26 @@ export const departmentsRouter = router({
         .limit(1);
       return rows[0] ?? null;
     }),
-  create: adminProcedure
-    .input(z.object({
-      name: z.string().min(1),
-      abbreviation: z.string().optional(),
-      instituteId: z.coerce.number().int(),
-      departmentCode: z.coerce.number().int().positive(),
-      headId: z.coerce.number().int().nullable().optional(),
-      isActive: z.boolean().default(true),
-    }))
-    .mutation(async ({ ctx, input }) => ctx.db.insert(departments).values(input).returning()),
+    create: adminProcedure
+      .input(z.object({
+        name: z.string().min(1),
+        abbreviation: z.string().min(1),   // было .optional(), теперь обязательно
+        instituteId: z.coerce.number().int(),
+        departmentCode: z.coerce.number().int().positive(),
+        headId: z.coerce.number().int().nullable().optional(),  // nullable поле
+        isActive: z.boolean().default(true),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const clean = {
+          name: input.name,
+          abbreviation: input.abbreviation,
+          instituteId: input.instituteId,
+          departmentCode: input.departmentCode,
+          headId: input.headId ?? null,
+          isActive: input.isActive ?? true,
+        };
+        return ctx.db.insert(departments).values(clean).returning();
+      }),
   update: adminProcedure
     .input(z.object({
       id: z.number(),
@@ -86,14 +96,15 @@ export const departmentsRouter = router({
           .limit(1);
         if (isCurator) throw new Error('Этот сотрудник является куратором и не может быть заведующим кафедрой');
       }
-
       if (isActive === false) {
         await ctx.db.update(specialties).set({ isActive: false }).where(eq(specialties.departmentId, id));
         await ctx.db.update(disciplines).set({ isActive: false }).where(eq(disciplines.departmentId, id));
         await ctx.db.update(classrooms).set({ isActive: false }).where(eq(classrooms.departmentId, id));
         await ctx.db.update(employeesDepartments).set({ isActive: false }).where(eq(employeesDepartments.departmentId, id));
       }
-
+      // const cleanData = Object.fromEntries(
+      //   Object.entries({ ...data, headId, isActive }).filter(([_, v]) => v !== undefined)
+      // );
       return ctx.db
         .update(departments)
         .set({ ...data, headId, isActive })
