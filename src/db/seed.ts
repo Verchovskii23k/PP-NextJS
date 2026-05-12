@@ -385,6 +385,21 @@ console.log('Студентов в базе после seed:', studentCount[0].c
   if (semesterExists.length === 0) {
     await db.insert(settings).values({ key: 'current_semester', value: '1' });
   }
+  const optWeights = {
+  opt_weight_teacher_window: "1",
+  opt_weight_group_window: "2",
+  opt_weight_daily_balance: "1",
+  opt_weight_type_diversity: "1",
+  opt_weight_single_lesson_day: "1",
+  opt_weight_unit_misuse: "1",
+};
+
+  for (const [key, value] of Object.entries(optWeights)) {
+    const existing = await db.select().from(settings).where(eq(settings.key, key));
+    if (existing.length === 0) {
+      await db.insert(settings).values({ key, value });
+    }
+  }
   console.log("Готово! Данные загружены.");
 }
 

@@ -64,12 +64,12 @@ const slotKey = (weekId: number, d: number, p: number): SlotKey => `${weekId}-${
 
 async function loadWeights(): Promise<OptimizationContext["weights"]> {
   const defaultWeights = {
-    teacherWindow: 4,
-    groupWindow: 8,
-    dailyBalance: 5,
-    typeDiversity: 10,
-    singleLessonDay: 10,
-    unitMisuse: 12,
+    teacherWindow: 1,
+    groupWindow: 2,
+    dailyBalance: 1,
+    typeDiversity: 1,
+    singleLessonDay: 1,
+    unitMisuse: 1,
   };
   const keys = [
     "opt_weight_teacher_window",
@@ -650,13 +650,20 @@ export async function optimizeSchedule() {
   let currentScore = evaluateState(ctx);
   const initialScore = currentScore;
   let iterations = 0, accepted = 0;
-  const MAX_ITER = 500;
+  const MAX_ITER = 20000;
   const MAX_GROUP_ATTEMPTS = 5;
 
+  // Параметры имитации отжига
+  let temperature = 50;
+  const coolingRate = 0.995;
+
   const mergeGroups = [...ctx.mergeMap.values()];
+  let bestScore = currentScore;
+  let bestState = ctx.entries.map(e => ({ ...e }));
 
   while (iterations < MAX_ITER) {
     if (mergeGroups.length > 0 && Math.random() < 0.5) {
+      // === Блок для групп слияния ===
       const group = mergeGroups[Math.floor(Math.random() * mergeGroups.length)];
       let placed = false;
 
@@ -668,19 +675,27 @@ export async function optimizeSchedule() {
           moveGroupToSlot(ctx, group, targetSlot.weekId, targetSlot.dayId, targetSlot.pairId);
           const newScore = evaluateState(ctx);
 
-          if (newScore < currentScore) {
+          // Температурное принятие
+          const delta = newScore - currentScore;
+          if (delta < 0 || Math.random() < Math.exp(-delta / temperature)) {
+            // Принимаем – ищем подходящую аудиторию
             const classroomId = await findSuitableClassroomForGroup(group);
             if (classroomId !== null) {
               for (const entry of group.entries) {
                 entry.classroomId = classroomId;
-                // Синхронизируем lessonClassrooms: добавляем новую запись, если такой связки ещё нет
                 if (entry.lessonId) await syncLessonClassroom(entry.lessonId, classroomId);
               }
               ctx.mergeClassroomIds.set(group.mergeNum, classroomId);
               currentScore = newScore;
               accepted++;
+              if (currentScore < bestScore) {
+                bestScore = currentScore;
+                bestState = ctx.entries.map(e => ({ ...e }));
+              }
               placed = true;
+              
             } else {
+              // Аудитория не найдена – откатываем перемещение
               for (let i = 0; i < group.entries.length; i++) {
                 const entry = group.entries[i];
                 const old = oldSlots[i];
@@ -691,6 +706,7 @@ export async function optimizeSchedule() {
               }
             }
           } else {
+            // Не принято по температуре – откатываем
             for (let i = 0; i < group.entries.length; i++) {
               const entry = group.entries[i];
               const old = oldSlots[i];
@@ -704,29 +720,66 @@ export async function optimizeSchedule() {
       }
 
       if (!placed) {
+        // Принудительное размещение через forcePlaceGroup
         for (let forceAttempt = 0; forceAttempt < 10 && !placed; forceAttempt++) {
           const targetSlot = ctx.slots[Math.floor(Math.random() * ctx.slots.length)];
-          if (forcePlaceGroup(ctx, group, targetSlot.weekId, targetSlot.dayId, targetSlot.pairId)) {
-            const newScore = evaluateState(ctx);
-            if (newScore < currentScore) {
-              const classroomId = await findSuitableClassroomForGroup(group);
-              if (classroomId !== null) {
-                for (const entry of group.entries) {
-                  entry.classroomId = classroomId;
-                  if (entry.lessonId) await syncLessonClassroom(entry.lessonId, classroomId);
-                }
-                ctx.mergeClassroomIds.set(group.mergeNum, classroomId);
-                currentScore = newScore;
-                accepted++;
-                placed = true;
+          
+          // Сохраняем копии состояния до forcePlaceGroup, чтобы откатить при неудаче
+          const oldEntries = group.entries.map(e => ({
+            week: e.weekId,
+            day: e.dayOfWeekId,
+            pair: e.pairNumberId,
+          }));
+          // forcePlaceGroup меняет записи и occupancy
+          const forceSuccess = forcePlaceGroup(ctx, group, targetSlot.weekId, targetSlot.dayId, targetSlot.pairId);
+          if (!forceSuccess) continue;
+
+          const newScore = evaluateState(ctx);
+          const delta = newScore - currentScore;
+          if (delta < 0 || Math.random() < Math.exp(-delta / temperature)) {
+            const classroomId = await findSuitableClassroomForGroup(group);
+            if (classroomId !== null) {
+              for (const entry of group.entries) {
+                entry.classroomId = classroomId;
+                if (entry.lessonId) await syncLessonClassroom(entry.lessonId, classroomId);
               }
+              ctx.mergeClassroomIds.set(group.mergeNum, classroomId);
+              currentScore = newScore;
+              accepted++;
+              if (currentScore < bestScore) {
+                bestScore = currentScore;
+                bestState = ctx.entries.map(e => ({ ...e }));
+              }
+              placed = true;
+            } else {
+              // Нет аудитории – откатываем forcePlaceGroup
+              for (let i = 0; i < group.entries.length; i++) {
+                const entry = group.entries[i];
+                const old = oldEntries[i];
+                entry.weekId = old.week;
+                entry.dayOfWeekId = old.day;
+                entry.pairNumberId = old.pair;
+                updateOccupancy(ctx, entry, targetSlot.weekId, targetSlot.dayId, targetSlot.pairId, old.week, old.day, old.pair);
+              }
+            }
+          } else {
+            // Не принят по температуре – откатываем forcePlaceGroup
+            for (let i = 0; i < group.entries.length; i++) {
+              const entry = group.entries[i];
+              const old = oldEntries[i];
+              entry.weekId = old.week;
+              entry.dayOfWeekId = old.day;
+              entry.pairNumberId = old.pair;
+              updateOccupancy(ctx, entry, targetSlot.weekId, targetSlot.dayId, targetSlot.pairId, old.week, old.day, old.pair);
             }
           }
         }
       }
     } else {
+      // === Обычные ходы (обмен или перемещение) ===
       const r = Math.random();
       if (r < 0.7) {
+        // Обмен двух занятий
         if (ctx.entries.length < 2) { iterations++; continue; }
         const i = Math.floor(Math.random() * ctx.entries.length);
         let j = Math.floor(Math.random() * (ctx.entries.length - 1));
@@ -738,44 +791,76 @@ export async function optimizeSchedule() {
             !canMoveToSlot(ctx, b, a.weekId, a.dayOfWeekId, a.pairNumberId)) {
           iterations++; continue;
         }
+
         const oldA = { w: a.weekId, d: a.dayOfWeekId, p: a.pairNumberId };
         const oldB = { w: b.weekId, d: b.dayOfWeekId, p: b.pairNumberId };
+        // Меняем местами
         a.weekId = oldB.w; a.dayOfWeekId = oldB.d; a.pairNumberId = oldB.p;
         b.weekId = oldA.w; b.dayOfWeekId = oldA.d; b.pairNumberId = oldA.p;
         updateOccupancy(ctx, a, oldA.w, oldA.d, oldA.p, a.weekId, a.dayOfWeekId, a.pairNumberId);
         updateOccupancy(ctx, b, oldB.w, oldB.d, oldB.p, b.weekId, b.dayOfWeekId, b.pairNumberId);
+
         const newScore = evaluateState(ctx);
-        if (newScore < currentScore) { currentScore = newScore; accepted++; }
-        else {
+        const delta = newScore - currentScore;
+        if (delta < 0 || Math.random() < Math.exp(-delta / temperature)) {
+          currentScore = newScore;
+          accepted++;
+          if (currentScore < bestScore) {
+            bestScore = currentScore;
+            bestState = ctx.entries.map(e => ({ ...e }));
+          }
+        } else {
+          // Откат
           a.weekId = oldA.w; a.dayOfWeekId = oldA.d; a.pairNumberId = oldA.p;
           b.weekId = oldB.w; b.dayOfWeekId = oldB.d; b.pairNumberId = oldB.p;
           updateOccupancy(ctx, a, a.weekId, a.dayOfWeekId, a.pairNumberId, oldA.w, oldA.d, oldA.p);
           updateOccupancy(ctx, b, b.weekId, b.dayOfWeekId, b.pairNumberId, oldB.w, oldB.d, oldB.p);
         }
       } else {
+        // Перемещение одного занятия
         if (ctx.slots.length === 0) { iterations++; continue; }
         const entryIdx = Math.floor(Math.random() * ctx.entries.length);
         const entry = ctx.entries[entryIdx];
         if (entry.positionFlag) { iterations++; continue; }
         const slotIdx = Math.floor(Math.random() * ctx.slots.length);
         const targetSlot = ctx.slots[slotIdx];
-        if (!canMoveToSlot(ctx, entry, targetSlot.weekId, targetSlot.dayId, targetSlot.pairId)) { iterations++; continue; }
-        if (entry.weekId === targetSlot.weekId && entry.dayOfWeekId === targetSlot.dayId && entry.pairNumberId === targetSlot.pairId) { iterations++; continue; }
+        if (!canMoveToSlot(ctx, entry, targetSlot.weekId, targetSlot.dayId, targetSlot.pairId)) {
+          iterations++; continue;
+        }
+        if (entry.weekId === targetSlot.weekId && entry.dayOfWeekId === targetSlot.dayId && entry.pairNumberId === targetSlot.pairId) {
+          iterations++; continue;
+        }
 
         const oldW = entry.weekId, oldD = entry.dayOfWeekId, oldP = entry.pairNumberId;
         entry.weekId = targetSlot.weekId; entry.dayOfWeekId = targetSlot.dayId; entry.pairNumberId = targetSlot.pairId;
         updateOccupancy(ctx, entry, oldW, oldD, oldP, targetSlot.weekId, targetSlot.dayId, targetSlot.pairId);
+
         const newScore = evaluateState(ctx);
-        if (newScore < currentScore) { currentScore = newScore; accepted++; }
-        else {
+        const delta = newScore - currentScore;
+        if (delta < 0 || Math.random() < Math.exp(-delta / temperature)) {
+          currentScore = newScore;
+          accepted++;
+          if (currentScore < bestScore) {
+            bestScore = currentScore;
+            bestState = ctx.entries.map(e => ({ ...e }));
+          }
+        } else {
           entry.weekId = oldW; entry.dayOfWeekId = oldD; entry.pairNumberId = oldP;
           updateOccupancy(ctx, entry, targetSlot.weekId, targetSlot.dayId, targetSlot.pairId, oldW, oldD, oldP);
         }
       }
     }
+
+    // Охлаждение температуры
+    temperature *= coolingRate;
+    if (temperature < 0.01) temperature = 0.01;
     iterations++;
   }
-
+  if (bestScore < currentScore) {
+    ctx.entries = bestState;
+    currentScore = bestScore;
+  }
+  // Сохранение результата (без изменений)
   if (accepted > 0) {
     for (const entry of ctx.entries) {
       await db
@@ -792,7 +877,6 @@ export async function optimizeSchedule() {
         .where(eq(sdTable.id, entry.id));
     }
 
-    // Принудительно выравниваем classroomId для групп слияния
     for (const [mergeNum, classroomId] of ctx.mergeClassroomIds) {
       if (classroomId === null) continue;
       const group = ctx.mergeMap.get(mergeNum);
@@ -805,7 +889,6 @@ export async function optimizeSchedule() {
       }
     }
 
-    // Пересчитываем displayText
     const allDisplayRows = await db
       .select({
         id: sdTable.id,

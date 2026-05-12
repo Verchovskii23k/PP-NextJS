@@ -1,10 +1,10 @@
-// src/app/admin/settings/optimization/page.tsx
 "use client";
+import { Skeleton } from "@/components/ui/skeleton";
 import { trpc } from "@/trpc/client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 
-const KEYS = {
+const WEIGHT_KEYS = {
   teacherWindow: "opt_weight_teacher_window",
   groupWindow: "opt_weight_group_window",
   dailyBalance: "opt_weight_daily_balance",
@@ -14,13 +14,15 @@ const KEYS = {
 };
 
 export default function OptimizationSettingsPage() {
-  // Загружаем каждую настройку отдельным хуком
-  const qTeacher = trpc.settings.get.useQuery({ key: KEYS.teacherWindow });
-  const qGroup = trpc.settings.get.useQuery({ key: KEYS.groupWindow });
-  const qBalance = trpc.settings.get.useQuery({ key: KEYS.dailyBalance });
-  const qDiversity = trpc.settings.get.useQuery({ key: KEYS.typeDiversity });
-  const qSingle = trpc.settings.get.useQuery({ key: KEYS.singleLessonDay });
-  const qUnit = trpc.settings.get.useQuery({ key: KEYS.unitMisuse });
+  const utils = trpc.useUtils();
+
+  // Загружаем все настройки разом или по отдельности – оставим по отдельности, но с refetch
+  const qTeacher = trpc.settings.get.useQuery({ key: WEIGHT_KEYS.teacherWindow });
+  const qGroup = trpc.settings.get.useQuery({ key: WEIGHT_KEYS.groupWindow });
+  const qBalance = trpc.settings.get.useQuery({ key: WEIGHT_KEYS.dailyBalance });
+  const qDiversity = trpc.settings.get.useQuery({ key: WEIGHT_KEYS.typeDiversity });
+  const qSingle = trpc.settings.get.useQuery({ key: WEIGHT_KEYS.singleLessonDay });
+  const qUnit = trpc.settings.get.useQuery({ key: WEIGHT_KEYS.unitMisuse });
 
   const isLoading =
     qTeacher.isLoading ||
@@ -30,28 +32,57 @@ export default function OptimizationSettingsPage() {
     qSingle.isLoading ||
     qUnit.isLoading;
 
-  const initWeights = {
-    teacherWindow: Number(qTeacher.data) || 4,
-    groupWindow: Number(qGroup.data) || 8,
-    dailyBalance: Number(qBalance.data) || 5,
-    typeDiversity: Number(qDiversity.data) || 10,
-    singleLessonDay: Number(qSingle.data) || 10,
-    unitMisuse: Number(qUnit.data) || 12,
+  const initialWeights = {
+    teacherWindow: Number(qTeacher.data) || 1,
+    groupWindow: Number(qGroup.data) || 2,
+    dailyBalance: Number(qBalance.data) || 1,
+    typeDiversity: Number(qDiversity.data) || 1,
+    singleLessonDay: Number(qSingle.data) || 1,
+    unitMisuse: Number(qUnit.data) || 1,
   };
 
-  const [weights, setWeights] = useState(initWeights);
+  const [weights, setWeights] = useState(initialWeights);
+
+  // Синхронизируем состояние при загрузке данных
+  useEffect(() => {
+    if (!isLoading) {
+      setWeights({
+        teacherWindow: Number(qTeacher.data) || 1,
+        groupWindow: Number(qGroup.data) || 2,
+        dailyBalance: Number(qBalance.data) || 1,
+        typeDiversity: Number(qDiversity.data) || 1,
+        singleLessonDay: Number(qSingle.data) || 1,
+        unitMisuse: Number(qUnit.data) || 1,
+      });
+    }
+  }, [isLoading, qTeacher.data, qGroup.data, qBalance.data, qDiversity.data, qSingle.data, qUnit.data]);
 
   const updateMut = trpc.settings.update.useMutation({
-    onSuccess: () => {toast.success("Сохранено")},
-    onError: (e) => {toast.error(e.message)}
+    onSuccess: () => {
+      toast.success("Сохранено");
+      // Инвалидируем все запросы настроек
+      utils.settings.get.invalidate({ key: WEIGHT_KEYS.teacherWindow });
+      utils.settings.get.invalidate({ key: WEIGHT_KEYS.groupWindow });
+      utils.settings.get.invalidate({ key: WEIGHT_KEYS.dailyBalance });
+      utils.settings.get.invalidate({ key: WEIGHT_KEYS.typeDiversity });
+      utils.settings.get.invalidate({ key: WEIGHT_KEYS.singleLessonDay });
+      utils.settings.get.invalidate({ key: WEIGHT_KEYS.unitMisuse });
+    },
+    onError: (e) => {toast.error(e.message)},
   });
 
   const handleSave = (field: string, value: number) => {
-    const key = (KEYS as Record<string, string>)[field];
+    const key = (WEIGHT_KEYS as Record<string, string>)[field];
     updateMut.mutate({ key, value: String(value) });
   };
 
-  if (isLoading) return <div className="p-6">Загрузка...</div>;
+  if (isLoading)
+    return (
+      <div className="space-y-2 p-6">
+        <Skeleton className="h-4 w-32" />
+        <Skeleton className="h-4 w-24" />
+      </div>
+    );
 
   return (
     <div className="mx-auto max-w-xl bg-background p-6 text-foreground">
@@ -80,9 +111,9 @@ export default function OptimizationSettingsPage() {
             <button
               onClick={() => handleSave(item.field, item.val)}
               disabled={updateMut.isPending}
-              className="rounded bg-primary px-3 py-1 text-sm text-white"
+              className="rounded bg-primary px-3 py-1 text-sm text-white disabled:opacity-50"
             >
-              Сохранить
+              {updateMut.isPending ? "..." : "OK"}
             </button>
           </div>
         ))}
