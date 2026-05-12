@@ -71,6 +71,13 @@
       "when": 1778344648905,
       "tag": "0009_magenta_mole_man",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1778611130332,
+      "tag": "0010_tough_terrax",
+      "breakpoints": true
     }
   ]
 }

@@ -16,9 +16,10 @@ import {
   schedule,
   profiles,
   disciplines,
-  settings
+  settings,
+  scheduleDisplay
 } from "@/db/schema";
-import { eq, and, inArray, sql, or, gt } from "drizzle-orm";
+import { eq, and, inArray, sql, or, gt, isNull } from "drizzle-orm";
 
 export const generateLessonsRouter = router({
   generateLessons: adminProcedure
@@ -28,9 +29,10 @@ export const generateLessonsRouter = router({
     .mutation(async ({ ctx }) => {
       // 1. Очистка зависимых таблиц
       await ctx.db.transaction(async (tx) => {
+        await tx.delete(scheduleDisplay).where(isNull(scheduleDisplay.versionId));
         await tx.delete(schedule);
-        await tx.delete(lessonClassrooms);
-        await tx.delete(lessons);
+        await tx.delete(lessonClassrooms).where(isNull(lessonClassrooms.versionId));
+        await tx.delete(lessons).where(isNull(lessons.versionId));
       });
 
       // 2. Соответствие "план_час_колонка" → (lesson_type_id, поле приоритета в unitTypes)

@@ -5,17 +5,19 @@ import {
   studyGroups, profiles, settings,
   curriculum, curriculumProfiles,
   lessons, lessonClassrooms, schedule,
+  scheduleDisplay,
 } from "@/db/schema";
-import { eq, and, inArray, sql } from "drizzle-orm";
+import { eq, and, inArray, sql, isNull } from "drizzle-orm";
 
 export const generateUnitsRouter = router({
   generateUnits: adminProcedure.mutation(async ({ ctx }) => {
     await ctx.db.transaction(async (tx) => {
+      await tx.delete(scheduleDisplay).where(isNull(scheduleDisplay.versionId));
       await tx.delete(schedule);
-      await tx.delete(lessonClassrooms);
-      await tx.delete(lessons);
-      await tx.delete(unitRoots);
-      await tx.delete(units);
+      await tx.delete(lessonClassrooms).where(isNull(lessonClassrooms.versionId));
+      await tx.delete(lessons).where(isNull(lessons.versionId));
+      await tx.delete(unitRoots).where(isNull(unitRoots.versionId));
+      await tx.delete(units).where(isNull(units.versionId));
     });
 
     const [unitTypeGroup] = await ctx.db

@@ -42,6 +42,7 @@ import { userManagementRouter } from "./routers/userManagement";
 import { crudImportExportRouter } from "./routers/crudImportExport";
 import { globalImportExportRouter } from "./routers/globalImportExport";
 import { batchDeleteRouter } from "./routers/batchDelete"
+import { scheduleVersionsRouter } from './routers/scheduleVersions';
 
 export const appRouter = router({
   auth: authRouter,
@@ -86,11 +87,7 @@ export const appRouter = router({
   crudImportExport: crudImportExportRouter,
   globalImportExport: globalImportExportRouter,
   batchDelete: batchDeleteRouter,
-
-
-
-
-
+  scheduleVersions: scheduleVersionsRouter,
 });
 
 export type AppRouter = typeof appRouter;

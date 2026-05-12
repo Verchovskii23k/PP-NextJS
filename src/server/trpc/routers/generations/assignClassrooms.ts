@@ -11,7 +11,6 @@ import { eq, sql, and, gte, isNull, or, SQL } from "drizzle-orm";
 export const assignClassroomsRouter = router({
   assignClassroomsAuto: adminProcedure
     .mutation(async ({ ctx }) => {
-      await ctx.db.delete(lessonClassrooms);
       await ctx.db
         .update(classrooms)
         .set({ usageMetric: 0 })

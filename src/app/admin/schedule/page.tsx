@@ -1,8 +1,8 @@
 // src/app/admin/schedule/page.tsx
 "use client";
-import {toast} from "sonner"
+import { toast } from "sonner";
 import { trpc } from "@/trpc/client";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   DndContext,
   useDraggable,
@@ -182,22 +182,45 @@ export default function AdminSchedulePage() {
   const [slotStatuses, setSlotStatuses] = useState<Record<string, "free" | "conflict" | "swap">>({});
   const [slotSwapIds, setSlotSwapIds] = useState<Record<string, number>>({});
   const [confirmDialog, setConfirmDialog] = useState<{
-    show: boolean;
-    message: string;
-    onConfirm: () => void;
+    show: boolean; message: string; onConfirm: () => void;
   }>({ show: false, message: "", onConfirm: () => {} });
+  // Версионирование
+  const [selectedVersionId, setSelectedVersionId] = useState<number | null>(null); // null = активная
 
   const utils = trpc.useUtils();
+  const versionsQuery = trpc.scheduleVersions.list.useQuery();
+  const saveActiveMut = trpc.scheduleVersions.saveActive.useMutation({
+    onSuccess: () => {
+      toast.success("Версия сохранена");
+      utils.scheduleVersions.list.invalidate();
+      // После сохранения активной версии активных данных больше нет, переключаемся на активную
+      setSelectedVersionId(null);
+      refreshData();
+    },
+    onError: (e) => {toast.error(e.message)},
+  });
+  const deleteVersionMut = trpc.scheduleVersions.delete.useMutation({
+    onSuccess: () => {
+      toast.success("Версия удалена");
+      utils.scheduleVersions.list.invalidate();
+      setSelectedVersionId(null);
+      refreshData();
+    },
+    onError: (e) => {toast.error(e.message)},
+  });
 
+  // Активные запросы с учётом версии
+  const versionParam = selectedVersionId !== null ? selectedVersionId : null; // null = активная, число = архив
   const { data: unitsData, isLoading: unitsLoading } = trpc.scheduleDisplay.getForWeekPair.useQuery(
-    { weekBaseId: 1 },
+    { weekBaseId: 1, versionId: versionParam },
     { enabled: viewMode === "units" }
   );
   const { data: groupsData, isLoading: groupsLoading } = trpc.scheduleDisplay.getByStudyGroups.useQuery(
-    { weekBaseId: 1 },
+    { weekBaseId: 1, versionId: versionParam },
     { enabled: viewMode === "groups" }
   );
-  const { data: bufferData } = trpc.scheduleDisplay.getBuffer.useQuery(undefined, { enabled: editMode });
+
+  const { data: bufferData } = trpc.scheduleDisplay.getBuffer.useQuery(undefined, { enabled: editMode && selectedVersionId === null });
 
   const activeWeeksData: WeekInfo[] = unitsData?.weeks || groupsData?.weeks || [];
   const activeWeekIds = activeWeeksData.map((w) => w.id);
@@ -213,19 +236,17 @@ export default function AdminSchedulePage() {
       toast(`Оптимизация завершена. Итераций: ${data.iterations}, улучшение: с ${data.initialScore} до ${data.finalScore}`);
       refreshData();
     },
-    onError: (e) => {toast(e.message)}
+    onError: (e) => {toast.error(e.message)},
   });
 
   const refreshData = useCallback(() => {
     if (viewMode === "units") {
-      utils.scheduleDisplay.getForWeekPair.invalidate({ weekBaseId: 1 });
-      utils.scheduleDisplay.getForWeekPair.refetch({ weekBaseId: 1 });
+      utils.scheduleDisplay.getForWeekPair.invalidate({ weekBaseId: 1, versionId: versionParam });
     } else {
-      utils.scheduleDisplay.getByStudyGroups.invalidate({ weekBaseId: 1 });
-      utils.scheduleDisplay.getByStudyGroups.refetch({ weekBaseId: 1 });
+      utils.scheduleDisplay.getByStudyGroups.invalidate({ weekBaseId: 1, versionId: versionParam });
     }
     utils.scheduleDisplay.getBuffer.invalidate();
-  }, [viewMode, utils]);
+  }, [viewMode, utils, versionParam]);
 
   const performMove = useCallback(
     async (entry: ScheduleRow, targetId: string) => {
@@ -520,8 +541,24 @@ const handleCSV = () => {
   link.remove();
 };
 
-  if (viewMode === "units" && unitsLoading) return <div className="p-6"><Skeleton className="h-4 w-32" /></div>
-  if (viewMode === "groups" && groupsLoading) return <div className="p-6"><Skeleton className="h-4 w-32" /></div>
+  const handleSaveVersion = () => {
+    const name = window.prompt("Введите название версии:");
+    if (!name) return;
+    saveActiveMut.mutate({ name });
+  };
+
+  const handleDeleteVersion = () => {
+    if (selectedVersionId === null) return;
+    if (!window.confirm("Удалить версию и все её данные?")) return;
+    deleteVersionMut.mutate({ id: selectedVersionId });
+  };
+
+  const isActiveVersion = selectedVersionId === null;
+    useEffect(() => {
+    if (!isActiveVersion) setEditMode(false);
+  }, [isActiveVersion]);
+  if (viewMode === "units" && unitsLoading) return <div className="p-6"><Skeleton className="h-4 w-32" /></div>;
+  if (viewMode === "groups" && groupsLoading) return <div className="p-6"><Skeleton className="h-4 w-32" /></div>;
 
   const bufferEntries = bufferData || [];
   const displayRows = viewMode === "units" ? unitsData?.rows : (groupsData?.rows as ScheduleRowWithGroup[] | undefined);
@@ -532,8 +569,43 @@ const handleCSV = () => {
     : Array.from(new Set((displayRows as AnyRow[])?.map((r) => r.studyGroupCode || "") || [])).sort();
 
   return (
-    <div className="flex h-full flex-col bg-background p-4 text-foreground">
+<div className="flex h-full flex-col bg-background p-4 text-foreground">
       <h1 className="mb-4 text-xl font-bold">Расписание</h1>
+
+      {/* Панель версионирования */}
+      <div className="mb-4 flex items-center gap-3">
+        <select
+          className="rounded border border-border bg-background px-2 py-1 text-sm"
+          value={selectedVersionId ?? "active"}
+          onChange={(e) => {
+            const val = e.target.value;
+            setSelectedVersionId(val === "active" ? null : Number(val));
+          }}
+        >
+          <option value="active">Активная версия</option>
+          {versionsQuery.data?.map((v) => (
+            <option key={v.id} value={v.id}>{v.name}</option>
+          ))}
+        </select>
+        {isActiveVersion && (
+          <button
+            onClick={handleSaveVersion}
+            disabled={saveActiveMut.isPending}
+            className="rounded bg-green-600 px-3 py-1 text-sm text-white hover:bg-green-700"
+          >
+            {saveActiveMut.isPending ? "Сохранение..." : "Сохранить как версию"}
+          </button>
+        )}
+        {!isActiveVersion && (
+          <button
+            onClick={handleDeleteVersion}
+            disabled={deleteVersionMut.isPending}
+            className="rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
+          >
+            {deleteVersionMut.isPending ? "Удаление..." : "Удалить версию"}
+          </button>
+        )}
+      </div>
 
       {/* Легенда */}
       <div className="mb-4 flex flex-wrap gap-4 rounded border border-border bg-muted p-3 text-sm">
@@ -582,32 +654,24 @@ const handleCSV = () => {
         </div>
       )}
 
-      <div className="mb-4 flex gap-4">
-        <button onClick={() => setViewMode("units")} className={viewMode === "units" ? "border-b-2 border-blue-500 font-bold" : ""}>
-          По юнитам
-        </button>
-        <button onClick={() => setViewMode("groups")} className={viewMode === "groups" ? "border-b-2 border-blue-500 font-bold" : ""}>
-          По группам
-        </button>
-        <button onClick={handlePrint} className="ml-2 rounded bg-blue-600 px-3 py-1 text-white hover:bg-blue-700">
-          🖨️ Печать
-        </button>
-        <button onClick={handleCSV} className="ml-2 rounded bg-green-600 px-3 py-1 text-white hover:bg-green-700">
-          📥 CSV
-        </button>
-        <button
-          onClick={() => optimizeScheduleMut.mutate()}
-          disabled={editMode || optimizeScheduleMut.isPending}
-          className="rounded bg-purple-600 px-3 py-1 text-white hover:bg-purple-700 disabled:bg-gray-400"
-        >
-          {optimizeScheduleMut.isPending ? "Оптимизация..." : "Оптимизировать"}
-        </button>
-        {viewMode === "units" && (
-          <button onClick={() => setEditMode(!editMode)} className="ml-auto rounded bg-blue-500 px-3 py-1 text-white hover:bg-blue-600">
-            {editMode ? "Завершить редактирование" : "Редактировать"}
-          </button>
-        )}
-      </div>
+        <div className="mb-4 flex gap-4">
+          <button onClick={() => setViewMode("units")} className={viewMode === "units" ? "border-b-2 border-blue-500 font-bold" : ""}>По юнитам</button>
+          <button onClick={() => setViewMode("groups")} className={viewMode === "groups" ? "border-b-2 border-blue-500 font-bold" : ""}>По группам</button>
+          <button onClick={handlePrint} className="ml-2 rounded bg-blue-600 px-3 py-1 text-white hover:bg-blue-700">🖨️ Печать</button>
+          <button onClick={handleCSV} className="ml-2 rounded bg-green-600 px-3 py-1 text-white hover:bg-green-700">📥 CSV</button>
+          {isActiveVersion && (
+            <>
+              <button onClick={() => optimizeScheduleMut.mutate()} disabled={editMode || optimizeScheduleMut.isPending} className="rounded bg-purple-600 px-3 py-1 text-white hover:bg-purple-700 disabled:bg-gray-400">
+                {optimizeScheduleMut.isPending ? "Оптимизация..." : "Оптимизировать"}
+              </button>
+              {viewMode === "units" && (
+                <button onClick={() => setEditMode(!editMode)} className="ml-auto rounded bg-blue-500 px-3 py-1 text-white hover:bg-blue-600">
+                  {editMode ? "Завершить редактирование" : "Редактировать"}
+                </button>
+              )}
+            </>
+          )}
+        </div>
 
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
         <div className="flex min-h-0 flex-1 items-stretch gap-4">

@@ -3,18 +3,20 @@ import { router, adminProcedure } from "../../trpc";
 import {
   students, studyGroups, profiles,
   specialties, departments, institutes,
-  unitRoots, lessons, lessonClassrooms, schedule, units
+  unitRoots, lessons, lessonClassrooms, schedule, units,
+  scheduleDisplay
 } from "@/db/schema";
-import { eq, and, inArray, sql } from "drizzle-orm";
+import { eq, and, inArray, sql, isNull } from "drizzle-orm";
 
 export const generateGroupsRouter = router({
   generateGroups: adminProcedure.mutation(async ({ ctx }) => {
     await ctx.db.transaction(async (tx) => {
+      await tx.delete(scheduleDisplay).where(isNull(scheduleDisplay.versionId));
       await tx.delete(schedule);
-      await tx.delete(lessonClassrooms);
-      await tx.delete(lessons);
-      await tx.delete(unitRoots);
-      await tx.delete(units);
+      await tx.delete(lessonClassrooms).where(isNull(lessonClassrooms.versionId));
+      await tx.delete(lessons).where(isNull(lessons.versionId));
+      await tx.delete(unitRoots).where(isNull(unitRoots.versionId));
+      await tx.delete(units).where(isNull(units.versionId));
       await tx.update(students).set({ studyGroupId: null, course: null });
       await tx.delete(studyGroups);
     });

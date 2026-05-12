@@ -12,6 +12,12 @@ import {
 // Enums (можно заменить текстовыми полями, но enum'ы строже)
 export const roleEnum = pgEnum('role', ['admin', 'teacher', 'student', 'inactive']);
 
+export const scheduleVersions = pgTable("schedule_versions", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export const roles = pgTable("roles", {
   id: serial("id").primaryKey(),
   name: text("name").notNull().unique(),
@@ -256,12 +262,14 @@ export const units = pgTable("units", {
   id: serial("id").primaryKey(),
   code: text("code").notNull().unique(),
   unitTypeId: integer("unit_type_id").notNull().references(() => unitTypes.id),
+  versionId: integer("version_id").references(() => scheduleVersions.id),
 });
 
 export const unitRoots = pgTable("unit_roots", {
   id: serial("id").primaryKey(),
   unitCode: text("unit_code").notNull().references(() => units.code),
   studyGroupId: integer("study_group_id").notNull().references(() => studyGroups.id),
+  versionId: integer("version_id").references(() => scheduleVersions.id),
 }, (table) => ({
   uniqueUnitGroup: unique().on(table.unitCode, table.studyGroupId),
 }));
@@ -274,12 +282,14 @@ export const lessons = pgTable("lessons", {
   disciplineId: integer("discipline_id").notNull().references(() => disciplines.id),
   teacherId: integer("teacher_id").references(() => employeesDepartments.id),
   countPerSemester: integer("count_per_semester").notNull(),
+  versionId: integer("version_id").references(() => scheduleVersions.id),
 });
 
 export const lessonClassrooms = pgTable("lesson_classrooms", {
   id: serial("id").primaryKey(),
   lessonId: integer("lesson_id").notNull().references(() => lessons.id),
   classroomId: integer("classroom_id").notNull().references(() => classrooms.id),
+  versionId: integer("version_id").references(() => scheduleVersions.id),
 }, (table) => ({
   uniqueLessonClassroom: unique().on(table.lessonId, table.classroomId),
 }));
@@ -326,6 +336,7 @@ export const scheduleDisplay = pgTable("schedule_display", {
   classroomFlag: boolean("classroom_flag").default(false),
   classroomId: integer("classroom_id").references(() => classrooms.id),
   isBuffered: boolean("is_buffered").default(false).notNull(),
+  versionId: integer("version_id").references(() => scheduleVersions.id),
 });
 
 export const settings = pgTable('settings', {

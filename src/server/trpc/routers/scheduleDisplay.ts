@@ -3,25 +3,30 @@ import { z } from "zod";
 import { router, adminProcedure } from "../trpc";
 import { scheduleDisplay, daysOfWeek, pairs, unitRoots, studyGroups, weeks } from "@/db/schema";
 import { lessons, lessonClassrooms } from "@/db/schema";
-import { eq, inArray, asc, and } from "drizzle-orm";
+import { eq, inArray, asc, and, isNull } from "drizzle-orm";
 import { optimizeSchedule } from "./scheduleOptimizer";
 
 export const scheduleDisplayRouter = router({
 getForWeekPair: adminProcedure
-  .input(z.object({ weekBaseId: z.number().int().min(1).optional() }))
-  .query(async ({ ctx }) => {
-    // Все активные недели с типами
+  .input(z.object({ 
+    weekBaseId: z.number().int().min(1).optional(),
+    versionId: z.number().nullable().optional() // null = активная
+  }))
+  .query(async ({ ctx, input }) => {
+    const versionCondition = input.versionId !== undefined
+      ? (input.versionId === null ? isNull(scheduleDisplay.versionId) : eq(scheduleDisplay.versionId, input.versionId))
+      : isNull(scheduleDisplay.versionId);
+
     const weeksList = await ctx.db
       .select({ id: weeks.id, type: weeks.type })
       .from(weeks)
       .where(eq(weeks.isActive, true))
       .orderBy(asc(weeks.id));
 
-    // ВСЕ строки, не фильтруем по неделям
     const rows = await ctx.db
       .select()
       .from(scheduleDisplay)
-      .where(eq(scheduleDisplay.isBuffered, false))
+      .where(and(eq(scheduleDisplay.isBuffered, false), versionCondition))
       .orderBy(
         asc(scheduleDisplay.weekId),
         asc(scheduleDisplay.dayOfWeekId),
@@ -31,7 +36,6 @@ getForWeekPair: adminProcedure
 
     const days = await ctx.db.select().from(daysOfWeek).orderBy(asc(daysOfWeek.id));
     const pairsList = await ctx.db.select().from(pairs).orderBy(asc(pairs.number));
-
     return { rows, days, pairs: pairsList, weeks: weeksList };
   }),
 
@@ -41,7 +45,10 @@ getByGroup: adminProcedure
     const weeksList = await ctx.db
       .select({ id: weeks.id, type: weeks.type })
       .from(weeks)
-      .where(eq(weeks.isActive, true))
+      .where(and(
+        eq(scheduleDisplay.isBuffered, false),
+        isNull(scheduleDisplay.versionId)
+      ))
       .orderBy(asc(weeks.id));
 
     const unitLinks = await ctx.db
@@ -74,8 +81,15 @@ getByGroup: adminProcedure
   }),
 
 getByStudyGroups: adminProcedure
-  .input(z.object({ weekBaseId: z.number().int().min(1).optional() }))
-  .query(async ({ ctx }) => {
+  .input(z.object({ 
+    weekBaseId: z.number().int().min(1).optional(),
+    versionId: z.number().nullable().optional()
+  }))
+  .query(async ({ ctx, input }) => {
+    const versionCondition = input.versionId !== undefined
+      ? (input.versionId === null ? isNull(scheduleDisplay.versionId) : eq(scheduleDisplay.versionId, input.versionId))
+      : isNull(scheduleDisplay.versionId);
+
     const weeksList = await ctx.db
       .select({ id: weeks.id, type: weeks.type })
       .from(weeks)
@@ -87,7 +101,7 @@ getByStudyGroups: adminProcedure
       .from(unitRoots)
       .innerJoin(studyGroups, eq(unitRoots.studyGroupId, studyGroups.id))
       .innerJoin(scheduleDisplay, eq(unitRoots.unitCode, scheduleDisplay.unitCode))
-      .where(eq(scheduleDisplay.isBuffered, false));
+      .where(and(eq(scheduleDisplay.isBuffered, false), versionCondition));
 
     const groupUnitMap = new Map<string, Set<string>>();
     for (const { studyGroupCode, unitCode } of roots) {
@@ -110,17 +124,20 @@ getByStudyGroups: adminProcedure
           mergeNumber: scheduleDisplay.mergeNumber,
           positionFlag: scheduleDisplay.positionFlag,
           classroomFlag: scheduleDisplay.classroomFlag,
+          versionId: scheduleDisplay.versionId,
         })
         .from(scheduleDisplay)
         .where(and(
           inArray(scheduleDisplay.unitCode, unitList),
-          eq(scheduleDisplay.isBuffered, false)
+          eq(scheduleDisplay.isBuffered, false),
+          versionCondition // <-- фильтр по версии
         ));
       for (const row of groupRows) {
         allRows.push({
-          ...row, studyGroupCode: groupCode,
+          ...row,
+          studyGroupCode: groupCode,
           classroomId: null,
-          isBuffered: false
+          isBuffered: false,
         });
       }
     }
@@ -134,18 +151,25 @@ getByStudyGroups: adminProcedure
 
     const days = await ctx.db.select().from(daysOfWeek).orderBy(asc(daysOfWeek.id));
     const pairsList = await ctx.db.select().from(pairs).orderBy(asc(pairs.number));
-
     return { rows: allRows, days, pairs: pairsList, weeks: weeksList };
   }),
 
   getBuffer: adminProcedure.query(async ({ ctx }) => {
-    return ctx.db.select().from(scheduleDisplay).where(eq(scheduleDisplay.isBuffered, true)).orderBy(asc(scheduleDisplay.id));
+    return ctx.db.select()
+    .from(scheduleDisplay)
+    .where(and(
+      eq(scheduleDisplay.isBuffered, false),
+      isNull(scheduleDisplay.versionId)
+    ))
+    .orderBy(asc(scheduleDisplay.id));
   }),
 
   moveToBuffer: adminProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
-      await ctx.db.update(scheduleDisplay).set({ isBuffered: true }).where(eq(scheduleDisplay.id, input.id));
+      await ctx.db.update(scheduleDisplay)
+      .set({ isBuffered: true })
+      .where(eq(scheduleDisplay.id, input.id));
       return { success: true };
     }),
 
@@ -158,7 +182,13 @@ getByStudyGroups: adminProcedure
       targetUnitCode: z.string(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const record = await ctx.db.select().from(scheduleDisplay).where(eq(scheduleDisplay.id, input.id)).limit(1);
+      const record = await ctx.db.select()
+      .from(scheduleDisplay)
+      .where(and(
+        eq(scheduleDisplay.isBuffered, false),
+        isNull(scheduleDisplay.versionId)
+      ))
+      .limit(1);
       if (!record.length || !record[0].isBuffered) throw new Error('Запись не в буфере');
 
       const existing = await ctx.db
@@ -204,7 +234,10 @@ getByStudyGroups: adminProcedure
       const movingUnitGroups = await ctx.db
         .select({ studyGroupId: unitRoots.studyGroupId })
         .from(unitRoots)
-        .where(eq(unitRoots.unitCode, m.unitCode));
+        .where(and(
+          eq(scheduleDisplay.isBuffered, false),
+          isNull(scheduleDisplay.versionId)
+        ))
       const movingGroupIds = new Set(movingUnitGroups.map(r => r.studyGroupId));
 
       let mTeacherId: number | null = null;
@@ -383,7 +416,8 @@ getByStudyGroups: adminProcedure
           eq(scheduleDisplay.dayOfWeekId, input.targetDayId),
           eq(scheduleDisplay.pairNumberId, input.targetPairId),
           eq(scheduleDisplay.unitCode, input.targetUnitCode),
-          eq(scheduleDisplay.isBuffered, false)
+          eq(scheduleDisplay.isBuffered, false),
+                isNull(scheduleDisplay.versionId)
         ));
       if (existing.length > 0) throw new Error('Слот занят');
 
@@ -402,8 +436,14 @@ getByStudyGroups: adminProcedure
     .input(z.object({ id1: z.number(), id2: z.number() }))
     .mutation(async ({ ctx, input }) => {
       const [rec1, rec2] = await Promise.all([
-        ctx.db.select().from(scheduleDisplay).where(eq(scheduleDisplay.id, input.id1)).limit(1),
-        ctx.db.select().from(scheduleDisplay).where(eq(scheduleDisplay.id, input.id2)).limit(1),
+        ctx.db.select().from(scheduleDisplay).where(and(
+          eq(scheduleDisplay.id, input.id1),
+          isNull(scheduleDisplay.versionId)
+        )).limit(1),
+        ctx.db.select().from(scheduleDisplay).where(and(
+          eq(scheduleDisplay.id, input.id1),
+          isNull(scheduleDisplay.versionId)
+        )).limit(1),
       ]);
       const r1 = rec1[0] as typeof scheduleDisplay.$inferSelect;
       const r2 = rec2[0] as typeof scheduleDisplay.$inferSelect;
@@ -414,8 +454,14 @@ getByStudyGroups: adminProcedure
       const slot2 = { weekId: r2.weekId, dayOfWeekId: r2.dayOfWeekId, pairNumberId: r2.pairNumberId, unitCode: r2.unitCode };
 
       await Promise.all([
-        ctx.db.update(scheduleDisplay).set({ ...slot2, positionFlag: false, mergeNumber: 0 }).where(eq(scheduleDisplay.id, input.id1)),
-        ctx.db.update(scheduleDisplay).set({ ...slot1, positionFlag: false, mergeNumber: 0 }).where(eq(scheduleDisplay.id, input.id2)),
+        ctx.db.update(scheduleDisplay).set({ ...slot2, positionFlag: false, mergeNumber: 0 }).where(and(
+          eq(scheduleDisplay.id, input.id1),
+          isNull(scheduleDisplay.versionId)
+        )),
+        ctx.db.update(scheduleDisplay).set({ ...slot1, positionFlag: false, mergeNumber: 0 }).where(and(
+          eq(scheduleDisplay.id, input.id1),
+          isNull(scheduleDisplay.versionId)
+        )),
       ]);
       return { success: true };
     }),

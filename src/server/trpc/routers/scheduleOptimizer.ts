@@ -37,7 +37,7 @@ interface MergeGroup {
   totalStudents: number;
 }
 
-interface OptimizationContext {
+interface   OptimizationContext {
   entries: ScheduleEntry[];
   slots: { weekId: number; dayId: number; pairId: number }[];
   occupancyBySlot: Map<SlotKey, Occupancy>;
@@ -642,8 +642,14 @@ function forcePlaceGroup(
   return true;
 }
 
-export async function optimizeSchedule() {
-  const allEntries = await db.select().from(sdTable).where(eq(sdTable.isBuffered, false));
+export async function optimizeSchedule(versionId?: number | null) {
+  const allEntries = await db.select().from(sdTable)
+  .where(and(
+    eq(sdTable.isBuffered, false),
+    versionId !== undefined
+      ? (versionId === null ? isNull(sdTable.versionId) : eq(sdTable.versionId, versionId))
+      : isNull(sdTable.versionId)
+  ));
   if (allEntries.length < 2) return { iterations: 0, initialScore: 0, finalScore: 0, message: "Слишком мало занятий" };
 
   const ctx = await buildContext(allEntries);
