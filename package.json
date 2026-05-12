@@ -13,7 +13,7 @@
     "lint:fix": "eslint src --ext .ts,.tsx --fix",
     "test:db:push": "dotenv -e .env.test -- drizzle-kit push",
     "test": "vitest run",
-    "seed": "npx tsx src/db/seed.ts"
+    "seed": "npx dotenv -e .env -- npx tsx src/db/seed.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

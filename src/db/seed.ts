@@ -1,5 +1,4 @@
 // src/db/seed.ts
-import "dotenv/config";
 import { db } from "@/db";
 import {
   institutes, buildings, unitTypes, lessonTypes,
@@ -122,10 +121,10 @@ await db.delete(settings);
   ]).returning();
 
   // Соответствие часов и приоритетов
-  const lectureIdx = ltByIdx[1]!;   // ненулевой оператор
-  const workshopIdx = ltByIdx[2]!;
-  const guidedStudyIdx = ltByIdx[3]!;
-  const labIdx = ltByIdx[4]!;
+  const lectureIdx = ltByIdx[0]!;   // ненулевой оператор
+  const workshopIdx = ltByIdx[1]!;
+  const guidedStudyIdx = ltByIdx[2]!;
+  const labIdx = ltByIdx[3]!;
 
   await db.insert(hourTypeMapping).values([
       { planHourColumn: "hours_lecture", priorityColumn: "priorityLecture", lessonTypeId: lectureIdx },
@@ -209,30 +208,31 @@ await db.delete(settings);
   }
 
   // Дисциплины-преподавателей (discipline_teachers)
-  const dtValues = [
-    { ltIdx: 1, discIdx: 0, empIdx: 0, deptCode: 17 }, // Лекция ПП – Альтман
-    { ltIdx: 1, discIdx: 1, empIdx: 5, deptCode: 17 }, // Лекция ККС – Малютин
-    { ltIdx: 1, discIdx: 2, empIdx: 4, deptCode: 17 }, // Лекция ИСС – Окишев
-    { ltIdx: 1, discIdx: 3, empIdx: 1, deptCode: 17 }, // Лекция ИСиБД – Тихонова
-    { ltIdx: 1, discIdx: 4, empIdx: 7, deptCode: 17 }, // Лекция ТПП – Елизаров
-    { ltIdx: 1, discIdx: 5, empIdx: 6, deptCode: 17 }, // Лекция ЭиС – Циркин
-    { ltIdx: 1, discIdx: 6, empIdx: 3, deptCode: 17 }, // Лекция ОТУ – Лаврухин
-    // KCP (3)
+const dtValues = [
+    // Лекции (0)
+    { ltIdx: 0, discIdx: 0, empIdx: 0, deptCode: 17 }, // Лекция ПП – Альтман
+    { ltIdx: 0, discIdx: 1, empIdx: 5, deptCode: 17 }, // Лекция ККС – Малютин
+    { ltIdx: 0, discIdx: 2, empIdx: 4, deptCode: 17 }, // Лекция ИСС – Окишев
+    { ltIdx: 0, discIdx: 3, empIdx: 1, deptCode: 17 }, // Лекция ИСиБД – Тихонова
+    { ltIdx: 0, discIdx: 4, empIdx: 7, deptCode: 17 }, // Лекция ТПП – Елизаров
+    { ltIdx: 0, discIdx: 5, empIdx: 6, deptCode: 17 }, // Лекция ЭиС – Циркин
+    { ltIdx: 0, discIdx: 6, empIdx: 3, deptCode: 17 }, // Лекция ОТУ – Лаврухин
+    // КСР (2)
+    { ltIdx: 2, discIdx: 0, empIdx: 0, deptCode: 17 },
+    { ltIdx: 2, discIdx: 1, empIdx: 5, deptCode: 17 },
+    { ltIdx: 2, discIdx: 2, empIdx: 4, deptCode: 17 },
+    { ltIdx: 2, discIdx: 3, empIdx: 1, deptCode: 17 },
+    { ltIdx: 2, discIdx: 4, empIdx: 7, deptCode: 17 },
+    { ltIdx: 2, discIdx: 5, empIdx: 6, deptCode: 17 },
+    { ltIdx: 2, discIdx: 6, empIdx: 2, deptCode: 17 }, // ОТУ КСР – Пашкова
+    // Лабораторные (3)
     { ltIdx: 3, discIdx: 0, empIdx: 0, deptCode: 17 },
     { ltIdx: 3, discIdx: 1, empIdx: 5, deptCode: 17 },
     { ltIdx: 3, discIdx: 2, empIdx: 4, deptCode: 17 },
     { ltIdx: 3, discIdx: 3, empIdx: 1, deptCode: 17 },
     { ltIdx: 3, discIdx: 4, empIdx: 7, deptCode: 17 },
     { ltIdx: 3, discIdx: 5, empIdx: 6, deptCode: 17 },
-    { ltIdx: 3, discIdx: 6, empIdx: 2, deptCode: 17 }, // ОТУ КСР – Пашкова
-    // ЛАБ (4)
-    { ltIdx: 4, discIdx: 0, empIdx: 0, deptCode: 17 },
-    { ltIdx: 4, discIdx: 1, empIdx: 5, deptCode: 17 },
-    { ltIdx: 4, discIdx: 2, empIdx: 4, deptCode: 17 },
-    { ltIdx: 4, discIdx: 3, empIdx: 1, deptCode: 17 },
-    { ltIdx: 4, discIdx: 4, empIdx: 7, deptCode: 17 },
-    { ltIdx: 4, discIdx: 5, empIdx: 6, deptCode: 17 },
-    { ltIdx: 4, discIdx: 6, empIdx: 2, deptCode: 17 },
+    { ltIdx: 3, discIdx: 6, empIdx: 2, deptCode: 17 },
   ];
   for (const rec of dtValues) {
     const lessonTypeId = ltByIdx[rec.ltIdx];
@@ -354,6 +354,8 @@ await db.delete(settings);
       isActive: true,
     });
   }
+  const studentCount = await db.select({ cnt: sql<number>`count(*)` }).from(students);
+console.log('Студентов в базе после seed:', studentCount[0].cnt);
   // Дни недели, пары, недели, роли
   await db.insert(daysOfWeek).values(
     ["ПН","ВТ","СР","ЧТ","ПТ","СБ"].map(name => ({ name }))
