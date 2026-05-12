@@ -2,6 +2,7 @@
 import { trpc } from "@/trpc/client";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function GenerationsPage() {
   const [error, setError] = useState<string | null>(null);
@@ -108,10 +109,13 @@ export default function GenerationsPage() {
     onError: (e) => setError(e.message),
   });
 
-  if (thresholdLoading || weeksLoading) return <div className="p-6 text-foreground">Загрузка настроек...</div>;
+  if (thresholdLoading || weeksLoading) 
+    return <div className="space-y-2 p-6">
+              <Skeleton className="h-4 w-32" /><Skeleton className="h-4 w-24" />
+           </div>;
 
   return (
-    <div className="mx-auto max-w-3xl bg-background p-6 text-foreground">
+    <div className="mx-auto h-full max-w-4xl overflow-y-auto bg-background p-6 text-foreground">
       <h1 className="mb-6 text-2xl font-bold">Системные генераторы</h1>
       {error && (
         <div className="mb-4 rounded border border-red-400 bg-red-100 px-4 py-3 text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400">

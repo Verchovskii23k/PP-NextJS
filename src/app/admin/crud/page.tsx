@@ -172,7 +172,7 @@ export default function AdminCrudPage() {
   };
 
   return (
-    <div className="flex h-screen">
+    <div className="flex h-full overflow-hidden">
       <aside className="w-64 overflow-y-auto border-r border-border bg-muted p-4">
         <h2 className="mb-4 text-lg font-semibold text-foreground">Таблицы</h2>
         <DndContext

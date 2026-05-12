@@ -14,6 +14,7 @@ import {
   DragEndEvent,
   DragOverlay,
 } from "@dnd-kit/core";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type Day = { id: number; name: string };
 type Pair = { id: number; number: number };
@@ -519,8 +520,8 @@ const handleCSV = () => {
   link.remove();
 };
 
-  if (viewMode === "units" && unitsLoading) return <div className="p-6">Загрузка...</div>;
-  if (viewMode === "groups" && groupsLoading) return <div className="p-6">Загрузка...</div>;
+  if (viewMode === "units" && unitsLoading) return <div className="p-6"><Skeleton className="h-4 w-32" /></div>
+  if (viewMode === "groups" && groupsLoading) return <div className="p-6"><Skeleton className="h-4 w-32" /></div>
 
   const bufferEntries = bufferData || [];
   const displayRows = viewMode === "units" ? unitsData?.rows : (groupsData?.rows as ScheduleRowWithGroup[] | undefined);
@@ -531,7 +532,7 @@ const handleCSV = () => {
     : Array.from(new Set((displayRows as AnyRow[])?.map((r) => r.studyGroupCode || "") || [])).sort();
 
   return (
-    <div className="bg-background p-4 text-foreground">
+    <div className="flex h-full flex-col bg-background p-4 text-foreground">
       <h1 className="mb-4 text-xl font-bold">Расписание</h1>
 
       {/* Легенда */}
@@ -609,10 +610,10 @@ const handleCSV = () => {
       </div>
 
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-        <div className="flex items-stretch gap-4" style={{ minHeight: "400px" }}>
+        <div className="flex min-h-0 flex-1 items-stretch gap-4">
           {editMode && <BufferZone entries={bufferEntries} isEditMode={editMode} />}
 
-          <div className="flex-1 overflow-auto" id="schedule-table">
+          <div className="min-h-0 flex-1 overflow-auto" id="schedule-table">
             {days && pairs && displayRows && (
               <div className="overflow-x-auto rounded-md border border-border">
                 <table className="w-full border-collapse text-sm">

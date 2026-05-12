@@ -43,7 +43,7 @@ export default function CredentialsPage() {
   };
 
   return (
-    <div className="mx-auto max-w-3xl bg-background p-6 text-foreground">
+    <div className="mx-auto h-full max-w-4xl overflow-y-auto bg-background p-6 text-foreground">
       <h1 className="mb-6 text-2xl font-bold">Генерация логинов и паролей</h1>
       {error && (
         <div className="mb-4 rounded border border-red-400 bg-red-100 px-4 py-3 text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400">

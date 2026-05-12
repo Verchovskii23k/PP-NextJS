@@ -73,7 +73,7 @@ export default function ImportExportPage() {
     };
 
   return (
-    <div className="mx-auto max-w-3xl bg-background p-6 text-foreground">
+    <div className="mx-auto h-full max-w-4xl overflow-y-auto bg-background p-6 text-foreground">
       <h1 className="mb-6 text-2xl font-bold">Импорт / Экспорт данных</h1>
 
       <div className="space-y-6">

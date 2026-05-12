@@ -69,84 +69,127 @@ export default function SetupPage() {
           });
         }}
       >
-        <input
-          className="mb-3 w-full rounded border border-border bg-background px-3 py-2 text-foreground placeholder:text-muted-foreground"
-          placeholder="Фамилия *"
-          name="surname"
-          value={form.surname}
-          onChange={handleChange}
-          required
-        />
-        <input
-          className="mb-3 w-full rounded border border-border bg-background px-3 py-2 text-foreground placeholder:text-muted-foreground"
-          placeholder="Имя *"
-          name="name"
-          value={form.name}
-          onChange={handleChange}
-          required
-        />
-        <input
-          className="mb-3 w-full rounded border border-border bg-background px-3 py-2 text-foreground placeholder:text-muted-foreground"
-          placeholder="Отчество (необязательно)"
-          name="patronymic"
-          value={form.patronymic}
-          onChange={handleChange}
-        />
-        <input
-          className="mb-3 w-full rounded border border-border bg-background px-3 py-2 text-foreground placeholder:text-muted-foreground"
-          placeholder="Телефон (необязательно)"
-          name="phone"
-          value={form.phone}
-          onChange={handleChange}
-        />
-        <input
-          className="mb-3 w-full rounded border border-border bg-background px-3 py-2 text-foreground placeholder:text-muted-foreground"
-          placeholder="Email (необязательно)"
-          name="email"
-          type="email"
-          value={form.email}
-          onChange={handleChange}
-        />
-        {/* Логин с глазком */}
-        <div className="relative mb-3">
+        {/* Фамилия */}
+        <div className="mb-3">
+          <label className="mb-1 block text-sm text-muted-foreground">
+            Фамилия <span className="text-red-500">*</span>
+          </label>
           <input
-            className="w-full rounded border border-border bg-background px-3 py-2 pr-10 text-foreground placeholder:text-muted-foreground"
-            type={showLogin ? "text" : "password"}
-            placeholder="Логин *"
-            name="login"
-            value={form.login}
+            className="w-full rounded border border-border bg-background px-3 py-2 text-foreground"
+            name="surname"
+            value={form.surname}
             onChange={handleChange}
             required
           />
-          <button
-            type="button"
-            onClick={() => setShowLogin(!showLogin)}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-            aria-label="Показать логин"
-          >
-            {showLogin ? <EyeOff size={20} /> : <Eye size={20} />}
-          </button>
         </div>
-        {/* Пароль с глазком */}
-        <div className="relative mb-4">
+
+        {/* Имя */}
+        <div className="mb-3">
+          <label className="mb-1 block text-sm text-muted-foreground">
+            Имя <span className="text-red-500">*</span>
+          </label>
           <input
-            className="w-full rounded border border-border bg-background px-3 py-2 pr-10 text-foreground placeholder:text-muted-foreground"
-            type={showPassword ? "text" : "password"}
-            placeholder="Пароль *"
-            name="password"
-            value={form.password}
+            className="w-full rounded border border-border bg-background px-3 py-2 text-foreground"
+            name="name"
+            value={form.name}
             onChange={handleChange}
             required
           />
-          <button
-            type="button"
-            onClick={() => setShowPassword(!showPassword)}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-            aria-label="Показать пароль"
-          >
-            {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-          </button>
         </div>
+
+        {/* Отчество */}
+        <div className="mb-3">
+          <label className="mb-1 block text-sm text-muted-foreground">
+            Отчество
+          </label>
+          <input
+            className="w-full rounded border border-border bg-background px-3 py-2 text-foreground"
+            name="patronymic"
+            value={form.patronymic}
+            onChange={handleChange}
+            placeholder="Необязательно"
+          />
+        </div>
+
+        {/* Телефон */}
+        <div className="mb-3">
+          <label className="mb-1 block text-sm text-muted-foreground">
+            Телефон
+          </label>
+          <input
+            className="w-full rounded border border-border bg-background px-3 py-2 text-foreground"
+            name="phone"
+            value={form.phone}
+            onChange={handleChange}
+            placeholder="Необязательно"
+          />
+        </div>
+
+        {/* Email */}
+        <div className="mb-3">
+          <label className="mb-1 block text-sm text-muted-foreground">
+            Email
+          </label>
+          <input
+            className="w-full rounded border border-border bg-background px-3 py-2 text-foreground"
+            name="email"
+            type="email"
+            value={form.email}
+            onChange={handleChange}
+            placeholder="Необязательно"
+          />
+        </div>
+
+        {/* Логин */}
+        <div className="mb-3">
+          <label className="mb-1 block text-sm text-muted-foreground">
+            Логин <span className="text-red-500">*</span>
+          </label>
+          <div className="relative">
+            <input
+              className="w-full rounded border border-border bg-background px-3 py-2 pr-10 text-foreground"
+              type={showLogin ? "text" : "password"}
+              name="login"
+              value={form.login}
+              onChange={handleChange}
+              required
+            />
+            <button
+              type="button"
+              onClick={() => setShowLogin(!showLogin)}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              aria-label="Показать логин"
+            >
+              {showLogin ? <EyeOff size={20} /> : <Eye size={20} />}
+            </button>
+          </div>
+        </div>
+
+        {/* Пароль */}
+        <div className="mb-4">
+          <label className="mb-1 block text-sm text-muted-foreground">
+            Пароль <span className="text-red-500">*</span>
+          </label>
+          <div className="relative">
+            <input
+              className="w-full rounded border border-border bg-background px-3 py-2 pr-10 text-foreground"
+              type={showPassword ? "text" : "password"}
+              name="password"
+              value={form.password}
+              onChange={handleChange}
+              required
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              aria-label="Показать пароль"
+            >
+              {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+            </button>
+          </div>
+        </div>
+
         <button
           className="hover:bg-primary/90 w-full rounded bg-primary px-4 py-2 font-medium text-white transition-colors"
           type="submit"

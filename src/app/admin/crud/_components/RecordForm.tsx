@@ -249,6 +249,15 @@ export function RecordForm({ tableName, editId, onClose }: RecordFormProps) {
   };
 
   const isPending = createMutation?.isPending || updateMutation?.isPending;
+    useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">

@@ -2,6 +2,9 @@
 import { useRouter } from "next/navigation";
 import { trpc } from "@/trpc/client";
 import { useEffect } from "react";
+import Forbidden from "@/components/Forbidden";
+import { Skeleton } from "@/components/ui/skeleton";
+
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -13,8 +16,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
   }, [me, isLoading, router]);
 
-  if (isLoading) return <div className="p-8">Проверка доступа...</div>;
-  if (!me || me.role !== "admin") return null;
+  if (isLoading) return <div className="p-8"><Skeleton className="h-4 w-48" /></div>;
+  if (!me || me.role !== "admin") return <Forbidden />;
 
   return <>{children}</>;
 }

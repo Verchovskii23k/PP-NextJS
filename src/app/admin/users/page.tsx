@@ -1,4 +1,5 @@
 "use client";
+import { SkeletonTable } from "@/components/ui/skeleton";
 import { trpc } from "@/trpc/client";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -12,11 +13,11 @@ export default function UsersPage() {
     emailSent: boolean;
   } | null>(null);
 
-  if (isLoading) return <div className="p-6 text-foreground">Загрузка...</div>;
+  if (isLoading) return <div className="p-6"><SkeletonTable rows={5} /></div>;
   if (error) return <div className="p-6 text-red-500">Ошибка: {error.message}</div>;
 
   return (
-    <div className="mx-auto max-w-4xl bg-background p-6 text-foreground">
+    <div className="mx-auto h-full max-w-4xl overflow-y-auto bg-background p-6 text-foreground">
       <h1 className="mb-6 text-2xl font-bold">Управление пользователями</h1>
 
       {resetResult && (

@@ -21,6 +21,7 @@ import { RecordForm } from "./RecordForm";
 import { ForeignKeyCell } from "./ForeignKeyCell";
 import { ColumnFilterPopover } from "./ColumnFilterPopover";
 import { toast } from "sonner";
+import { SkeletonTable } from "@/components/ui/skeleton";
 
 interface BaseRow extends Record<string, unknown> {
   id: number;
@@ -286,6 +287,7 @@ export function DataTable({ tableName }: DataTableProps) {
       cell: ({ row }) => (
         <div className="flex gap-2">
           <button
+            aria-label={`Редактировать запись ${row.original.id}`}
             className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
             onClick={() => {
               setEditId(row.original.id);
@@ -295,6 +297,7 @@ export function DataTable({ tableName }: DataTableProps) {
             Ред.
           </button>
           <button
+            aria-label={`Удалить запись ${row.original.id}`}
             className="text-sm text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
             onClick={async () => {
               if (!deleteMutation || !deleteMutation.mutateAsync) {
@@ -350,7 +353,7 @@ export function DataTable({ tableName }: DataTableProps) {
     return <div>Таблица не найдена</div>;
   }
 
-  if (isLoading) return <div>Загрузка...</div>;
+  if (isLoading) return <div className="p-6"><SkeletonTable rows={8} /></div>;
   if (isError && error) return <div className="text-red-500">Ошибка: {error.message}</div>;
 
   return (

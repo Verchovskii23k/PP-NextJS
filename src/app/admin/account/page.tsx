@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function AccountPage() {
   // Проверка авторизации
@@ -40,7 +41,12 @@ export default function AccountPage() {
 
   // Пока загружается информация о пользователе – показываем лоадер
   if (userLoading) {
-    return <div className="p-6 text-foreground">Загрузка...</div>;
+      return (
+        <div className="space-y-2 p-6">
+          <Skeleton className="h-4 w-32" />
+          <Skeleton className="h-4 w-48" />
+        </div>
+      );
   }
 
   // Если пользователь не авторизован – предлагаем войти
@@ -57,7 +63,7 @@ export default function AccountPage() {
 
   // Основной интерфейс (только для авторизованных)
   return (
-    <div className="mx-auto max-w-lg bg-background p-6 text-foreground">
+    <div className="mx-auto h-full max-w-4xl overflow-y-auto bg-background p-6 text-foreground">
       <h1 className="mb-6 text-2xl font-bold">Настройки аккаунта</h1>
 
       {/* Смена логина */}

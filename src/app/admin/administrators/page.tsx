@@ -1,6 +1,7 @@
 "use client";
 import { trpc } from "@/trpc/client";
 import { useState } from "react";
+import { SkeletonTable } from "@/components/ui/skeleton"
 
 export default function AdministratorsPage() {
     interface ToggleAdminResult {
@@ -20,11 +21,11 @@ export default function AdministratorsPage() {
   const [mutError, setMutError] = useState<string | null>(null);
   const [mutWarning, setMutWarning] = useState<string | null>(null);
 
-  if (isLoading) return <div className="p-6 text-foreground">Загрузка...</div>;
+  if (isLoading) return <div className="p-6"><SkeletonTable rows={5} /></div>;
   if (error) return <div className="p-6 text-red-500">Ошибка: {error.message}</div>;
 
   return (
-    <div className="mx-auto max-w-4xl bg-background p-6 text-foreground">
+    <div className="mx-auto h-full max-w-4xl overflow-y-auto bg-background p-6 text-foreground">
       <h1 className="mb-6 text-2xl font-bold">Управление администраторами</h1>
       
       {mutError && (

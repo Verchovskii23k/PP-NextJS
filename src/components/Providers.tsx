@@ -92,11 +92,13 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
       <TRPCProvider>
-        <HeaderContent />
-        <main className="min-h-screen bg-background text-foreground">
-          {children}
-        </main>
-        <Toaster richColors />  {/* ← добавлен */}
+        <div className="flex h-screen flex-col overflow-hidden bg-background">
+          <HeaderContent /> 
+          <main className="flex-1 overflow-hidden">
+            {children}
+          </main>
+          <Toaster richColors />
+        </div>
       </TRPCProvider>
     </ThemeProvider>
   );

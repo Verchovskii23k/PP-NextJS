@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { trpc } from "@/trpc/client";
 import { tablesMeta } from "@/lib/table-meta";
+import { Skeleton } from "./ui/skeleton";
 
 interface EntityTooltipProps {
   tableName: string;
@@ -111,7 +112,7 @@ export function EntityTooltip({ tableName, id, children }: EntityTooltipProps) {
           className="max-h-[80vh] min-w-[240px] max-w-[90vw] overflow-y-auto rounded-md border border-gray-300 bg-white p-2 text-sm shadow-lg"
         >
           <div className="mb-1 font-semibold">{meta.nameRu}</div>
-          {isLoading && <div className="text-gray-500">Загрузка...</div>}
+          {isLoading && <Skeleton className="my-1 h-4 w-24" />}
           {data === null && <div className="text-red-500">Не найдено</div>}
           {data && typeof data === 'object' ? (
             meta.fields.map((field) => (
