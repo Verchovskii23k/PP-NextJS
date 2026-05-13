@@ -643,13 +643,12 @@ function forcePlaceGroup(
 }
 
 export async function optimizeSchedule(versionId?: number | null) {
+  const versionCondition = versionId !== undefined
+    ? (versionId === null ? isNull(sdTable.versionId) : eq(sdTable.versionId, versionId))
+    : isNull(sdTable.versionId);
   const allEntries = await db.select().from(sdTable)
   .where(and(
-    eq(sdTable.isBuffered, false),
-    versionId !== undefined
-      ? (versionId === null ? isNull(sdTable.versionId) : eq(sdTable.versionId, versionId))
-      : isNull(sdTable.versionId)
-  ));
+    eq(sdTable.isBuffered, false), versionCondition));
   if (allEntries.length < 2) return { iterations: 0, initialScore: 0, finalScore: 0, message: "Слишком мало занятий" };
 
   const ctx = await buildContext(allEntries);

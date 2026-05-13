@@ -1,3 +1,4 @@
+// src\db\schema.ts
 import {
   pgTable,
   serial,
@@ -146,6 +147,7 @@ export const studyGroups = pgTable("study_groups", {
   course: integer("course").notNull(),
   studentCount: integer("student_count").notNull(),
   curatorId: integer("curator_id").references(() => employees.id),
+  isActive: boolean("is_active").notNull().default(true),
 });
 
 export const students = pgTable("students", {
@@ -290,6 +292,7 @@ export const lessonClassrooms = pgTable("lesson_classrooms", {
   lessonId: integer("lesson_id").notNull().references(() => lessons.id),
   classroomId: integer("classroom_id").notNull().references(() => classrooms.id),
   versionId: integer("version_id").references(() => scheduleVersions.id),
+  isActive: boolean("is_active").notNull().default(true),
 }, (table) => ({
   uniqueLessonClassroom: unique().on(table.lessonId, table.classroomId),
 }));

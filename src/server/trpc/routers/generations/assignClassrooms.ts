@@ -125,7 +125,7 @@ export const assignClassroomsRouter = router({
         await ctx.db.insert(lessonClassrooms).values({
           lessonId: lesson.id,
           classroomId: best.id,
-        });
+        }).onConflictDoNothing();
         await ctx.db
           .update(classrooms)
           .set({ usageMetric: (best.usageMetric ?? 0) + 1 })

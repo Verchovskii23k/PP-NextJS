@@ -2,7 +2,7 @@
 "use client";
 import { toast } from "sonner";
 import { trpc } from "@/trpc/client";
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import {
   DndContext,
   useDraggable,
@@ -266,14 +266,14 @@ export default function AdminSchedulePage() {
 
       try {
         if (status === "free") {
-          await moveMutation.mutateAsync({ id: entry.id, targetWeekId, targetDayId, targetPairId, targetUnitCode });
+          await moveMutation.mutateAsync({ id: entry.id, targetWeekId, targetDayId, targetPairId, targetUnitCode, versionId: selectedVersionId });
         } else if (status === "swap") {
           const swapId = slotSwapIds[targetId];
           if (!swapId) {
             toast("Занятие для обмена не найдено");
             return;
           }
-          await swapMutation.mutateAsync({ id1: entry.id, id2: swapId });
+          await swapMutation.mutateAsync({ id1: entry.id, id2: swapId, versionId: selectedVersionId });
         }
         refreshData();
       } catch (e: unknown) {
@@ -332,7 +332,7 @@ export default function AdminSchedulePage() {
     // --- Буфер ---
     if (targetId === "buffer-zone") {
       if (!entry.isBuffered) {
-        await moveToBufferMut.mutateAsync({ id: entry.id });
+        await moveToBufferMut.mutateAsync({ id: entry.id, versionId: selectedVersionId });
         refreshData();
       }
       return;
@@ -353,7 +353,7 @@ export default function AdminSchedulePage() {
         toast.error("Невозможно разместить: конфликт");
         return;
       }
-      await moveFromBufferMut.mutateAsync({ id: entry.id, targetWeekId, targetDayId, targetPairId, targetUnitCode });
+      await moveFromBufferMut.mutateAsync({ id: entry.id, targetWeekId, targetDayId, targetPairId, targetUnitCode, versionId: selectedVersionId });
       refreshData();
       return;
     }
@@ -387,7 +387,7 @@ export default function AdminSchedulePage() {
 
   const saveFlags = async () => {
     if (!selectedEntry) return;
-    await updateFlags.mutateAsync({ id: selectedEntry.id, ...flagForm });
+    await updateFlags.mutateAsync({ id: selectedEntry.id, ...flagForm, versionId: selectedVersionId });
     setSelectedEntry(null);
     refreshData();
   };
@@ -554,9 +554,7 @@ const handleCSV = () => {
   };
 
   const isActiveVersion = selectedVersionId === null;
-    useEffect(() => {
-    if (!isActiveVersion) setEditMode(false);
-  }, [isActiveVersion]);
+
   if (viewMode === "units" && unitsLoading) return <div className="p-6"><Skeleton className="h-4 w-32" /></div>;
   if (viewMode === "groups" && groupsLoading) return <div className="p-6"><Skeleton className="h-4 w-32" /></div>;
 
@@ -659,17 +657,20 @@ const handleCSV = () => {
           <button onClick={() => setViewMode("groups")} className={viewMode === "groups" ? "border-b-2 border-blue-500 font-bold" : ""}>По группам</button>
           <button onClick={handlePrint} className="ml-2 rounded bg-blue-600 px-3 py-1 text-white hover:bg-blue-700">🖨️ Печать</button>
           <button onClick={handleCSV} className="ml-2 rounded bg-green-600 px-3 py-1 text-white hover:bg-green-700">📥 CSV</button>
-          {isActiveVersion && (
-            <>
-              <button onClick={() => optimizeScheduleMut.mutate()} disabled={editMode || optimizeScheduleMut.isPending} className="rounded bg-purple-600 px-3 py-1 text-white hover:bg-purple-700 disabled:bg-gray-400">
-                {optimizeScheduleMut.isPending ? "Оптимизация..." : "Оптимизировать"}
-              </button>
-              {viewMode === "units" && (
-                <button onClick={() => setEditMode(!editMode)} className="ml-auto rounded bg-blue-500 px-3 py-1 text-white hover:bg-blue-600">
-                  {editMode ? "Завершить редактирование" : "Редактировать"}
-                </button>
-              )}
-            </>
+          <button
+            onClick={() => optimizeScheduleMut.mutate({ versionId: selectedVersionId })}
+            disabled={editMode || optimizeScheduleMut.isPending}
+            className="rounded bg-purple-600 px-3 py-1 text-white hover:bg-purple-700 disabled:bg-gray-400"
+          >
+            {optimizeScheduleMut.isPending ? "Оптимизация..." : "Оптимизировать"}
+          </button>
+          {viewMode === "units" && (
+            <button
+              onClick={() => setEditMode(!editMode)}
+              className="ml-auto rounded bg-blue-500 px-3 py-1 text-white hover:bg-blue-600"
+            >
+              {editMode ? "Завершить редактирование" : "Редактировать"}
+            </button>
           )}
         </div>
 

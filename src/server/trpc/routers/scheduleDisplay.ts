@@ -165,11 +165,13 @@ getByStudyGroups: adminProcedure
   }),
 
   moveToBuffer: adminProcedure
-    .input(z.object({ id: z.number() }))
+    .input(z.object({ id: z.number(), versionId: z.number().nullable().optional() }))
     .mutation(async ({ ctx, input }) => {
-      await ctx.db.update(scheduleDisplay)
-      .set({ isBuffered: true })
-      .where(eq(scheduleDisplay.id, input.id));
+      const versionCondition = input.versionId !== undefined
+        ? (input.versionId === null ? isNull(scheduleDisplay.versionId) : eq(scheduleDisplay.versionId, input.versionId))
+        : isNull(scheduleDisplay.versionId);
+      await ctx.db.update(scheduleDisplay).set({ isBuffered: true })
+        .where(and(eq(scheduleDisplay.id, input.id), versionCondition));
       return { success: true };
     }),
 
@@ -180,26 +182,25 @@ getByStudyGroups: adminProcedure
       targetDayId: z.number().int(),
       targetPairId: z.number().int(),
       targetUnitCode: z.string(),
+      versionId: z.number().nullable().optional()
     }))
     .mutation(async ({ ctx, input }) => {
-      const record = await ctx.db.select()
-      .from(scheduleDisplay)
-      .where(and(
-        eq(scheduleDisplay.isBuffered, false),
-        isNull(scheduleDisplay.versionId)
-      ))
-      .limit(1);
+      const versionCondition = input.versionId !== undefined
+        ? (input.versionId === null ? isNull(scheduleDisplay.versionId) : eq(scheduleDisplay.versionId, input.versionId))
+        : isNull(scheduleDisplay.versionId);
+
+      const record = await ctx.db.select().from(scheduleDisplay)
+        .where(and(eq(scheduleDisplay.id, input.id), versionCondition)).limit(1);
       if (!record.length || !record[0].isBuffered) throw new Error('Запись не в буфере');
 
-      const existing = await ctx.db
-        .select()
-        .from(scheduleDisplay)
+      const existing = await ctx.db.select().from(scheduleDisplay)
         .where(and(
           eq(scheduleDisplay.weekId, input.targetWeekId),
           eq(scheduleDisplay.dayOfWeekId, input.targetDayId),
           eq(scheduleDisplay.pairNumberId, input.targetPairId),
           eq(scheduleDisplay.unitCode, input.targetUnitCode),
-          eq(scheduleDisplay.isBuffered, false)
+          eq(scheduleDisplay.isBuffered, false),
+          versionCondition
         ));
       if (existing.length > 0) throw new Error('Слот занят');
 
@@ -211,8 +212,7 @@ getByStudyGroups: adminProcedure
         isBuffered: false,
         positionFlag: false,
         mergeNumber: 0,
-      }).where(eq(scheduleDisplay.id, input.id));
-
+      }).where(and(eq(scheduleDisplay.id, input.id), versionCondition));
       return { success: true };
     }),
 
@@ -406,8 +406,13 @@ getByStudyGroups: adminProcedure
       targetDayId: z.number().int(),
       targetPairId: z.number().int(),
       targetUnitCode: z.string(),
+      versionId: z.number().nullable().optional() // ← добавили
     }))
     .mutation(async ({ ctx, input }) => {
+      const versionCondition = input.versionId !== undefined
+        ? (input.versionId === null ? isNull(scheduleDisplay.versionId) : eq(scheduleDisplay.versionId, input.versionId))
+        : isNull(scheduleDisplay.versionId);
+
       const existing = await ctx.db
         .select()
         .from(scheduleDisplay)
@@ -417,7 +422,7 @@ getByStudyGroups: adminProcedure
           eq(scheduleDisplay.pairNumberId, input.targetPairId),
           eq(scheduleDisplay.unitCode, input.targetUnitCode),
           eq(scheduleDisplay.isBuffered, false),
-                isNull(scheduleDisplay.versionId)
+          versionCondition
         ));
       if (existing.length > 0) throw new Error('Слот занят');
 
@@ -428,23 +433,22 @@ getByStudyGroups: adminProcedure
         unitCode: input.targetUnitCode,
         positionFlag: false,
         mergeNumber: 0,
-      }).where(eq(scheduleDisplay.id, input.id));
+      }).where(and(eq(scheduleDisplay.id, input.id), versionCondition));
       return { success: true };
     }),
 
   swap: adminProcedure
-    .input(z.object({ id1: z.number(), id2: z.number() }))
+    .input(z.object({ id1: z.number(), id2: z.number(), versionId: z.number().nullable().optional() }))
     .mutation(async ({ ctx, input }) => {
-      const [rec1, rec2] = await Promise.all([
-        ctx.db.select().from(scheduleDisplay).where(and(
-          eq(scheduleDisplay.id, input.id1),
-          isNull(scheduleDisplay.versionId)
-        )).limit(1),
-        ctx.db.select().from(scheduleDisplay).where(and(
-          eq(scheduleDisplay.id, input.id1),
-          isNull(scheduleDisplay.versionId)
-        )).limit(1),
-      ]);
+      const versionCondition = input.versionId !== undefined
+        ? (input.versionId === null ? isNull(scheduleDisplay.versionId) : eq(scheduleDisplay.versionId, input.versionId))
+        : isNull(scheduleDisplay.versionId);
+
+      const rec1 = await ctx.db.select().from(scheduleDisplay)
+        .where(and(eq(scheduleDisplay.id, input.id1), versionCondition)).limit(1);
+      const rec2 = await ctx.db.select().from(scheduleDisplay)
+        .where(and(eq(scheduleDisplay.id, input.id2), versionCondition)).limit(1);
+
       const r1 = rec1[0] as typeof scheduleDisplay.$inferSelect;
       const r2 = rec2[0] as typeof scheduleDisplay.$inferSelect;
 
@@ -454,14 +458,10 @@ getByStudyGroups: adminProcedure
       const slot2 = { weekId: r2.weekId, dayOfWeekId: r2.dayOfWeekId, pairNumberId: r2.pairNumberId, unitCode: r2.unitCode };
 
       await Promise.all([
-        ctx.db.update(scheduleDisplay).set({ ...slot2, positionFlag: false, mergeNumber: 0 }).where(and(
-          eq(scheduleDisplay.id, input.id1),
-          isNull(scheduleDisplay.versionId)
-        )),
-        ctx.db.update(scheduleDisplay).set({ ...slot1, positionFlag: false, mergeNumber: 0 }).where(and(
-          eq(scheduleDisplay.id, input.id1),
-          isNull(scheduleDisplay.versionId)
-        )),
+        ctx.db.update(scheduleDisplay).set({ ...slot2, positionFlag: false, mergeNumber: 0 })
+          .where(and(eq(scheduleDisplay.id, input.id1), versionCondition)),
+        ctx.db.update(scheduleDisplay).set({ ...slot1, positionFlag: false, mergeNumber: 0 })
+          .where(and(eq(scheduleDisplay.id, input.id2), versionCondition)),
       ]);
       return { success: true };
     }),
@@ -472,14 +472,21 @@ getByStudyGroups: adminProcedure
       mergeNumber: z.number().int().optional(),
       positionFlag: z.boolean().optional(),
       classroomFlag: z.boolean().optional(),
+      versionId: z.number().nullable().optional()
     }))
     .mutation(async ({ ctx, input }) => {
-      const { id, ...data } = input;
-      await ctx.db.update(scheduleDisplay).set(data).where(eq(scheduleDisplay.id, id));
+      const { id, versionId, ...data } = input;
+      const versionCondition = versionId !== undefined
+        ? (versionId === null ? isNull(scheduleDisplay.versionId) : eq(scheduleDisplay.versionId, versionId))
+        : isNull(scheduleDisplay.versionId);
+      await ctx.db.update(scheduleDisplay).set(data)
+        .where(and(eq(scheduleDisplay.id, id), versionCondition));
       return { success: true };
     }),
 
-  optimizeSchedule: adminProcedure.mutation(async () => {
-    return await optimizeSchedule();
-  }),
+  optimizeSchedule: adminProcedure
+    .input(z.object({ versionId: z.number().nullable().optional() }))
+    .mutation(async ({ input }) => {
+      return await optimizeSchedule(input.versionId);
+    }),
 });

@@ -10,17 +10,20 @@ import { eq, and, inArray, sql, isNull } from "drizzle-orm";
 
 export const generateGroupsRouter = router({
   generateGroups: adminProcedure.mutation(async ({ ctx }) => {
+    // 1. Удаляем все активные динамические данные
     await ctx.db.transaction(async (tx) => {
       await tx.delete(scheduleDisplay).where(isNull(scheduleDisplay.versionId));
       await tx.delete(schedule);
-      await tx.delete(lessonClassrooms).where(isNull(lessonClassrooms.versionId));
+      await tx.delete(lessonClassrooms).where(and(isNull(lessonClassrooms.versionId), eq(lessonClassrooms.isActive, true)));
       await tx.delete(lessons).where(isNull(lessons.versionId));
       await tx.delete(unitRoots).where(isNull(unitRoots.versionId));
       await tx.delete(units).where(isNull(units.versionId));
+      // Деактивируем активные группы и открепляем студентов
+      await tx.update(studyGroups).set({ isActive: false }).where(eq(studyGroups.isActive, true));
       await tx.update(students).set({ studyGroupId: null, course: null });
-      await tx.delete(studyGroups);
     });
 
+    // 2. Формируем новые группы
     const groupsData = await ctx.db
       .select({
         profileId: students.profileId,
@@ -38,10 +41,10 @@ export const generateGroupsRouter = router({
       .where(
         and(
           eq(students.isActive, true),
-          eq(profiles.isActive, true),       // ← только активные профили
-          eq(specialties.isActive, true),    // ← только активные специальности
-          eq(departments.isActive, true),    // ← только активные кафедры
-          eq(institutes.isActive, true)      // ← только активные институты
+          eq(profiles.isActive, true),
+          eq(specialties.isActive, true),
+          eq(departments.isActive, true),
+          eq(institutes.isActive, true)
         )
       )
       .groupBy(
@@ -82,16 +85,18 @@ export const generateGroupsRouter = router({
         const lastDigit = admissionYear % 10;
         const code = `${universityCode}${lastDigit}${letterCode || "П"}`;
 
-        const [inserted] = await tx
-          .insert(studyGroups)
-          .values({ code, profileId, course, studentCount })
-          .returning({ id: studyGroups.id });
+        const [existing] = await tx.select({ id: studyGroups.id }).from(studyGroups).where(eq(studyGroups.code, code)).limit(1);
+        let groupId: number;
+        if (existing) {
+          await tx.update(studyGroups).set({ profileId, course, studentCount, isActive: true }).where(eq(studyGroups.id, existing.id));
+          groupId = existing.id;
+        } else {
+          const [inserted] = await tx.insert(studyGroups).values({ code, profileId, course, studentCount, isActive: true }).returning({ id: studyGroups.id });
+          groupId = inserted.id;
+        }
 
         if (studentIds.length > 0) {
-          await tx
-            .update(students)
-            .set({ studyGroupId: inserted.id, course })
-            .where(inArray(students.id, studentIds));
+          await tx.update(students).set({ studyGroupId: groupId, course }).where(inArray(students.id, studentIds));
         }
 
         createdGroups++;
