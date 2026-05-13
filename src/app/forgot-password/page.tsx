@@ -54,8 +54,9 @@ export default function ForgotPasswordPage() {
             </div>
             <button
               onClick={copyToken}
+              aria-label="Копировать токен"
               className="rounded border border-border bg-background p-2 transition-colors hover:bg-muted"
-              title="Копировать токен"
+              title="Копировать в буфер обмена"
             >
               {copied ? <Check size={18} className="text-green-500" /> : <Copy size={18} />}
             </button>

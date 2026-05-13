@@ -1,2 +1,0 @@
-ALTER TABLE "security_center" DROP CONSTRAINT "security_center_login_unique";--> statement-breakpoint
-ALTER TABLE "security_center" ADD CONSTRAINT "unique_login_password" UNIQUE("login","password_hash");

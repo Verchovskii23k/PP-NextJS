@@ -84,6 +84,7 @@ export function ColumnFilterPopover({
       <button
         type="button"
         onClick={handleOpenClick}
+        aria-label="Открыть фильтр"
         className="text-xs text-muted-foreground hover:text-foreground"
       >
         🔍
@@ -95,7 +96,7 @@ export function ColumnFilterPopover({
         >
           <div className="mb-1 flex items-center justify-between">
             <span className="text-xs font-medium text-muted-foreground">Фильтр</span>
-            <button onClick={() => setOpen(false)} className="px-1 text-xs text-muted-foreground hover:text-foreground">
+            <button onClick={() => setOpen(false)} className="px-1 text-xs text-muted-foreground hover:text-foreground" aria-label="Закрыть фильтр">
               ✕
             </button>
           </div>

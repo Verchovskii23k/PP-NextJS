@@ -1,3 +1,4 @@
+// src\lib\clearGeneratedData.ts
 import { db } from "@/db";
 import {
   scheduleDisplay, schedule,

@@ -22,6 +22,7 @@ import { ForeignKeyCell } from "./ForeignKeyCell";
 import { ColumnFilterPopover } from "./ColumnFilterPopover";
 import { toast } from "sonner";
 import { SkeletonTable } from "@/components/ui/skeleton";
+import { useConfirmContext } from "@/contexts/ConfirmContext";
 
 interface BaseRow extends Record<string, unknown> {
   id: number;
@@ -102,6 +103,8 @@ export function DataTable({ tableName }: DataTableProps) {
   );
   const importMutation = trpc.crudImportExport.importData.useMutation();
 
+  const { confirm } = useConfirmContext();
+
   // ---------- эффект сброса ----------
   React.useEffect(() => {
     setSorting([]);
@@ -134,7 +137,13 @@ export function DataTable({ tableName }: DataTableProps) {
 
   const handleDeleteSelected = async () => {
     if (selectedIds.size === 0) return;
-    if (!window.confirm(`Удалить ${selectedIds.size} записей?`)) return;
+    const ok = await confirm({
+      title: "Удаление записей",
+      message: `Удалить ${selectedIds.size} записей?`,
+      confirmLabel: "Удалить",
+      variant: "danger",
+    });
+    if (!ok) return;
     try {
       const result = await deleteManyMutation.mutateAsync({
         tableName,
@@ -304,7 +313,13 @@ export function DataTable({ tableName }: DataTableProps) {
                 toast.error('Удаление недоступно');
                 return;
               }
-              if (!window.confirm(`Удалить запись с ID ${row.original.id}?`)) return;
+              const ok = await confirm({
+                title: "Удаление записи",
+                message: `Удалить запись с ID ${row.original.id}?`,
+                confirmLabel: "Удалить",
+                variant: "danger",
+              });
+              if (!ok) return;
               try {
                 await deleteMutation.mutateAsync({ id: row.original.id });
                 (utils as unknown as Record<string, { list?: { invalidate?: () => void } }>)[routerKey]?.list?.invalidate?.()

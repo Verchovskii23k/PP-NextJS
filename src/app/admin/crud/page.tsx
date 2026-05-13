@@ -20,6 +20,9 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { toast } from "sonner";
+import { useConfirmContext } from "@/contexts/ConfirmContext";
+
+
 
 // Иконки для таблиц (можно эмодзи или текст)
 const TABLE_ICONS: Record<string, string> = {
@@ -116,6 +119,7 @@ function getDefaultOrder(): string[] {
 export default function AdminCrudPage() {
   const [selectedTable, setSelectedTable] = useState<string | null>(null);
   const resetMutation = trpc.generations.resetGeneratedData.useMutation();
+  const { confirm } = useConfirmContext();
   const [order, setOrder] = useState<string[]>(() => {
     const stored = localStorage.getItem("crud_table_order");
     let initialOrder: string[];
@@ -205,19 +209,21 @@ export default function AdminCrudPage() {
             <div className="mb-4">
               <button
                 onClick={async () => {
-                  if (
-                    !window.confirm(
-                      "Будут удалены все сгенерированные данные (расписание, занятия, юниты, группы). Справочники останутся без изменений. Продолжить?"
-                    )
-                  )
-                    return;
+                  const ok = await confirm({
+                    title: "Сброс сгенерированных данных",
+                    message:
+                      "Будут удалены все сгенерированные данные (расписание, занятия, юниты, группы). Справочники останутся без изменений. Продолжить?",
+                    confirmLabel: "Сбросить",
+                    variant: "danger",
+                  });
+                  if (!ok) return;
                   try {
                     await resetMutation.mutateAsync();
                     toast.success("Все сгенерированные данные удалены. Запустите генерацию заново.");
-                    } catch (e: unknown) {
-                      const message = e instanceof Error ? e.message : "Неизвестная ошибка";
-                      toast.error("Ошибка при сбросе: " + message);
-                    }
+                  } catch (e: unknown) {
+                    const message = e instanceof Error ? e.message : "Неизвестная ошибка";
+                    toast.error("Ошибка при сбросе: " + message);
+                  }
                 }}
                 className="rounded bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-700"
               >

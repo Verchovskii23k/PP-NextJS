@@ -15,6 +15,7 @@ import {
   DragOverlay,
 } from "@dnd-kit/core";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useConfirmContext } from "@/contexts/ConfirmContext";
 
 type Day = { id: number; name: string };
 type Pair = { id: number; number: number };
@@ -546,11 +547,17 @@ const handleCSV = () => {
     if (!name) return;
     saveActiveMut.mutate({ name });
   };
-
-  const handleDeleteVersion = () => {
+  const { confirm } = useConfirmContext();
+  const handleDeleteVersion = async () => {
     if (selectedVersionId === null) return;
-    if (!window.confirm("Удалить версию и все её данные?")) return;
-    deleteVersionMut.mutate({ id: selectedVersionId });
+    const ok = await confirm({
+      title: "Удаление версии",
+      message: "Удалить версию и все её данные?",
+      confirmLabel: "Удалить",
+      variant: "danger",
+    });
+    if (!ok) return;
+    deleteVersionMut.mutate({ id: selectedVersionId }); // ← исправь на versionId, если ещё не исправлено
   };
 
   const isActiveVersion = selectedVersionId === null;

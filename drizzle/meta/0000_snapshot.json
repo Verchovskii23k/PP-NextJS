@@ -1,5 +1,5 @@
 {
-  "id": "153ecfaf-3c96-4020-895e-1e3b6e3dc150",
+  "id": "722d29cb-5a84-44fb-a568-ad2e8e07bede",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -926,6 +926,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": true
+        },
+        "is_admin": {
+          "name": "is_admin",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         }
       },
       "indexes": {},
@@ -1276,6 +1283,19 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true
+        },
+        "version_id": {
+          "name": "version_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
         }
       },
       "indexes": {},
@@ -1299,6 +1319,19 @@
           "tableTo": "classrooms",
           "columnsFrom": [
             "classroom_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "lesson_classrooms_version_id_schedule_versions_id_fk": {
+          "name": "lesson_classrooms_version_id_schedule_versions_id_fk",
+          "tableFrom": "lesson_classrooms",
+          "tableTo": "schedule_versions",
+          "columnsFrom": [
+            "version_id"
           ],
           "columnsTo": [
             "id"
@@ -1420,6 +1453,12 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true
+        },
+        "version_id": {
+          "name": "version_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
@@ -1482,6 +1521,19 @@
           "tableTo": "employees_departments",
           "columnsFrom": [
             "teacher_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "lessons_version_id_schedule_versions_id_fk": {
+          "name": "lessons_version_id_schedule_versions_id_fk",
+          "tableFrom": "lessons",
+          "tableTo": "schedule_versions",
+          "columnsFrom": [
+            "version_id"
           ],
           "columnsTo": [
             "id"
@@ -1760,6 +1812,19 @@
       },
       "indexes": {},
       "foreignKeys": {
+        "schedule_week_number_weeks_id_fk": {
+          "name": "schedule_week_number_weeks_id_fk",
+          "tableFrom": "schedule",
+          "tableTo": "weeks",
+          "columnsFrom": [
+            "week_number"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
         "schedule_day_of_week_id_days_of_week_id_fk": {
           "name": "schedule_day_of_week_id_days_of_week_id_fk",
           "tableFrom": "schedule",
@@ -1886,12 +1951,24 @@
           "notNull": false,
           "default": false
         },
+        "classroom_id": {
+          "name": "classroom_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
         "is_buffered": {
           "name": "is_buffered",
           "type": "boolean",
           "primaryKey": false,
           "notNull": true,
           "default": false
+        },
+        "version_id": {
+          "name": "version_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
@@ -1907,6 +1984,19 @@
             "id"
           ],
           "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "schedule_display_week_number_weeks_id_fk": {
+          "name": "schedule_display_week_number_weeks_id_fk",
+          "tableFrom": "schedule_display",
+          "tableTo": "weeks",
+          "columnsFrom": [
+            "week_number"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
           "onUpdate": "no action"
         },
         "schedule_display_day_of_week_id_days_of_week_id_fk": {
@@ -1934,8 +2024,66 @@
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
+        },
+        "schedule_display_classroom_id_classrooms_id_fk": {
+          "name": "schedule_display_classroom_id_classrooms_id_fk",
+          "tableFrom": "schedule_display",
+          "tableTo": "classrooms",
+          "columnsFrom": [
+            "classroom_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "schedule_display_version_id_schedule_versions_id_fk": {
+          "name": "schedule_display_version_id_schedule_versions_id_fk",
+          "tableFrom": "schedule_display",
+          "tableTo": "schedule_versions",
+          "columnsFrom": [
+            "version_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.schedule_versions": {
+      "name": "schedule_versions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
@@ -1994,6 +2142,18 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
+        },
+        "reset_token": {
+          "name": "reset_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reset_token_expires": {
+          "name": "reset_token_expires",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
@@ -2014,11 +2174,78 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "security_center_login_unique": {
-          "name": "security_center_login_unique",
+        "unique_login_password": {
+          "name": "unique_login_password",
           "nullsNotDistinct": false,
           "columns": [
-            "login"
+            "login",
+            "password_hash"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.sessions": {
+      "name": "sessions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "token": {
+          "name": "token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "sessions_user_id_security_center_id_fk": {
+          "name": "sessions_user_id_security_center_id_fk",
+          "tableFrom": "sessions",
+          "tableTo": "security_center",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "sessions_token_unique": {
+          "name": "sessions_token_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "token"
           ]
         }
       },
@@ -2166,6 +2393,12 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "patronymic": {
+          "name": "patronymic",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "admission_year": {
           "name": "admission_year",
@@ -2319,6 +2552,13 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": false
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
         }
       },
       "indexes": {},
@@ -2385,6 +2625,12 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true
+        },
+        "version_id": {
+          "name": "version_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
@@ -2408,6 +2654,19 @@
           "tableTo": "study_groups",
           "columnsFrom": [
             "study_group_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "unit_roots_version_id_schedule_versions_id_fk": {
+          "name": "unit_roots_version_id_schedule_versions_id_fk",
+          "tableFrom": "unit_roots",
+          "tableTo": "schedule_versions",
+          "columnsFrom": [
+            "version_id"
           ],
           "columnsTo": [
             "id"
@@ -2526,6 +2785,12 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true
+        },
+        "version_id": {
+          "name": "version_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
@@ -2536,6 +2801,19 @@
           "tableTo": "unit_types",
           "columnsFrom": [
             "unit_type_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "units_version_id_schedule_versions_id_fk": {
+          "name": "units_version_id_schedule_versions_id_fk",
+          "tableFrom": "units",
+          "tableTo": "schedule_versions",
+          "columnsFrom": [
+            "version_id"
           ],
           "columnsTo": [
             "id"

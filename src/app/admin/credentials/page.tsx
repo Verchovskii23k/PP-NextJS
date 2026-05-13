@@ -1,8 +1,11 @@
 "use client";
 import { trpc } from "@/trpc/client";
 import { useState } from "react";
+import { useConfirmContext } from "@/contexts/ConfirmContext";
 type SecurityLevel = "low" | "medium" | "high"
+
 export default function CredentialsPage() {
+  const { confirm } = useConfirmContext();
   const [error, setError] = useState<string | null>(null);
   const [credSecurity, setCredSecurity] = useState<"low" | "medium" | "high">("medium");
   const [credLength, setCredLength] = useState<number>(16);
@@ -159,10 +162,14 @@ export default function CredentialsPage() {
       <div className="mt-4 rounded-lg border border-border bg-background p-4 shadow-sm">
         <h2 className="mb-2 text-lg font-semibold text-red-600">Опасная зона</h2>
         <button
-          onClick={() => {
-            if (window.confirm("Удалить ВСЕ учётные записи (логины/пароли) студентов и сотрудников? Это действие нельзя отменить!")) {
-              clearAllMut.mutate();
-            }
+            onClick={async () => {
+            const ok = await confirm({
+              title: "Сброс всех учётных записей",
+              message: "Удалить ВСЕ учётные записи (логины/пароли) студентов и сотрудников? Это действие нельзя отменить!",
+              confirmLabel: "Удалить всё",
+              variant: "danger",
+            });
+            if (ok) clearAllMut.mutate();
           }}
           disabled={clearAllMut.isPending}
           className="rounded bg-red-600 px-4 py-2 text-white hover:bg-red-700 disabled:opacity-50"
