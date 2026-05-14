@@ -1,44 +1,124 @@
 import { z } from "zod";
 import { router, adminProcedure } from "../trpc";
-import { scheduleVersions, units, unitRoots, lessons, lessonClassrooms, scheduleDisplay } from "@/db/schema";
-import { eq, isNull } from "drizzle-orm";
+import {
+  scheduleVersions,
+  units,
+  unitRoots,
+  lessons,
+  lessonClassrooms,
+  schedule,
+  scheduleDisplay,
+} from "@/db/schema";
+import { eq, and, isNull } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
+
+// Список всех динамических таблиц для единообразной обработки
+const dynamicTables = [scheduleDisplay, schedule, lessonClassrooms, lessons, unitRoots, units] as const;
 
 export const scheduleVersionsRouter = router({
-  /** Получить список всех версий */
-    list: adminProcedure.query(async ({ ctx }) => {
-        return ctx.db.select().from(scheduleVersions).orderBy(scheduleVersions.createdAt);
-    }),
+  list: adminProcedure.query(async ({ ctx }) => {
+    return ctx.db.select().from(scheduleVersions).orderBy(scheduleVersions.createdAt);
+  }),
 
-  /** Сохранить активную версию с заданным именем */
-    saveActive: adminProcedure
+  // Сохранить активное расписание как новую версию
+  saveActive: adminProcedure
     .input(z.object({ name: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
-    const [version] = await ctx.db
+      // 1. Создаём новую версию
+      const [newVersion] = await ctx.db
         .insert(scheduleVersions)
         .values({ name: input.name })
         .returning({ id: scheduleVersions.id });
 
-    // Все динамические таблицы – просто присваиваем version_id
-    const tables = [units, unitRoots, lessons, lessonClassrooms, scheduleDisplay];
-    for (const table of tables) {
-        await ctx.db
-        .update(table)
-        .set({ versionId: version.id })
-        .where(isNull(table.versionId));
-    }
+      const versionId = newVersion.id;
 
-    return { versionId: version.id };
+      // 2. Помечаем все активные записи как архивные для этой версии
+      for (const table of dynamicTables) {
+        await ctx.db
+          .update(table)
+          .set({ isActive: false, versionId })
+          .where(and(eq(table.isActive, true), isNull(table.versionId)));
+      }
+
+      return { versionId };
     }),
 
-  /** Удалить версию и все связанные данные */
-    delete: adminProcedure
-        .input(z.object({ id: z.number() }))
-        .mutation(async ({ ctx, input }) => {
-        const tables = [scheduleDisplay, lessonClassrooms, lessons, unitRoots, units];
-        for (const table of tables) {
-            await ctx.db.delete(table).where(eq(table.versionId, input.id));
+  // Восстановить выбранную архивную версию как активную
+  restoreAsActive: adminProcedure
+    .input(z.object({ versionId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const { versionId } = input;
+
+      // 1. Проверяем существование версии
+      const [version] = await ctx.db
+        .select()
+        .from(scheduleVersions)
+        .where(eq(scheduleVersions.id, versionId));
+      if (!version) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Версия не найдена" });
+      }
+
+      // 2. Если есть активное расписание – автоматически сохраняем его перед восстановлением
+      const activeLesson = await ctx.db
+        .select()
+        .from(lessons)
+        .where(and(eq(lessons.isActive, true), isNull(lessons.versionId)))
+        .limit(1);
+
+      if (activeLesson.length > 0) {
+        const [autoSavedVersion] = await ctx.db
+          .insert(scheduleVersions)
+          .values({ name: `Автосохранение ${new Date().toLocaleString()}` })
+          .returning({ id: scheduleVersions.id });
+
+        for (const table of dynamicTables) {
+          await ctx.db
+            .update(table)
+            .set({ isActive: false, versionId: autoSavedVersion.id })
+            .where(and(eq(table.isActive, true), isNull(table.versionId)));
         }
-        await ctx.db.delete(scheduleVersions).where(eq(scheduleVersions.id, input.id));
-        return { success: true };
-        }),
+      }
+
+      // 3. Делаем выбранную версию активной
+      for (const table of dynamicTables) {
+        await ctx.db
+          .update(table)
+          .set({ isActive: true, versionId: null })
+          .where(and(eq(table.versionId, versionId), eq(table.isActive, false)));
+      }
+
+      return { success: true };
+    }),
+
+  // Удалить версию (только архивную, не активную)
+  delete: adminProcedure
+    .input(z.object({ versionId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const { versionId } = input;
+
+      for (const table of dynamicTables) {
+        await ctx.db
+          .delete(table)
+          .where(and(eq(table.versionId, versionId), eq(table.isActive, false)));
+      }
+
+      await ctx.db
+        .delete(scheduleVersions)
+        .where(eq(scheduleVersions.id, versionId));
+
+      return { success: true };
+    }),
+
+  // Обновить имя версии
+  update: adminProcedure
+    .input(z.object({ versionId: z.number(), name: z.string().min(1).optional() }))
+    .mutation(async ({ ctx, input }) => {
+      if (input.name) {
+        await ctx.db
+          .update(scheduleVersions)
+          .set({ name: input.name, createdAt: new Date() })
+          .where(eq(scheduleVersions.id, input.versionId));
+      }
+      return { success: true };
+    }),
 });

@@ -135,6 +135,7 @@ getByStudyGroups: adminProcedure
       for (const row of groupRows) {
         allRows.push({
           ...row,
+          isActive: true,
           studyGroupCode: groupCode,
           classroomId: null,
           isBuffered: false,

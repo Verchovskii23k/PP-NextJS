@@ -1,21 +1,32 @@
 // src/server/trpc/routers/generations/generateSchedule.ts
 import { z } from "zod";
 import { router, adminProcedure } from "../../trpc";
-import { eq, asc } from "drizzle-orm";
+import { eq, asc, and, isNull } from "drizzle-orm";
 import {
-  schedule, lessons, lessonClassrooms,
-  daysOfWeek, pairs, scheduleDisplay,
-  disciplines, lessonTypes,
-  employeesDepartments, employees,
-  units, classrooms, buildings,
-  unitRoots, weeks,
+  schedule,
+  lessons,
+  lessonClassrooms,
+  daysOfWeek,
+  pairs,
+  scheduleDisplay,
+  disciplines,
+  lessonTypes,
+  employeesDepartments,
+  employees,
+  units,
+  classrooms,
+  buildings,
+  unitRoots,
+  weeks,
 } from "@/db/schema";
 
 export const generateScheduleRouter = router({
   generateSchedule: adminProcedure
-    .input(z.object({
-      totalWeeks: z.number().int().min(1).default(16),
-    }))
+    .input(
+      z.object({
+        totalWeeks: z.number().int().min(1).default(16),
+      })
+    )
     .mutation(async ({ ctx, input }) => {
       // Получаем все активные недели (цикл)
       const weeksList = await ctx.db
@@ -24,16 +35,26 @@ export const generateScheduleRouter = router({
         .where(eq(weeks.isActive, true))
         .orderBy(asc(weeks.id));
       const cycleLength = weeksList.length;
-      if (cycleLength === 0) throw new Error("Нет активных недель в таблице weeks");
+      if (cycleLength === 0)
+        throw new Error("Нет активных недель в таблице weeks");
 
       const totalWeeks = input.totalWeeks ?? 16;
       const step = Math.ceil(totalWeeks / cycleLength);
 
-      const allLessons = await ctx.db.select().from(lessons);
+      // Только активные занятия
+      const allLessons = await ctx.db
+        .select()
+        .from(lessons)
+        .where(and(eq(lessons.isActive, true), isNull(lessons.versionId)));
+
       if (allLessons.length === 0) throw new Error("Нет занятий");
 
-      // Загрузка связей юнитов с группами
-      const allUnitRoots = await ctx.db.select().from(unitRoots);
+      // Загрузка связей юнитов с группами (только активные)
+      const allUnitRoots = await ctx.db
+        .select()
+        .from(unitRoots)
+        .where(and(eq(unitRoots.isActive, true), isNull(unitRoots.versionId)));
+
       const unitToGroups = new Map<string, Set<number>>();
       for (const ur of allUnitRoots) {
         if (!unitToGroups.has(ur.unitCode)) unitToGroups.set(ur.unitCode, new Set());
@@ -42,7 +63,10 @@ export const generateScheduleRouter = router({
 
       // lessonId -> unitCode
       const lessonUnitMap = new Map<number, string>();
-      const allUnits = await ctx.db.select().from(units);
+      const allUnits = await ctx.db
+        .select()
+        .from(units)
+        .where(and(eq(units.isActive, true), isNull(units.versionId)));
       const unitCodeById = new Map<number, string>();
       for (const u of allUnits) unitCodeById.set(u.id, u.code);
       for (const l of allLessons) {
@@ -58,9 +82,12 @@ export const generateScheduleRouter = router({
         return groupsB - groupsA;
       });
 
-      // lessonId -> список classroomId
+      // lessonId -> список classroomId (только активные связи)
       const lessonClassroomMap = new Map<number, number[]>();
-      const lcRows = await ctx.db.select().from(lessonClassrooms);
+      const lcRows = await ctx.db
+        .select()
+        .from(lessonClassrooms)
+        .where(and(eq(lessonClassrooms.isActive, true), isNull(lessonClassrooms.versionId)));
       for (const lc of lcRows) {
         if (!lessonClassroomMap.has(lc.lessonId)) lessonClassroomMap.set(lc.lessonId, []);
         lessonClassroomMap.get(lc.lessonId)!.push(lc.classroomId);
@@ -68,20 +95,28 @@ export const generateScheduleRouter = router({
 
       const days = await ctx.db.select().from(daysOfWeek).orderBy(daysOfWeek.id);
       const pairsList = await ctx.db.select().from(pairs).orderBy(pairs.number);
-      if (days.length === 0 || pairsList.length === 0) throw new Error("Нет дней недели или пар");
+      if (days.length === 0 || pairsList.length === 0)
+        throw new Error("Нет дней недели или пар");
 
-      // Очистка старых расписаний
-      await ctx.db.delete(scheduleDisplay);
-      await ctx.db.delete(schedule);
+      // Очистка только активных расписаний
+      await ctx.db
+        .delete(scheduleDisplay)
+        .where(and(eq(scheduleDisplay.isActive, true), isNull(scheduleDisplay.versionId)));
+      await ctx.db
+        .delete(schedule)
+        .where(and(eq(schedule.isActive, true), isNull(schedule.versionId)));
 
       const scheduleRows: (typeof schedule.$inferInsert & { _unitCode?: string })[] = [];
 
-      // Структура занятости слотов: ключ "weekId-dayId-pairId"
-      const slotOccupancy = new Map<string, {
-        teacherIds: Set<number>;
-        classroomIds: Set<number>;
-        groupIds: Set<number>;
-      }>();
+      // Структура занятости слотов
+      const slotOccupancy = new Map<
+        string,
+        {
+          teacherIds: Set<number>;
+          classroomIds: Set<number>;
+          groupIds: Set<number>;
+        }
+      >();
 
       // Все слоты на основе активных недель
       const allSlots: { weekId: number; day: typeof days[0]; pair: typeof pairsList[0] }[] = [];
@@ -111,18 +146,19 @@ export const generateScheduleRouter = router({
 
         if (lesson.teacherId == null || classroomIds.length === 0) continue;
         if (lessonGroups.size === 0) {
-          console.warn(`Занятие ${lesson.id} не связано с группами (unitCode=${lessonUnitCode}), пропущено`);
+          console.warn(
+            `Занятие ${lesson.id} не связано с группами (unitCode=${lessonUnitCode}), пропущено`
+          );
           continue;
         }
 
         let placed = 0;
 
-        // Для каждой недели цикла
         for (let cycleWeek = 0; cycleWeek < cycleLength; cycleWeek++) {
           const needed = weekLoad[cycleWeek];
           if (needed <= 0) continue;
 
-          const targetWeekId = weeksList[cycleWeek].id; // ID недели из таблицы weeks
+          const targetWeekId = weeksList[cycleWeek].id;
 
           for (let slot = 0; slot < needed; slot++) {
             if (placed >= S) break;
@@ -132,7 +168,6 @@ export const generateScheduleRouter = router({
               const slotIndex = (currentSlotIndex + attempt) % allSlots.length;
               const { weekId, day, pair } = allSlots[slotIndex];
 
-              // Используем только слоты для целевой недели
               if (weekId !== targetWeekId) continue;
 
               const slotKey = `${weekId}-${day.id}-${pair.id}`;
@@ -146,11 +181,9 @@ export const generateScheduleRouter = router({
               }
               const occupancy = slotOccupancy.get(slotKey)!;
 
-              // Проверка конфликтов
               if (occupancy.teacherIds.has(lesson.teacherId!)) continue;
-              if ([...lessonGroups].some(g => occupancy.groupIds.has(g))) continue;
+              if ([...lessonGroups].some((g) => occupancy.groupIds.has(g))) continue;
 
-              // Поиск свободной аудитории
               let freeClassroomId: number | null = null;
               for (const cid of classroomIds) {
                 if (!occupancy.classroomIds.has(cid)) {
@@ -160,7 +193,6 @@ export const generateScheduleRouter = router({
               }
               if (freeClassroomId === null) continue;
 
-              // Добавляем запись
               scheduleRows.push({
                 weekId: weekId,
                 dayOfWeekId: day.id,
@@ -171,6 +203,8 @@ export const generateScheduleRouter = router({
                 mergeFlag: undefined,
                 positionFlag: undefined,
                 _unitCode: lessonUnitCode,
+                isActive: true,      // активная запись
+                versionId: null,     // без привязки к версии
               });
 
               occupancy.teacherIds.add(lesson.teacherId!);
@@ -189,12 +223,16 @@ export const generateScheduleRouter = router({
 
       // Вставка schedule
       if (scheduleRows.length > 0) {
-        const cleanRows = scheduleRows.map(({...rest }) => rest);
+        const cleanRows = scheduleRows.map(({ _unitCode, ...rest }) => rest);
         await ctx.db.insert(schedule).values(cleanRows);
       }
 
       // Заполнение schedule_display
-      const insertedSchedule = await ctx.db.select().from(schedule);
+      const insertedSchedule = await ctx.db
+        .select()
+        .from(schedule)
+        .where(and(eq(schedule.isActive, true), isNull(schedule.versionId)));
+
       if (insertedSchedule.length > 0) {
         const enriched = await ctx.db
           .select({
@@ -216,25 +254,28 @@ export const generateScheduleRouter = router({
           .innerJoin(lessons, eq(schedule.lessonId, lessons.id))
           .innerJoin(disciplines, eq(lessons.disciplineId, disciplines.id))
           .innerJoin(lessonTypes, eq(lessons.lessonTypeId, lessonTypes.id))
-          .innerJoin(employeesDepartments, eq(lessons.teacherId, employeesDepartments.id))
+          .innerJoin(
+            employeesDepartments,
+            eq(lessons.teacherId, employeesDepartments.id)
+          )
           .innerJoin(employees, eq(employeesDepartments.employeeId, employees.id))
           .innerJoin(units, eq(lessons.unitId, units.id))
           .leftJoin(classrooms, eq(schedule.classroomId, classrooms.id))
           .leftJoin(buildings, eq(classrooms.buildingId, buildings.id));
 
-        await ctx.db.delete(scheduleDisplay);
-
-        const displayRows = enriched.map(row => {
+        const displayRows = enriched.map((row) => {
           const typeMap: Record<string, string> = {
-            lecture: 'лек.',
-            lab: 'лаб.',
-            workshop: 'пр.',
-            guidedStudy: 'кср.'
+            lecture: "лек.",
+            lab: "лаб.",
+            workshop: "пр.",
+            guidedStudy: "кср.",
           };
           const typeAbbr = typeMap[row.lessonTypeName] || row.lessonTypeName;
           const disc = row.disciplineAbbr;
-          const teacher = `${row.teacherSurname} ${row.teacherName[0]}.${row.teacherPatronymic?.[0] ? row.teacherPatronymic[0] + '.' : ''}`;
-          const room = row.buildingNumber ? `${row.buildingNumber}-${row.roomNumber}` : 'б/а';
+          const teacher = `${row.teacherSurname} ${row.teacherName[0]}.${row.teacherPatronymic?.[0] ? row.teacherPatronymic[0] + "." : ""}`;
+          const room = row.buildingNumber
+            ? `${row.buildingNumber}-${row.roomNumber}`
+            : "б/а";
           const text = `[${row.unitCode}] ${typeAbbr}${disc} – ${teacher}, ${room}`;
           return {
             lessonId: row.lessonId,
@@ -246,7 +287,10 @@ export const generateScheduleRouter = router({
             mergeNumber: 0,
             positionFlag: false,
             classroomFlag: row.classroomId !== null,
-            classroomId: row.classroomId, // ✅ сохраняем ID аудитории
+            classroomId: row.classroomId,
+            isBuffered: false,
+            isActive: true,           // активная запись
+            versionId: null,          // без версии
           };
         });
 
@@ -258,7 +302,7 @@ export const generateScheduleRouter = router({
       return {
         status: "schedule generated",
         totalSlots: scheduleRows.length,
-        placedLessons: new Set(scheduleRows.map(r => r.lessonId)).size,
+        placedLessons: new Set(scheduleRows.map((r) => r.lessonId)).size,
       };
     }),
 });

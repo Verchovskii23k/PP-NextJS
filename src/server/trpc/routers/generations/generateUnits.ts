@@ -11,13 +11,26 @@ import { eq, and, inArray, sql, isNull } from "drizzle-orm";
 
 export const generateUnitsRouter = router({
   generateUnits: adminProcedure.mutation(async ({ ctx }) => {
+    // 1. Удаляем только активные записи во всех динамических таблицах
     await ctx.db.transaction(async (tx) => {
-      await tx.delete(scheduleDisplay).where(isNull(scheduleDisplay.versionId));
-      await tx.delete(schedule);
-      await tx.delete(lessonClassrooms).where(isNull(lessonClassrooms.versionId));
-      await tx.delete(lessons).where(isNull(lessons.versionId));
-      await tx.delete(unitRoots).where(isNull(unitRoots.versionId));
-      await tx.delete(units).where(isNull(units.versionId));
+      await tx.delete(scheduleDisplay).where(
+        and(eq(scheduleDisplay.isActive, true), isNull(scheduleDisplay.versionId))
+      );
+      await tx.delete(schedule).where(
+        and(eq(schedule.isActive, true), isNull(schedule.versionId))
+      );
+      await tx.delete(lessonClassrooms).where(
+        and(eq(lessonClassrooms.isActive, true), isNull(lessonClassrooms.versionId))
+      );
+      await tx.delete(lessons).where(
+        and(eq(lessons.isActive, true), isNull(lessons.versionId))
+      );
+      await tx.delete(unitRoots).where(
+        and(eq(unitRoots.isActive, true), isNull(unitRoots.versionId))
+      );
+      await tx.delete(units).where(
+        and(eq(units.isActive, true), isNull(units.versionId))
+      );
     });
 
     const [unitTypeGroup] = await ctx.db
@@ -42,7 +55,11 @@ export const generateUnitsRouter = router({
 
     const maxSubgroupSize = unitTypeSubgroup.maxSize;
 
-    const groups = await ctx.db.select().from(studyGroups);
+    // Берём только активные группы
+    const groups = await ctx.db
+      .select()
+      .from(studyGroups)
+      .where(eq(studyGroups.isActive, true));
     if (groups.length === 0) throw new Error("Сначала выполните генерацию групп");
 
     const profileCourseToGroup = new Map<number, Map<number, typeof groups[0]>>();
@@ -55,27 +72,43 @@ export const generateUnitsRouter = router({
 
     for (const group of groups) {
       const unitCode = group.code;
+      // Ищем активный юнит с таким кодом (не архивный)
       let [existingUnit] = await ctx.db
         .select({ id: units.id })
         .from(units)
-        .where(eq(units.code, unitCode))
+        .where(and(
+          eq(units.code, unitCode),
+          eq(units.isActive, true),
+          isNull(units.versionId)
+        ))
         .limit(1);
       if (!existingUnit) {
         const [inserted] = await ctx.db.insert(units).values({
           code: unitCode,
           unitTypeId: unitTypeGroup.id,
+          isActive: true,
         }).returning({ id: units.id });
         existingUnit = inserted;
         counters.groups++;
       }
 
+      // Проверяем наличие активной связи
       const [rootExist] = await ctx.db
         .select()
         .from(unitRoots)
-        .where(and(eq(unitRoots.unitCode, unitCode), eq(unitRoots.studyGroupId, group.id)))
+        .where(and(
+          eq(unitRoots.unitCode, unitCode),
+          eq(unitRoots.studyGroupId, group.id),
+          eq(unitRoots.isActive, true),
+          isNull(unitRoots.versionId)
+        ))
         .limit(1);
       if (!rootExist) {
-        await ctx.db.insert(unitRoots).values({ unitCode, studyGroupId: group.id });
+        await ctx.db.insert(unitRoots).values({
+          unitCode,
+          studyGroupId: group.id,
+          isActive: true,
+        });
         counters.connections++;
       }
 
@@ -87,12 +120,17 @@ export const generateUnitsRouter = router({
           let [existingSub] = await ctx.db
             .select({ id: units.id })
             .from(units)
-            .where(eq(units.code, subCode))
+            .where(and(
+              eq(units.code, subCode),
+              eq(units.isActive, true),
+              isNull(units.versionId)
+            ))
             .limit(1);
           if (!existingSub) {
             const [inserted] = await ctx.db.insert(units).values({
               code: subCode,
               unitTypeId: unitTypeSubgroup.id,
+              isActive: true,
             }).returning({ id: units.id });
             existingSub = inserted;
             counters.subgroups++;
@@ -100,10 +138,19 @@ export const generateUnitsRouter = router({
           const [subRootExist] = await ctx.db
             .select()
             .from(unitRoots)
-            .where(and(eq(unitRoots.unitCode, subCode), eq(unitRoots.studyGroupId, group.id)))
+            .where(and(
+              eq(unitRoots.unitCode, subCode),
+              eq(unitRoots.studyGroupId, group.id),
+              eq(unitRoots.isActive, true),
+              isNull(unitRoots.versionId)
+            ))
             .limit(1);
           if (!subRootExist) {
-            await ctx.db.insert(unitRoots).values({ unitCode: subCode, studyGroupId: group.id });
+            await ctx.db.insert(unitRoots).values({
+              unitCode: subCode,
+              studyGroupId: group.id,
+              isActive: true,
+            });
             counters.connections++;
           }
         }
@@ -133,7 +180,7 @@ export const generateUnitsRouter = router({
         and(
           eq(curriculum.isActive, true),
           eq(profiles.isActive, true),
-          eq(curriculum.semester, currentSemester),   // ← фильтр по семестру
+          eq(curriculum.semester, currentSemester),
           sql`${curriculum.hoursLecture} > 0`
         )
       );
@@ -159,7 +206,7 @@ export const generateUnitsRouter = router({
         .where(
           and(
             inArray(profiles.id, profArray),
-            eq(profiles.isActive, true)            // ← только активные профили
+            eq(profiles.isActive, true)
           )
         )
         .orderBy(profiles.letterCode);
@@ -174,15 +221,21 @@ export const generateUnitsRouter = router({
       const yearDigit = groupCode[1];
       const streamCode = `${instituteCode}${yearDigit}${codes}`;
 
+      // Ищем активный поток
       let [existingStream] = await ctx.db
         .select({ id: units.id })
         .from(units)
-        .where(eq(units.code, streamCode))
+        .where(and(
+          eq(units.code, streamCode),
+          eq(units.isActive, true),
+          isNull(units.versionId)
+        ))
         .limit(1);
       if (!existingStream) {
         const [inserted] = await ctx.db.insert(units).values({
           code: streamCode,
           unitTypeId: unitTypeStream.id,
+          isActive: true,
         }).returning({ id: units.id });
         existingStream = inserted;
         counters.streams++;
@@ -194,10 +247,19 @@ export const generateUnitsRouter = router({
         const [root] = await ctx.db
           .select()
           .from(unitRoots)
-          .where(and(eq(unitRoots.unitCode, streamCode), eq(unitRoots.studyGroupId, g.id)))
+          .where(and(
+            eq(unitRoots.unitCode, streamCode),
+            eq(unitRoots.studyGroupId, g.id),
+            eq(unitRoots.isActive, true),
+            isNull(unitRoots.versionId)
+          ))
           .limit(1);
         if (!root) {
-          await ctx.db.insert(unitRoots).values({ unitCode: streamCode, studyGroupId: g.id });
+          await ctx.db.insert(unitRoots).values({
+            unitCode: streamCode,
+            studyGroupId: g.id,
+            isActive: true,
+          });
           counters.connections++;
         }
       }

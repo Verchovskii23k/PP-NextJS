@@ -1,5 +1,5 @@
 {
-  "id": "722d29cb-5a84-44fb-a568-ad2e8e07bede",
+  "id": "43c6d90d-afbf-4926-9791-b031578faf6a",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -1459,6 +1459,13 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": false
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
         }
       },
       "indexes": {},
@@ -1808,6 +1815,19 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": false
+        },
+        "version_id": {
+          "name": "version_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
         }
       },
       "indexes": {},
@@ -1870,6 +1890,19 @@
           "tableTo": "classrooms",
           "columnsFrom": [
             "classroom_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "schedule_version_id_schedule_versions_id_fk": {
+          "name": "schedule_version_id_schedule_versions_id_fk",
+          "tableFrom": "schedule",
+          "tableTo": "schedule_versions",
+          "columnsFrom": [
+            "version_id"
           ],
           "columnsTo": [
             "id"
@@ -1969,6 +2002,13 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": false
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
         }
       },
       "indexes": {},
@@ -2631,23 +2671,40 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": false
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
         }
       },
-      "indexes": {},
+      "indexes": {
+        "idx_unit_roots_active": {
+          "name": "idx_unit_roots_active",
+          "columns": [
+            {
+              "expression": "unit_code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "study_group_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"unit_roots\".\"is_active\" = $1",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
-        "unit_roots_unit_code_units_code_fk": {
-          "name": "unit_roots_unit_code_units_code_fk",
-          "tableFrom": "unit_roots",
-          "tableTo": "units",
-          "columnsFrom": [
-            "unit_code"
-          ],
-          "columnsTo": [
-            "code"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
         "unit_roots_study_group_id_study_groups_id_fk": {
           "name": "unit_roots_study_group_id_study_groups_id_fk",
           "tableFrom": "unit_roots",
@@ -2676,16 +2733,7 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "unit_roots_unit_code_study_group_id_unique": {
-          "name": "unit_roots_unit_code_study_group_id_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "unit_code",
-            "study_group_id"
-          ]
-        }
-      },
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -2791,9 +2839,33 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": false
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
         }
       },
-      "indexes": {},
+      "indexes": {
+        "idx_units_code_active": {
+          "name": "idx_units_code_active",
+          "columns": [
+            {
+              "expression": "code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"units\".\"is_active\" = $1",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "units_unit_type_id_unit_types_id_fk": {
           "name": "units_unit_type_id_unit_types_id_fk",
@@ -2823,15 +2895,7 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "units_code_unique": {
-          "name": "units_code_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "code"
-          ]
-        }
-      },
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false

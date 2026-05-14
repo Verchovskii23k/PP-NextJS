@@ -557,7 +557,7 @@ const handleCSV = () => {
       variant: "danger",
     });
     if (!ok) return;
-    deleteVersionMut.mutate({ id: selectedVersionId }); // ← исправь на versionId, если ещё не исправлено
+    deleteVersionMut.mutate({ versionId: selectedVersionId }); // ← исправь на versionId, если ещё не исправлено
   };
 
   const isActiveVersion = selectedVersionId === null;

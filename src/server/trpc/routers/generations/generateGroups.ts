@@ -12,12 +12,24 @@ export const generateGroupsRouter = router({
   generateGroups: adminProcedure.mutation(async ({ ctx }) => {
     // 1. Удаляем все активные динамические данные
     await ctx.db.transaction(async (tx) => {
-      await tx.delete(scheduleDisplay).where(isNull(scheduleDisplay.versionId));
-      await tx.delete(schedule);
-      await tx.delete(lessonClassrooms).where(and(isNull(lessonClassrooms.versionId), eq(lessonClassrooms.isActive, true)));
-      await tx.delete(lessons).where(isNull(lessons.versionId));
-      await tx.delete(unitRoots).where(isNull(unitRoots.versionId));
-      await tx.delete(units).where(isNull(units.versionId));
+      await tx.delete(scheduleDisplay).where(
+        and(eq(scheduleDisplay.isActive, true), isNull(scheduleDisplay.versionId))
+      );
+      await tx.delete(schedule).where(
+        and(eq(schedule.isActive, true), isNull(schedule.versionId))
+      );
+      await tx.delete(lessonClassrooms).where(
+        and(isNull(lessonClassrooms.versionId), eq(lessonClassrooms.isActive, true))
+      );
+      await tx.delete(lessons).where(
+        and(eq(lessons.isActive, true), isNull(lessons.versionId))
+      );
+      await tx.delete(unitRoots).where(
+        and(eq(unitRoots.isActive, true), isNull(unitRoots.versionId))
+      );
+      await tx.delete(units).where(
+        and(eq(units.isActive, true), isNull(units.versionId))
+      );
       // Деактивируем активные группы и открепляем студентов
       await tx.update(studyGroups).set({ isActive: false }).where(eq(studyGroups.isActive, true));
       await tx.update(students).set({ studyGroupId: null, course: null });
@@ -88,7 +100,9 @@ export const generateGroupsRouter = router({
         const [existing] = await tx.select({ id: studyGroups.id }).from(studyGroups).where(eq(studyGroups.code, code)).limit(1);
         let groupId: number;
         if (existing) {
-          await tx.update(studyGroups).set({ profileId, course, studentCount, isActive: true }).where(eq(studyGroups.id, existing.id));
+          await tx.update(studyGroups)
+            .set({ profileId, course, studentCount, isActive: true })
+            .where(eq(studyGroups.id, existing.id));
           groupId = existing.id;
         } else {
           const [inserted] = await tx.insert(studyGroups).values({ code, profileId, course, studentCount, isActive: true }).returning({ id: studyGroups.id });

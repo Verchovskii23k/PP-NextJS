@@ -1,4 +1,5 @@
 // src\db\schema.ts
+import { eq } from "drizzle-orm";
 import {
   pgTable,
   serial,
@@ -8,6 +9,7 @@ import {
   timestamp,
   unique,
   pgEnum,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 // Enums (можно заменить текстовыми полями, но enum'ы строже)
@@ -262,19 +264,24 @@ export const classrooms = pgTable("classrooms", {
 
 export const units = pgTable("units", {
   id: serial("id").primaryKey(),
-  code: text("code").notNull().unique(),
+  code: text("code").notNull(),
   unitTypeId: integer("unit_type_id").notNull().references(() => unitTypes.id),
   versionId: integer("version_id").references(() => scheduleVersions.id),
-});
+  isActive: boolean("is_active").notNull().default(true),
+  }, 
+    (table) => ({
+    uniqueActiveCode: uniqueIndex("idx_units_code_active").on(table.code).where(eq(table.isActive, true)),
+  }));
 
 export const unitRoots = pgTable("unit_roots", {
   id: serial("id").primaryKey(),
-  unitCode: text("unit_code").notNull().references(() => units.code),
+  unitCode: text("unit_code").notNull(),
   studyGroupId: integer("study_group_id").notNull().references(() => studyGroups.id),
   versionId: integer("version_id").references(() => scheduleVersions.id),
-}, (table) => ({
-  uniqueUnitGroup: unique().on(table.unitCode, table.studyGroupId),
-}));
+  isActive: boolean("is_active").notNull().default(true),
+  }, (table) => ({
+    uniqueUnitGroup: uniqueIndex("idx_unit_roots_active").on(table.unitCode, table.studyGroupId).where(eq(table.isActive, true)),
+  }));
 
 export const lessons = pgTable("lessons", {
   id: serial("id").primaryKey(),
@@ -285,6 +292,7 @@ export const lessons = pgTable("lessons", {
   teacherId: integer("teacher_id").references(() => employeesDepartments.id),
   countPerSemester: integer("count_per_semester").notNull(),
   versionId: integer("version_id").references(() => scheduleVersions.id),
+  isActive: boolean("is_active").notNull().default(true)
 });
 
 export const lessonClassrooms = pgTable("lesson_classrooms", {
@@ -293,9 +301,9 @@ export const lessonClassrooms = pgTable("lesson_classrooms", {
   classroomId: integer("classroom_id").notNull().references(() => classrooms.id),
   versionId: integer("version_id").references(() => scheduleVersions.id),
   isActive: boolean("is_active").notNull().default(true),
-}, (table) => ({
-  uniqueLessonClassroom: unique().on(table.lessonId, table.classroomId),
-}));
+  }, (table) => ({
+    uniqueLessonClassroom: unique().on(table.lessonId, table.classroomId),
+  }));
 
 export const daysOfWeek = pgTable("days_of_week", {
   id: serial("id").primaryKey(),
@@ -325,6 +333,8 @@ export const schedule = pgTable("schedule", {
   mergeFlag: integer("merge_flag"),
   positionFlag: integer("position_flag"),
   classroomFlag: integer("classroom_flag"),
+  versionId: integer("version_id").references(() => scheduleVersions.id),
+  isActive: boolean("is_active").notNull().default(true)
 });
 export const scheduleDisplay = pgTable("schedule_display", {
   id: serial("id").primaryKey(),
@@ -340,6 +350,7 @@ export const scheduleDisplay = pgTable("schedule_display", {
   classroomId: integer("classroom_id").references(() => classrooms.id),
   isBuffered: boolean("is_buffered").default(false).notNull(),
   versionId: integer("version_id").references(() => scheduleVersions.id),
+  isActive: boolean("is_active").notNull().default(true)
 });
 
 export const settings = pgTable('settings', {

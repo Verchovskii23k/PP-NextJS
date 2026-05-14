@@ -191,7 +191,8 @@ CREATE TABLE "lessons" (
 	"discipline_id" integer NOT NULL,
 	"teacher_id" integer,
 	"count_per_semester" integer NOT NULL,
-	"version_id" integer
+	"version_id" integer,
+	"is_active" boolean DEFAULT true NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "pairs" (
@@ -234,7 +235,9 @@ CREATE TABLE "schedule" (
 	"classroom_id" integer,
 	"merge_flag" integer,
 	"position_flag" integer,
-	"classroom_flag" integer
+	"classroom_flag" integer,
+	"version_id" integer,
+	"is_active" boolean DEFAULT true NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "schedule_display" (
@@ -250,7 +253,8 @@ CREATE TABLE "schedule_display" (
 	"classroom_flag" boolean DEFAULT false,
 	"classroom_id" integer,
 	"is_buffered" boolean DEFAULT false NOT NULL,
-	"version_id" integer
+	"version_id" integer,
+	"is_active" boolean DEFAULT true NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "schedule_versions" (
@@ -333,7 +337,7 @@ CREATE TABLE "unit_roots" (
 	"unit_code" text NOT NULL,
 	"study_group_id" integer NOT NULL,
 	"version_id" integer,
-	CONSTRAINT "unit_roots_unit_code_study_group_id_unique" UNIQUE("unit_code","study_group_id")
+	"is_active" boolean DEFAULT true NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "unit_types" (
@@ -353,7 +357,7 @@ CREATE TABLE "units" (
 	"code" text NOT NULL,
 	"unit_type_id" integer NOT NULL,
 	"version_id" integer,
-	CONSTRAINT "units_code_unique" UNIQUE("code")
+	"is_active" boolean DEFAULT true NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "weeks" (
@@ -400,6 +404,7 @@ ALTER TABLE "schedule" ADD CONSTRAINT "schedule_day_of_week_id_days_of_week_id_f
 ALTER TABLE "schedule" ADD CONSTRAINT "schedule_pair_number_id_pairs_id_fk" FOREIGN KEY ("pair_number_id") REFERENCES "public"."pairs"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "schedule" ADD CONSTRAINT "schedule_lesson_id_lessons_id_fk" FOREIGN KEY ("lesson_id") REFERENCES "public"."lessons"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "schedule" ADD CONSTRAINT "schedule_classroom_id_classrooms_id_fk" FOREIGN KEY ("classroom_id") REFERENCES "public"."classrooms"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "schedule" ADD CONSTRAINT "schedule_version_id_schedule_versions_id_fk" FOREIGN KEY ("version_id") REFERENCES "public"."schedule_versions"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "schedule_display" ADD CONSTRAINT "schedule_display_lesson_id_lessons_id_fk" FOREIGN KEY ("lesson_id") REFERENCES "public"."lessons"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "schedule_display" ADD CONSTRAINT "schedule_display_week_number_weeks_id_fk" FOREIGN KEY ("week_number") REFERENCES "public"."weeks"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "schedule_display" ADD CONSTRAINT "schedule_display_day_of_week_id_days_of_week_id_fk" FOREIGN KEY ("day_of_week_id") REFERENCES "public"."days_of_week"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -414,8 +419,9 @@ ALTER TABLE "students" ADD CONSTRAINT "students_study_group_id_study_groups_id_f
 ALTER TABLE "students" ADD CONSTRAINT "students_authentication_id_security_center_id_fk" FOREIGN KEY ("authentication_id") REFERENCES "public"."security_center"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "study_groups" ADD CONSTRAINT "study_groups_profile_id_profiles_id_fk" FOREIGN KEY ("profile_id") REFERENCES "public"."profiles"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "study_groups" ADD CONSTRAINT "study_groups_curator_id_employees_id_fk" FOREIGN KEY ("curator_id") REFERENCES "public"."employees"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "unit_roots" ADD CONSTRAINT "unit_roots_unit_code_units_code_fk" FOREIGN KEY ("unit_code") REFERENCES "public"."units"("code") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "unit_roots" ADD CONSTRAINT "unit_roots_study_group_id_study_groups_id_fk" FOREIGN KEY ("study_group_id") REFERENCES "public"."study_groups"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "unit_roots" ADD CONSTRAINT "unit_roots_version_id_schedule_versions_id_fk" FOREIGN KEY ("version_id") REFERENCES "public"."schedule_versions"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "units" ADD CONSTRAINT "units_unit_type_id_unit_types_id_fk" FOREIGN KEY ("unit_type_id") REFERENCES "public"."unit_types"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "units" ADD CONSTRAINT "units_version_id_schedule_versions_id_fk" FOREIGN KEY ("version_id") REFERENCES "public"."schedule_versions"("id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "units" ADD CONSTRAINT "units_version_id_schedule_versions_id_fk" FOREIGN KEY ("version_id") REFERENCES "public"."schedule_versions"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+CREATE UNIQUE INDEX "idx_unit_roots_active" ON "unit_roots" USING btree ("unit_code","study_group_id") WHERE "unit_roots"."is_active" = $1;--> statement-breakpoint
+CREATE UNIQUE INDEX "idx_units_code_active" ON "units" USING btree ("code") WHERE "units"."is_active" = $1;
