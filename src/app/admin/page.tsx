@@ -14,16 +14,17 @@ import {
 } from "lucide-react";
 
 const sections = [
+  { title: "Инструкция по эксплуатации", description: "Описание характеристик и параметров системы", href: "/admin/manual", icon: FileQuestionIcon, available: true },
   { title: "CRUD", description: "Управление справочниками и данными", href: "/admin/crud", icon: Database, available: true },
+  { title: "Локальный поиск", description: "Настройка параметров локального поиска", href: "/admin/optimization-settings", icon: Sliders, available: true },
   { title: "Генерации", description: "Запуск генераторов данных", href: "/admin/generations", icon: Cog, available: true },
   { title: "Расписание", description: "Просмотр, оптимизация и экспорт расписания", href: "/admin/schedule", icon: CalendarDays, available: true },
-  { title: "Настройки аккаунта", description: "Личные данные и безопасность аккаунта", href: "/admin/account", icon: UserCog, available: true },
-  { title: "Логины и пароли", description: "Генерация учётных записей", href: "/admin/credentials", icon: KeyRound, available: true },
   { title: "Администраторы", description: "Управление администраторами", href: "/admin/administrators", icon: Shield, available: true },
+  { title: "Логины и пароли", description: "Генерация учётных записей", href: "/admin/credentials", icon: KeyRound, available: true },
   { title: "Пользователи", description: "Сброс логинов и паролей", href: "/admin/users", icon: Users, available: true },
-  { title: "Локальный поиск", description: "Настройка параметров локального поиска", href: "/admin/optimization-settings", icon: Sliders, available: true },
   { title: "Импорт/экспорт данных БД", description: "Глобальный импорт/экспорт данных в формате JSON", href: "/admin/import-export", icon: Album, available: true },
-  { title: "Инструкция по эксплуатации", description: "Описание характеристик и параметров системы", href: "/admin/manual", icon: FileQuestionIcon, available: false },
+  { title: "Настройки аккаунта", description: "Личные данные и безопасность аккаунта", href: "/admin/account", icon: UserCog, available: true },
+
 ];
 
 export default function AdminDashboard() {
