@@ -235,11 +235,7 @@ export function DataTable({ tableName }: DataTableProps) {
       {
         id: "index",
         header: "№",
-        cell: ({ row }) => (
-          <span className="text-xs text-muted-foreground">
-            {pagination.pageIndex * pagination.pageSize + row.index + 1}
-          </span>
-        ),
+        cell: () => null,   // реальный номер вставим в <tbody>
         enableSorting: false,
         enableGlobalFilter: false,
       },
@@ -450,41 +446,54 @@ export function DataTable({ tableName }: DataTableProps) {
               </tr>
             ))}
           </thead>
-          <tbody className="min-h-[300px] divide-y divide-border bg-background">
-            {table.getRowModel().rows.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={columns.length}
-                  className="px-4 py-4 text-center align-middle text-sm text-muted-foreground"
-                >
-                  <div className="flex h-full min-h-[250px] items-center justify-center">
-                    Нет данных
-                  </div>
-                </td>
-              </tr>
-            ) : (
-              table.getRowModel().rows.map(row => {
-                const isSelected = selectedIds.has(row.original.id);
-                return (
-                  <tr
-                    key={row.id}
-                    className={`hover:bg-muted/50 ${
-                      row.original.isActive === false ? "bg-red-50 dark:bg-red-900/20" : ""
-                    } ${isSelected ? "bg-gray-100 dark:bg-gray-800" : ""}`}
+            <tbody className="min-h-[300px] divide-y divide-border bg-background">
+              {table.getRowModel().rows.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={columns.length}
+                    className="px-4 py-4 text-center align-middle text-sm text-muted-foreground"
                   >
-                    {row.getVisibleCells().map(cell => (
-                      <td
-                        key={cell.id}
-                        className="whitespace-nowrap px-4 py-2 text-sm text-foreground"
-                      >
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </td>
-                    ))}
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
+                    <div className="flex h-full min-h-[250px] items-center justify-center">
+                      Нет данных
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                table.getRowModel().rows.map((row, rowIndex) => {
+                  const isSelected = selectedIds.has(row.original.id);
+                  return (
+                    <tr
+                      key={row.id}
+                      className={`hover:bg-muted/50 ${
+                        row.original.isActive === false ? "bg-red-50 dark:bg-red-900/20" : ""
+                      } ${isSelected ? "bg-gray-100 dark:bg-gray-800" : ""}`}
+                    >
+                      {row.getVisibleCells().map(cell => {
+                        // Подменяем содержимое ячейки "№" на актуальный порядковый номер
+                        if (cell.column.id === "index") {
+                          return (
+                            <td
+                              key={cell.id}
+                              className="whitespace-nowrap px-4 py-2 text-xs text-muted-foreground"
+                            >
+                              {rowIndex + 1}
+                            </td>
+                          );
+                        }
+                        return (
+                          <td
+                            key={cell.id}
+                            className="whitespace-nowrap px-4 py-2 text-sm text-foreground"
+                          >
+                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
         </table>
       </div>
 
