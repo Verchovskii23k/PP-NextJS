@@ -18,9 +18,7 @@ import {
   buildings,
   unitRoots,
   weeks,
-  studyGroups,
 } from "@/db/schema";
-import { clearGeneratedData } from "@/lib/clearGeneratedData";
 
 export const generateScheduleRouter = router({
   generateSchedule: adminProcedure
@@ -120,18 +118,6 @@ export const generateScheduleRouter = router({
         }
       >();
 
-      // Все слоты на основе активных недель
-      const allSlots: { weekId: number; day: typeof days[0]; pair: typeof pairsList[0] }[] = [];
-      for (const week of weeksList) {
-        for (const day of days) {
-          for (const pair of pairsList) {
-            allSlots.push({ weekId: week.id, day, pair });
-          }
-        }
-      }
-
-      let currentSlotIndex = 0;
-
       // Основной цикл по отсортированным занятиям
       for (const lesson of sortedLessons) {
         if (!lesson.countPerSemester || lesson.countPerSemester <= 0) continue;
@@ -162,17 +148,22 @@ export const generateScheduleRouter = router({
 
           const targetWeekId = weeksList[cycleWeek].id;
 
+          // Собираем все слоты для целевой недели
+          const weekSlots: { day: typeof days[0]; pair: typeof pairsList[0] }[] = [];
+          for (const day of days) {
+            for (const pair of pairsList) {
+              weekSlots.push({ day, pair });
+            }
+          }
+
           for (let slot = 0; slot < needed; slot++) {
             if (placed >= S) break;
             let placedInSlot = false;
 
-            for (let attempt = 0; attempt < allSlots.length; attempt++) {
-              const slotIndex = (currentSlotIndex + attempt) % allSlots.length;
-              const { weekId, day, pair } = allSlots[slotIndex];
-
-              if (weekId !== targetWeekId) continue;
-
-              const slotKey = `${weekId}-${day.id}-${pair.id}`;
+            // Перебираем слоты целевой недели в случайном порядке (чтобы не было bias)
+            const shuffledSlots = weekSlots.sort(() => Math.random() - 0.5);
+            for (const { day, pair } of shuffledSlots) {
+              const slotKey = `${targetWeekId}-${day.id}-${pair.id}`;
 
               if (!slotOccupancy.has(slotKey)) {
                 slotOccupancy.set(slotKey, {
@@ -196,7 +187,7 @@ export const generateScheduleRouter = router({
               if (freeClassroomId === null) continue;
 
               scheduleRows.push({
-                weekId: weekId,
+                weekId: targetWeekId,
                 dayOfWeekId: day.id,
                 pairNumberId: pair.id,
                 lessonId: lesson.id,
@@ -205,20 +196,19 @@ export const generateScheduleRouter = router({
                 mergeFlag: undefined,
                 positionFlag: undefined,
                 _unitCode: lessonUnitCode,
-                isActive: true,      // активная запись
-                versionId: null,     // без привязки к версии
+                isActive: true,
+                versionId: null,
               });
 
               occupancy.teacherIds.add(lesson.teacherId!);
               occupancy.classroomIds.add(freeClassroomId);
               for (const g of lessonGroups) occupancy.groupIds.add(g);
 
-              currentSlotIndex = (slotIndex + 1) % allSlots.length;
               placed++;
               placedInSlot = true;
               break;
             }
-            if (placedInSlot) break;
+            if (!placedInSlot) break; // не смогли найти свободный слот на этой неделе – прекращаем попытки
           }
         }
       }
@@ -291,8 +281,8 @@ export const generateScheduleRouter = router({
             classroomFlag: row.classroomId !== null,
             classroomId: row.classroomId,
             isBuffered: false,
-            isActive: true,           // активная запись
-            versionId: null,          // без версии
+            isActive: true,
+            versionId: null,
           };
         });
 

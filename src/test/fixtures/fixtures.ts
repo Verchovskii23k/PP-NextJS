@@ -15,23 +15,23 @@ import {
   educationForms,
   education,
   educationLevels,
-  positions
+  positions, scheduleVersions
 } from "@/db/schema";
 import { sql, eq } from "drizzle-orm";
 
 export async function clearDatabase() {
   const tables = [
-      scheduleDisplay, schedule, lessonClassrooms, lessons,
-      curriculumProfiles, curriculum, disciplineTeachers,
-      employeesDepartments, classrooms,
-      hourTypeMapping, lessonTypes, unitRoots, units, unitTypes,
-      daysOfWeek, pairs, weeks,
-      students, studyGroups,
-      education, educationForms, educationLevels,
-      profiles, specialties, disciplines,
-      departments, institutes, buildings, employees,
-      positions, employmentTypes, academicLoadTypes, controlTypes,
-      settings, securityCenter, sessions, roles
+    scheduleDisplay, schedule, lessonClassrooms, lessons,
+    curriculumProfiles, curriculum, disciplineTeachers,
+    employeesDepartments, classrooms,
+    hourTypeMapping, lessonTypes, unitRoots, units, unitTypes,
+    daysOfWeek, pairs, weeks,
+    students, studyGroups,
+    education, educationForms, educationLevels,
+    profiles, specialties, disciplines,
+    departments, institutes, buildings, employees,
+    positions, employmentTypes, academicLoadTypes, controlTypes,
+    settings, scheduleVersions, securityCenter, sessions, roles  // ← добавили
   ];
   for (const t of tables) {
     await db.delete(t);
