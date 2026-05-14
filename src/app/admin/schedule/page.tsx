@@ -185,11 +185,9 @@ export default function AdminSchedulePage() {
   const [slotSwapIds, setSlotSwapIds] = useState<Record<string, number>>({});
   const [restoredVersionName, setRestoredVersionName] = useState<string | null>(null);
   const [restoredVersionId, setRestoredVersionId] = useState<number | null>(null);
-
-
   const [showAnnealingDialog, setShowAnnealingDialog] = useState(false);
-  const [annealingTemp, setAnnealingTemp] = useState(1000);
-  const [annealingRate, setAnnealingRate] = useState(0.95);
+  const [tempInput, setTempInput] = useState(1000);
+  const [rateInput, setRateInput] = useState(0.95);
   const tempQuery = trpc.settings.get.useQuery(
     { key: "opt_initial_temperature" },
     { enabled: showAnnealingDialog }
@@ -206,19 +204,28 @@ export default function AdminSchedulePage() {
 
   const handleSaveAnnealingSettings = async () => {
     try {
-      await settingsUpdateMut.mutateAsync({ key: "opt_initial_temperature", value: String(annealingTemp) });
-      await settingsUpdateMut.mutateAsync({ key: "opt_cooling_rate", value: String(annealingRate) });
+      await settingsUpdateMut.mutateAsync({ key: "opt_initial_temperature", value: String(tempInput) });
+      await settingsUpdateMut.mutateAsync({ key: "opt_cooling_rate", value: String(rateInput) });
       setShowAnnealingDialog(false);
     } catch (e) {}
   };
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && showAnnealingDialog) {
+        setShowAnnealingDialog(false);
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [showAnnealingDialog]);
   // При изменении данных записываем в локальное состояние
-  useEffect(() => {
-    if (tempQuery.data) setAnnealingTemp(Number(tempQuery.data) || 1000);
-  }, [tempQuery.data]);
-
-  useEffect(() => {
-    if (rateQuery.data) setAnnealingRate(Number(rateQuery.data) || 0.95);
-  }, [rateQuery.data]);
+  const handleOpenAnnealing = async () => {
+    setShowAnnealingDialog(true);
+    const tempRes = await tempQuery.refetch();
+    const rateRes = await rateQuery.refetch();
+    setTempInput(Number(tempRes.data) || 1000);
+    setRateInput(Number(rateRes.data) || 0.95);
+  };
 
 
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -931,11 +938,7 @@ export default function AdminSchedulePage() {
         </button>
         {editMode && isActiveVersion && (
           <button
-            onClick={() => {
-              setShowAnnealingDialog(true);
-              tempQuery.refetch();
-              rateQuery.refetch();
-            }}
+            onClick={handleOpenAnnealing}
             className="rounded bg-gray-600 px-3 py-1 text-white hover:bg-gray-700"
             title="Настройки отжига"
           >
@@ -1106,8 +1109,8 @@ export default function AdminSchedulePage() {
                 type="number"
                 min={1}
                 step={10}
-                value={annealingTemp}
-                onChange={(e) => setAnnealingTemp(Number(e.target.value))}
+                value={tempInput}
+                onChange={(e) => setTempInput(Number(e.target.value))}
                 className="w-full rounded border border-border bg-background px-3 py-2 text-foreground"
                 title="Начальная температура (1–10000). Чем выше, тем больше случайных перестановок на старте."
               />
@@ -1121,8 +1124,8 @@ export default function AdminSchedulePage() {
                 min={0.001}
                 max={0.999}
                 step={0.001}
-                value={annealingRate}
-                onChange={(e) => setAnnealingRate(Number(e.target.value))}
+                value={rateInput}
+                onChange={(e) => setRateInput(Number(e.target.value))}
                 className="w-full rounded border border-border bg-background px-3 py-2 text-foreground"
                 title="Скорость охлаждения (0.001–0.999). Ближе к 1 – медленное охлаждение, дольше оптимизация, потенциально лучший результат."
               />
