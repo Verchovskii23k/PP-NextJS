@@ -19,7 +19,6 @@ import { useConfirmContext } from "@/contexts/ConfirmContext";
 
 type Day = { id: number; name: string };
 type Pair = { id: number; number: number };
-
 type ScheduleRow = {
   id: number;
   weekId: number;
@@ -27,9 +26,9 @@ type ScheduleRow = {
   pairNumberId: number;
   unitCode: string;
   displayText: string;
-  mergeNumber: number | null;       // было number
-  positionFlag: boolean | null;     // было boolean
-  classroomFlag: boolean | null;    // было boolean
+  mergeNumber: number | null;
+  positionFlag: boolean | null;
+  classroomFlag: boolean | null;
   lessonId: number | null;
   isBuffered: boolean;
 };
@@ -186,7 +185,12 @@ export default function AdminSchedulePage() {
     show: boolean; message: string; onConfirm: () => void;
   }>({ show: false, message: "", onConfirm: () => {} });
   // Версионирование
-  const [selectedVersionId, setSelectedVersionId] = useState<number | null>(null); // null = активная
+  const [selectedVersionId, setSelectedVersionId] = useState<number | null>(null);
+  const [restoreDialog, setRestoreDialog] = useState<{
+    show: boolean;
+    versionId: number;
+    versionName: string;
+  }>({ show: false, versionId: 0, versionName: "" });
 
   const utils = trpc.useUtils();
   const versionsQuery = trpc.scheduleVersions.list.useQuery();
@@ -209,7 +213,15 @@ export default function AdminSchedulePage() {
     },
     onError: (e) => {toast.error(e.message)},
   });
-
+  const restoreAsActiveMut = trpc.scheduleVersions.restoreAsActive.useMutation({
+  onSuccess: () => {
+    toast.success("Версия восстановлена как активная");
+    utils.scheduleVersions.list.invalidate();
+    setSelectedVersionId(null);
+    refreshData();
+  },
+    onError: (e) => {toast.error(e.message)},
+  });
   // Активные запросы с учётом версии
   const versionParam = selectedVersionId !== null ? selectedVersionId : null; // null = активная, число = архив
   const { data: unitsData, isLoading: unitsLoading } = trpc.scheduleDisplay.getForWeekPair.useQuery(
@@ -561,6 +573,47 @@ const handleCSV = () => {
   };
 
   const isActiveVersion = selectedVersionId === null;
+    const handleVersionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const val = e.target.value;
+    if (val === "active") {
+      // Переключение на активную – просто меняем selected, данные уже активные
+      setSelectedVersionId(null);
+      return;
+    }
+    const versionId = Number(val);
+    const versionName = versionsQuery.data?.find(v => v.id === versionId)?.name ?? "";
+    // Показываем диалог восстановления
+    setRestoreDialog({ show: true, versionId, versionName });
+  };
+
+  // Действия из диалога восстановления
+  const handleRestoreSaveAndProceed = async () => {
+    const name = window.prompt("Введите название для текущего активного расписания:");
+    if (!name) return; // отмена
+    try {
+      await saveActiveMut.mutateAsync({ name });
+    } catch (e) {
+      toast.error("Ошибка при сохранении: " + (e instanceof Error ? e.message : ""));
+      return;
+    }
+    // После сохранения вызываем восстановление
+    restoreAsActiveMut.mutate({ versionId: restoreDialog.versionId });
+    setRestoreDialog({ show: false, versionId: 0, versionName: "" });
+  };
+
+  const handleRestoreProceedWithoutSave = () => {
+    restoreAsActiveMut.mutate({ versionId: restoreDialog.versionId });
+    setRestoreDialog({ show: false, versionId: 0, versionName: "" });
+  };
+
+  const handleRestoreCancel = () => {
+    setRestoreDialog({ show: false, versionId: 0, versionName: "" });
+    // Откат select обратно на предыдущее значение (можно оставить selectedVersionId без изменений)
+  };
+
+  // Блокировка кнопок для архивных версий
+  const canEdit = isActiveVersion;
+  const canOptimize = isActiveVersion;
 
   if (viewMode === "units" && unitsLoading) return <div className="p-6"><Skeleton className="h-4 w-32" /></div>;
   if (viewMode === "groups" && groupsLoading) return <div className="p-6"><Skeleton className="h-4 w-32" /></div>;
@@ -611,7 +664,37 @@ const handleCSV = () => {
           </button>
         )}
       </div>
-
+        {/* Диалог восстановления версии */}
+      {restoreDialog.show && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
+          <div className="max-w-md rounded border border-border bg-background p-6 shadow-lg">
+            <p className="mb-4 text-foreground">
+              Вы собираетесь загрузить версию «{restoreDialog.versionName}» как активную.
+              Текущее активное расписание будет заменено. Желаете сохранить текущее расписание перед заменой?
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={handleRestoreCancel}
+                className="rounded border border-border px-4 py-2 text-foreground hover:bg-muted"
+              >
+                Отмена
+              </button>
+              <button
+                onClick={handleRestoreProceedWithoutSave}
+                className="rounded bg-yellow-600 px-4 py-2 text-white hover:bg-yellow-700"
+              >
+                Продолжить без сохранения
+              </button>
+              <button
+                onClick={handleRestoreSaveAndProceed}
+                className="rounded bg-primary px-4 py-2 text-white hover:bg-primary/90"
+              >
+                Сохранить и продолжить
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Легенда */}
       <div className="mb-4 flex flex-wrap gap-4 rounded border border-border bg-muted p-3 text-sm">
         {activeWeeksData.map((week, idx) => (
