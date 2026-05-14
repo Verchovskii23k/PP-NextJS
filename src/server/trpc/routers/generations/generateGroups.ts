@@ -1,4 +1,4 @@
-// src/server/api/routers/generateGroups.ts
+// src/server/trpc/routers/generations/generateGroups.ts
 import { router, adminProcedure } from "../../trpc";
 import {
   students, studyGroups, profiles,

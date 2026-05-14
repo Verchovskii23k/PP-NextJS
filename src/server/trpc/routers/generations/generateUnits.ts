@@ -1,4 +1,4 @@
-// src/server/api/routers/generateUnits.ts
+// src/server/trpc/routers/generations/generateUnits.ts
 import { router, adminProcedure } from "../../trpc";
 import {
   units, unitTypes, unitRoots,

@@ -18,7 +18,9 @@ import {
   buildings,
   unitRoots,
   weeks,
+  studyGroups,
 } from "@/db/schema";
+import { clearGeneratedData } from "@/lib/clearGeneratedData";
 
 export const generateScheduleRouter = router({
   generateSchedule: adminProcedure

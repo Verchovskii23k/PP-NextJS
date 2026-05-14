@@ -1,4 +1,4 @@
-// src/test/fixtures.ts
+// src/test/fixtures/fixtures.ts
 import { db } from "@/db";
 import {
   institutes, buildings, unitTypes, lessonTypes,
