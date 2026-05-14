@@ -44,51 +44,39 @@ export const scheduleVersionsRouter = router({
     }),
 
   // Восстановить выбранную архивную версию как активную
-  restoreAsActive: adminProcedure
-    .input(z.object({ versionId: z.number() }))
-    .mutation(async ({ ctx, input }) => {
-      const { versionId } = input;
+// src/server/trpc/routers/scheduleVersions.ts (фрагмент restoreAsActive)
 
-      // 1. Проверяем существование версии
-      const [version] = await ctx.db
-        .select()
-        .from(scheduleVersions)
-        .where(eq(scheduleVersions.id, versionId));
-      if (!version) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Версия не найдена" });
-      }
+restoreAsActive: adminProcedure
+  .input(z.object({ versionId: z.number() }))
+  .mutation(async ({ ctx, input }) => {
+    const { versionId } = input;
 
-      // 2. Если есть активное расписание – автоматически сохраняем его перед восстановлением
-      const activeLesson = await ctx.db
-        .select()
-        .from(lessons)
-        .where(and(eq(lessons.isActive, true), isNull(lessons.versionId)))
-        .limit(1);
+    // 1. Проверяем существование версии
+    const [version] = await ctx.db
+      .select()
+      .from(scheduleVersions)
+      .where(eq(scheduleVersions.id, versionId));
+    if (!version) {
+      throw new TRPCError({ code: "NOT_FOUND", message: "Версия не найдена" });
+    }
 
-      if (activeLesson.length > 0) {
-        const [autoSavedVersion] = await ctx.db
-          .insert(scheduleVersions)
-          .values({ name: `Автосохранение ${new Date().toLocaleString()}` })
-          .returning({ id: scheduleVersions.id });
+    // 2. Удаляем текущие активные записи во всех динамических таблицах
+    for (const table of dynamicTables) {
+      await ctx.db
+        .delete(table)
+        .where(and(eq(table.isActive, true), isNull(table.versionId)));
+    }
 
-        for (const table of dynamicTables) {
-          await ctx.db
-            .update(table)
-            .set({ isActive: false, versionId: autoSavedVersion.id })
-            .where(and(eq(table.isActive, true), isNull(table.versionId)));
-        }
-      }
+    // 3. Делаем выбранную версию активной (меняем флаги)
+    for (const table of dynamicTables) {
+      await ctx.db
+        .update(table)
+        .set({ isActive: true, versionId: null })
+        .where(and(eq(table.versionId, versionId), eq(table.isActive, false)));
+    }
 
-      // 3. Делаем выбранную версию активной
-      for (const table of dynamicTables) {
-        await ctx.db
-          .update(table)
-          .set({ isActive: true, versionId: null })
-          .where(and(eq(table.versionId, versionId), eq(table.isActive, false)));
-      }
-
-      return { success: true };
-    }),
+    return { success: true };
+  }),
 
   // Удалить версию (только архивную, не активную)
   delete: adminProcedure

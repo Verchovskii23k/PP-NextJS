@@ -2,7 +2,7 @@
 "use client";
 import { toast } from "sonner";
 import { trpc } from "@/trpc/client";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   DndContext,
   useDraggable,
@@ -16,9 +16,11 @@ import {
 } from "@dnd-kit/core";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useConfirmContext } from "@/contexts/ConfirmContext";
+import { InputDialog } from "@/components/ui/InputDialog";
 
 type Day = { id: number; name: string };
 type Pair = { id: number; number: number };
+
 type ScheduleRow = {
   id: number;
   weekId: number;
@@ -181,11 +183,15 @@ export default function AdminSchedulePage() {
   const [activeDragEntry, setActiveDragEntry] = useState<ScheduleRow | null>(null);
   const [slotStatuses, setSlotStatuses] = useState<Record<string, "free" | "conflict" | "swap">>({});
   const [slotSwapIds, setSlotSwapIds] = useState<Record<string, number>>({});
+  const [restoredVersionName, setRestoredVersionName] = useState<string | null>(null);
+  const [restoredVersionId, setRestoredVersionId] = useState<number | null>(null);
+
   const [confirmDialog, setConfirmDialog] = useState<{
     show: boolean; message: string; onConfirm: () => void;
   }>({ show: false, message: "", onConfirm: () => {} });
   // Версионирование
-  const [selectedVersionId, setSelectedVersionId] = useState<number | null>(null);
+  const [selectedVersionId, setSelectedVersionId] = useState<number | null>(null); // null = активная
+  // Диалог восстановления версии
   const [restoreDialog, setRestoreDialog] = useState<{
     show: boolean;
     versionId: number;
@@ -194,36 +200,40 @@ export default function AdminSchedulePage() {
 
   const utils = trpc.useUtils();
   const versionsQuery = trpc.scheduleVersions.list.useQuery();
+  const [versionsList, setVersionsList] = useState<{ id: number; name: string; createdAt: string }[]>([]);
+
+  useEffect(() => {
+    if (versionsQuery.data && versionsList.length === 0) {
+      setVersionsList(versionsQuery.data);
+    }
+  }, [versionsQuery.data, versionsList.length]);
   const saveActiveMut = trpc.scheduleVersions.saveActive.useMutation({
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success("Версия сохранена");
-      utils.scheduleVersions.list.invalidate();
-      // После сохранения активной версии активных данных больше нет, переключаемся на активную
+      await utils.scheduleVersions.list.refetch();
+      setVersionsList(utils.scheduleVersions.list.getData() ?? []);
       setSelectedVersionId(null);
+      setRestoredVersionId(null);
       refreshData();
     },
-    onError: (e) => {toast.error(e.message)},
+    onError: (e) => { toast.error(e.message); },
   });
   const deleteVersionMut = trpc.scheduleVersions.delete.useMutation({
-    onSuccess: () => {
-      toast.success("Версия удалена");
-      utils.scheduleVersions.list.invalidate();
+    onError: (e) => { toast.error(e.message); },
+  });
+  const restoreAsActiveMut = trpc.scheduleVersions.restoreAsActive.useMutation({
+    onSuccess: async () => {
+      toast.success("Версия восстановлена как активная");
+      await utils.scheduleVersions.list.refetch();
+      setVersionsList(utils.scheduleVersions.list.getData() ?? []);
       setSelectedVersionId(null);
       refreshData();
     },
-    onError: (e) => {toast.error(e.message)},
+    onError: (e) => { toast.error(e.message); },
   });
-  const restoreAsActiveMut = trpc.scheduleVersions.restoreAsActive.useMutation({
-  onSuccess: () => {
-    toast.success("Версия восстановлена как активная");
-    utils.scheduleVersions.list.invalidate();
-    setSelectedVersionId(null);
-    refreshData();
-  },
-    onError: (e) => {toast.error(e.message)},
-  });
+
   // Активные запросы с учётом версии
-  const versionParam = selectedVersionId !== null ? selectedVersionId : null; // null = активная, число = архив
+  const versionParam = selectedVersionId !== null ? selectedVersionId : null;
   const { data: unitsData, isLoading: unitsLoading } = trpc.scheduleDisplay.getForWeekPair.useQuery(
     { weekBaseId: 1, versionId: versionParam },
     { enabled: viewMode === "units" }
@@ -232,8 +242,11 @@ export default function AdminSchedulePage() {
     { weekBaseId: 1, versionId: versionParam },
     { enabled: viewMode === "groups" }
   );
-
-  const { data: bufferData } = trpc.scheduleDisplay.getBuffer.useQuery(undefined, { enabled: editMode && selectedVersionId === null });
+  // Буфер только для активной версии
+  const { data: bufferData } = trpc.scheduleDisplay.getBuffer.useQuery(
+    { versionId: null },
+    { enabled: editMode && selectedVersionId === null }
+  );
 
   const activeWeeksData: WeekInfo[] = unitsData?.weeks || groupsData?.weeks || [];
   const activeWeekIds = activeWeeksData.map((w) => w.id);
@@ -249,7 +262,7 @@ export default function AdminSchedulePage() {
       toast(`Оптимизация завершена. Итераций: ${data.iterations}, улучшение: с ${data.initialScore} до ${data.finalScore}`);
       refreshData();
     },
-    onError: (e) => {toast.error(e.message)},
+    onError: (e) => { toast.error(e.message); },
   });
 
   const refreshData = useCallback(() => {
@@ -290,10 +303,11 @@ export default function AdminSchedulePage() {
         }
         refreshData();
       } catch (e: unknown) {
-        const message = e instanceof Error ? e.message : "Неизвестная ошибка"; toast.error(message)
+        const message = e instanceof Error ? e.message : "Неизвестная ошибка";
+        toast.error(message);
       }
     },
-    [slotStatuses, slotSwapIds, moveMutation, swapMutation, refreshData]
+    [slotStatuses, slotSwapIds, moveMutation, swapMutation, refreshData, selectedVersionId]
   );
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
@@ -405,163 +419,183 @@ export default function AdminSchedulePage() {
     refreshData();
   };
 
-const handlePrint = () => {
-  const headerCells: string[] = [];
-  const rows: string[][] = [];
+  const handlePrint = () => {
+    // ... без изменений (полный код в вашем исходнике)
+    const headerCells: string[] = [];
+    const rows: string[][] = [];
 
-  if (viewMode === "units" && unitsData) {
-    const unitCodes = Array.from(new Set(unitsData.rows.map(r => r.unitCode))).sort();
-    headerCells.push("День", "Пара", "Неделя", ...unitCodes);
+    if (viewMode === "units" && unitsData) {
+      const unitCodes = Array.from(new Set(unitsData.rows.map(r => r.unitCode))).sort();
+      headerCells.push("День", "Пара", "Неделя", ...unitCodes);
 
-    for (const day of unitsData.days) {
-      for (const pair of unitsData.pairs) {
-        for (const week of activeWeeksData) {
-          const row: string[] = [
-            day.name,
-            String(pair.number),
-            week.type,
-          ];
-          for (const code of unitCodes) {
-            const entry = unitsData.rows.find(
-              r => r.unitCode === code && r.dayOfWeekId === day.id && r.pairNumberId === pair.id && r.weekId === week.id
-            );
-            row.push(entry ? entry.displayText : "—");
+      for (const day of unitsData.days) {
+        for (const pair of unitsData.pairs) {
+          for (const week of activeWeeksData) {
+            const row: string[] = [
+              day.name,
+              String(pair.number),
+              week.type,
+            ];
+            for (const code of unitCodes) {
+              const entry = unitsData.rows.find(
+                r => r.unitCode === code && r.dayOfWeekId === day.id && r.pairNumberId === pair.id && r.weekId === week.id
+              );
+              row.push(entry ? entry.displayText : "—");
+            }
+            rows.push(row);
           }
-          rows.push(row);
+        }
+      }
+    } else if (viewMode === "groups" && groupsData) {
+      const groupCodes = Array.from(new Set(groupsData.rows.map((r: ScheduleRowWithGroup) => r.studyGroupCode))).sort();
+      headerCells.push("День", "Пара", "Неделя", ...groupCodes);
+
+      for (const day of groupsData.days) {
+        for (const pair of groupsData.pairs) {
+          for (const week of activeWeeksData) {
+            const row: string[] = [
+              day.name,
+              String(pair.number),
+              week.type,
+            ];
+            for (const code of groupCodes) {
+              const entry = groupsData.rows.find(
+                (r: ScheduleRowWithGroup) => r.studyGroupCode === code && r.dayOfWeekId === day.id && r.pairNumberId === pair.id && r.weekId === week.id
+              );
+              row.push(entry ? entry.displayText : "—");
+            }
+            rows.push(row);
+          }
         }
       }
     }
-  } else if (viewMode === "groups" && groupsData) {
-    const groupCodes = Array.from(new Set(groupsData.rows.map((r: ScheduleRowWithGroup) => r.studyGroupCode))).sort();
-    headerCells.push("День", "Пара", "Неделя", ...groupCodes);
 
-    for (const day of groupsData.days) {
-      for (const pair of groupsData.pairs) {
-        for (const week of activeWeeksData) {
-          const row: string[] = [
-            day.name,
-            String(pair.number),
-            week.type,
-          ];
-          for (const code of groupCodes) {
-            const entry = groupsData.rows.find(
-              (r: ScheduleRowWithGroup) => r.studyGroupCode === code && r.dayOfWeekId === day.id && r.pairNumberId === pair.id && r.weekId === week.id
-            );
-            row.push(entry ? entry.displayText : "—");
-          }
-          rows.push(row);
-        }
-      }
-    }
-  }
+    if (rows.length === 0) return;
 
-  if (rows.length === 0) return;
-
-  // Строим HTML-таблицу
-  let html = `<table border="1" cellpadding="4" cellspacing="0" style="border-collapse: collapse; width: 100%; font-size: 10px;">`;
-  html += `<thead><tr>${headerCells.map(h => `<th style="border:1px solid #666; padding:4px; background:#e5e7eb;">${h}</th>`).join("")}</tr></thead>`;
-  html += `<tbody>`;
-  rows.forEach(row => {
-    const isEven = row[2] === "even"; // третий столбец — тип недели
-    const bg = isEven ? 'background-color:#d1d5db;' : '';
-    html += `<tr style="${bg}">`;
-    row.forEach(cell => {
-      html += `<td style="border:1px solid #666; padding:4px; vertical-align:middle;">${cell}</td>`;
+    let html = `<table border="1" cellpadding="4" cellspacing="0" style="border-collapse: collapse; width: 100%; font-size: 10px;">`;
+    html += `<thead><tr>${headerCells.map(h => `<th style="border:1px solid #666; padding:4px; background:#e5e7eb;">${h}</th>`).join("")}</tr></thead>`;
+    html += `<tbody>`;
+    rows.forEach(row => {
+      const isEven = row[2] === "even";
+      const bg = isEven ? 'background-color:#d1d5db;' : '';
+      html += `<tr style="${bg}">`;
+      row.forEach(cell => {
+        html += `<td style="border:1px solid #666; padding:4px; vertical-align:middle;">${cell}</td>`;
+      });
+      html += `</tr>`;
     });
-    html += `</tr>`;
+    html += `</tbody></table>`;
+
+    const printWindow = window.open("", "_blank", "width=1200,height=800");
+    if (!printWindow) return;
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Расписание</title>
+          <style>
+            @media print {
+              * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+              table { border-collapse: collapse; width: 100%; font-size: 9px; }
+              th { background: #e5e7eb !important; }
+            }
+          </style>
+        </head>
+        <body class="p-4">
+          <h1 class="text-xl font-bold mb-4">Расписание</h1>
+          ${html}
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+    printWindow.close();
+  };
+
+  const handleCSV = () => {
+    // ... без изменений (полный код в вашем исходнике)
+    const rows: string[][] = [];
+    const header = ["День", "Пара", ...activeWeeksData.map(w => w.type)];
+
+    if (viewMode === "units" && unitsData) {
+      const unitCodes = Array.from(new Set(unitsData.rows.map(r => r.unitCode))).sort();
+      unitCodes.forEach(code => header.push(code));
+      rows.push(header);
+
+      for (const day of unitsData.days) {
+        for (const pair of unitsData.pairs) {
+          for (const week of activeWeeksData) {
+            const row = [day.name, String(pair.number), week.type];
+            for (const code of unitCodes) {
+              const entry = unitsData.rows.find(
+                r => r.unitCode === code && r.dayOfWeekId === day.id && r.pairNumberId === pair.id && r.weekId === week.id
+              );
+              row.push(entry ? entry.displayText : "—");
+            }
+            rows.push(row);
+          }
+        }
+      }
+    } else if (viewMode === "groups" && groupsData) {
+      const groupCodes = Array.from(new Set(groupsData.rows.map((r: ScheduleRowWithGroup) => r.studyGroupCode))).sort();
+      groupCodes.forEach(code => header.push(code));
+      rows.push(header);
+
+      for (const day of groupsData.days) {
+        for (const pair of groupsData.pairs) {
+          for (const week of activeWeeksData) {
+            const row = [day.name, String(pair.number), week.type];
+            for (const code of groupCodes) {
+              const entry = groupsData.rows.find(
+                (r) => r.studyGroupCode === code && r.dayOfWeekId === day.id && r.pairNumberId === pair.id && r.weekId === week.id
+              );
+              row.push(entry ? entry.displayText : "—");
+            }
+            rows.push(row);
+          }
+        }
+      }
+    }
+
+    if (rows.length === 0) return;
+
+    const bom = "\uFEFF";
+    const csvContent = "data:text/csv;charset=utf-8," + bom + rows.map(r => r.join(";")).join("\n");
+    const link = document.createElement("a");
+    link.setAttribute("href", encodeURI(csvContent));
+    link.setAttribute("download", `schedule.csv`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  };
+
+  const resetGeneratedMut = trpc.generations.resetGeneratedData.useMutation({
+    onSuccess: () => {
+      toast.success('Активные данные удалены')
+      refreshData()
+    },
+    onError: (e) => {toast.error(e.message)},
   });
-  html += `</tbody></table>`;
-
-  const printWindow = window.open("", "_blank", "width=1200,height=800");
-  if (!printWindow) return;
-  printWindow.document.write(`
-    <html>
-      <head>
-        <title>Расписание</title>
-        <style>
-          @media print {
-            * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            table { border-collapse: collapse; width: 100%; font-size: 9px; }
-            th { background: #e5e7eb !important; }
-          }
-        </style>
-      </head>
-      <body class="p-4">
-        <h1 class="text-xl font-bold mb-4">Расписание</h1>
-        ${html}
-      </body>
-    </html>
-  `);
-  printWindow.document.close();
-  printWindow.focus();
-  printWindow.print();
-  printWindow.close();
-};
-
-const handleCSV = () => {
-  const rows: string[][] = [];
-  const header = ["День", "Пара", ...activeWeeksData.map(w => w.type)];
-
-  if (viewMode === "units" && unitsData) {
-    const unitCodes = Array.from(new Set(unitsData.rows.map(r => r.unitCode))).sort();
-    unitCodes.forEach(code => header.push(code));
-    rows.push(header);
-
-    for (const day of unitsData.days) {
-      for (const pair of unitsData.pairs) {
-        for (const week of activeWeeksData) {
-          const row = [day.name, String(pair.number), week.type]; // неделя текстом
-          for (const code of unitCodes) {
-            const entry = unitsData.rows.find(
-              r => r.unitCode === code && r.dayOfWeekId === day.id && r.pairNumberId === pair.id && r.weekId === week.id
-            );
-            row.push(entry ? entry.displayText : "—");
-          }
-          rows.push(row);
-        }
-      }
-    }
-  } else if (viewMode === "groups" && groupsData) {
-    const groupCodes = Array.from(new Set(groupsData.rows.map((r: ScheduleRowWithGroup) => r.studyGroupCode))).sort();
-    groupCodes.forEach(code => header.push(code));
-    rows.push(header);
-
-    for (const day of groupsData.days) {
-      for (const pair of groupsData.pairs) {
-        for (const week of activeWeeksData) {
-          const row = [day.name, String(pair.number), week.type];
-          for (const code of groupCodes) {
-            const entry = groupsData.rows.find(
-              (r) => r.studyGroupCode === code && r.dayOfWeekId === day.id && r.pairNumberId === pair.id && r.weekId === week.id
-            );
-            row.push(entry ? entry.displayText : "—");
-          }
-          rows.push(row);
-        }
-      }
-    }
-  }
-
-  if (rows.length === 0) return;
-
-  const bom = "\uFEFF";
-  const csvContent = "data:text/csv;charset=utf-8," + bom + rows.map(r => r.join(";")).join("\n");
-  const link = document.createElement("a");
-  link.setAttribute("href", encodeURI(csvContent));
-  link.setAttribute("download", `schedule.csv`);
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-};
 
   const handleSaveVersion = () => {
-    const name = window.prompt("Введите название версии:");
-    if (!name) return;
-    saveActiveMut.mutate({ name });
+    setInputDialog({
+      show: true,
+      title: "Название версии",
+      defaultValue: `Версия от ${new Date().toLocaleDateString()}`,
+      onConfirm: async (name) => {
+        await saveActiveMut.mutateAsync({ name });
+        setInputDialog({ show: false, title: "", onConfirm: () => {} });
+        setRestoredVersionName(null);
+        setRestoredVersionId(null);
+      },
+    });
   };
+
   const { confirm } = useConfirmContext();
+
   const handleDeleteVersion = async () => {
-    if (selectedVersionId === null) return;
+    const versionId = restoredVersionId ?? selectedVersionId;
+    if (versionId === null) return;
     const ok = await confirm({
       title: "Удаление версии",
       message: "Удалить версию и все её данные?",
@@ -569,51 +603,86 @@ const handleCSV = () => {
       variant: "danger",
     });
     if (!ok) return;
-    deleteVersionMut.mutate({ versionId: selectedVersionId }); // ← исправь на versionId, если ещё не исправлено
+
+    try {
+      await deleteVersionMut.mutateAsync({ versionId });
+      setVersionsList(prev => prev.filter(v => v.id !== versionId));
+      setRestoredVersionId(null);
+      setRestoredVersionName(null);
+      setSelectedVersionId(null);
+      refreshData();
+      toast.success("Версия удалена");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Ошибка удаления");
+    }
   };
 
-  const isActiveVersion = selectedVersionId === null;
-    const handleVersionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const val = e.target.value;
+  // Обработчик изменения версии в select
+  const handleVersionChange = (val: string) => {
     if (val === "active") {
-      // Переключение на активную – просто меняем selected, данные уже активные
       setSelectedVersionId(null);
+      setRestoredVersionName(null);
+      setRestoredVersionId(null);
       return;
     }
     const versionId = Number(val);
-    const versionName = versionsQuery.data?.find(v => v.id === versionId)?.name ?? "";
-    // Показываем диалог восстановления
+    const versionName = versionsList.find((v) => v.id === versionId)?.name ?? "";
     setRestoreDialog({ show: true, versionId, versionName });
   };
 
-  // Действия из диалога восстановления
-  const handleRestoreSaveAndProceed = async () => {
-    const name = window.prompt("Введите название для текущего активного расписания:");
-    if (!name) return; // отмена
-    try {
-      await saveActiveMut.mutateAsync({ name });
-    } catch (e) {
-      toast.error("Ошибка при сохранении: " + (e instanceof Error ? e.message : ""));
-      return;
-    }
-    // После сохранения вызываем восстановление
-    restoreAsActiveMut.mutate({ versionId: restoreDialog.versionId });
+  const [inputDialog, setInputDialog] = useState<{
+    show: boolean;
+    title: string;
+    defaultValue?: string;
+    onConfirm: (value: string) => void;
+  }>({ show: false, title: "", onConfirm: () => {} });
+
+  // Обработчики диалога восстановления
+  const handleRestoreSaveAndProceed = () => {
     setRestoreDialog({ show: false, versionId: 0, versionName: "" });
+    setInputDialog({
+      show: true,
+      title: "Сохранить текущее расписание как",
+      defaultValue: `Автосохранение ${new Date().toLocaleDateString()}`,
+      onConfirm: async (name) => {
+        try {
+          await saveActiveMut.mutateAsync({ name });
+        } catch (e) {
+          toast.error("Ошибка при сохранении: " + (e instanceof Error ? e.message : ""));
+          return;
+        }
+        try {
+          await restoreAsActiveMut.mutateAsync({ versionId: restoreDialog.versionId });
+          setRestoredVersionName(restoreDialog.versionName);
+          setRestoredVersionId(restoreDialog.versionId);
+          setSelectedVersionId(null);
+          setInputDialog({ show: false, title: "", onConfirm: () => {} });
+          refreshData();
+        } catch (e) {
+          toast.error("Ошибка восстановления: " + (e instanceof Error ? e.message : ""));
+        }
+      },
+    });
   };
 
-  const handleRestoreProceedWithoutSave = () => {
-    restoreAsActiveMut.mutate({ versionId: restoreDialog.versionId });
+  const handleRestoreProceedWithoutSave = async () => {
     setRestoreDialog({ show: false, versionId: 0, versionName: "" });
+    try {
+      await restoreAsActiveMut.mutateAsync({ versionId: restoreDialog.versionId });
+      setRestoredVersionName(restoreDialog.versionName);
+      setRestoredVersionId(restoreDialog.versionId);
+      setSelectedVersionId(null);
+      refreshData();
+    } catch (e) {
+      toast.error("Ошибка восстановления: " + (e instanceof Error ? e.message : ""));
+    }
   };
 
   const handleRestoreCancel = () => {
     setRestoreDialog({ show: false, versionId: 0, versionName: "" });
-    // Откат select обратно на предыдущее значение (можно оставить selectedVersionId без изменений)
   };
 
-  // Блокировка кнопок для архивных версий
-  const canEdit = isActiveVersion;
-  const canOptimize = isActiveVersion;
+  const isActiveVersion = selectedVersionId === null;
 
   if (viewMode === "units" && unitsLoading) return <div className="p-6"><Skeleton className="h-4 w-32" /></div>;
   if (viewMode === "groups" && groupsLoading) return <div className="p-6"><Skeleton className="h-4 w-32" /></div>;
@@ -627,32 +696,95 @@ const handleCSV = () => {
     : Array.from(new Set((displayRows as AnyRow[])?.map((r) => r.studyGroupCode || "") || [])).sort();
 
   return (
-<div className="flex h-full flex-col bg-background p-4 text-foreground">
+    <div className="flex h-full flex-col bg-background p-4 text-foreground">
       <h1 className="mb-4 text-xl font-bold">Расписание</h1>
 
       {/* Панель версионирования */}
       <div className="mb-4 flex items-center gap-3">
         <select
           className="rounded border border-border bg-background px-2 py-1 text-sm"
-          value={selectedVersionId ?? "active"}
+          value={
+            restoredVersionName
+              ? "restored"
+              : selectedVersionId ?? "active"
+          }
           onChange={(e) => {
             const val = e.target.value;
-            setSelectedVersionId(val === "active" ? null : Number(val));
+            if (val === "active") {
+              setSelectedVersionId(null);
+              setRestoredVersionName(null);
+              setRestoredVersionId(null);
+            } else if (val === "restored") {
+              // ничего
+            } else {
+              setRestoredVersionName(null);
+              setRestoredVersionId(null);
+              handleVersionChange(val);
+            }
           }}
         >
-          <option value="active">Активная версия</option>
-          {versionsQuery.data?.map((v) => (
-            <option key={v.id} value={v.id}>{v.name}</option>
+          <option value="active">Активное расписание</option>
+          {restoredVersionName && (
+            <option value="restored">{restoredVersionName} (текущая)</option>
+          )}
+          {versionsList.map((v) => (
+            <option key={v.id} value={v.id}>
+              {v.name} ({new Date(v.createdAt).toLocaleDateString()})
+            </option>
           ))}
         </select>
-        {isActiveVersion && (
-          <button
-            onClick={handleSaveVersion}
-            disabled={saveActiveMut.isPending}
-            className="rounded bg-green-600 px-3 py-1 text-sm text-white hover:bg-green-700"
-          >
-            {saveActiveMut.isPending ? "Сохранение..." : "Сохранить как версию"}
-          </button>
+        {isActiveVersion && restoredVersionId === null && (
+          <>
+            <button
+              onClick={handleSaveVersion}
+              disabled={saveActiveMut.isPending}
+              className="rounded bg-green-600 px-3 py-1 text-sm text-white hover:bg-green-700"
+            >
+              {saveActiveMut.isPending ? "Сохранение..." : "Сохранить как версию"}
+            </button>
+            <button
+              onClick={async () => {
+                const ok = await confirm({
+                  title: "Удаление активного расписания",
+                  message:
+                    "Будут полностью удалены все активные данные (расписание, занятия, юниты, группы). Действие нельзя отменить. Продолжить?",
+                  confirmLabel: "Удалить",
+                  variant: "danger",
+                });
+                if (!ok) return;
+                try {
+                  await resetGeneratedMut.mutateAsync();
+                  setRestoredVersionName(null);
+                  setRestoredVersionId(null);
+                  toast.success("Активные данные удалены");
+                } catch (e) {
+                  // ошибка уже обработана в onError
+                }
+              }}
+              disabled={resetGeneratedMut.isPending}
+              className="rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
+            >
+              {resetGeneratedMut.isPending ? "Удаление..." : "Удалить активное"}
+            </button>
+          </>
+        )}
+        {isActiveVersion && restoredVersionId !== null && (
+          <>
+            <button
+              onClick={handleSaveVersion}
+              disabled={saveActiveMut.isPending}
+              className="rounded bg-green-600 px-3 py-1 text-sm text-white hover:bg-green-700"
+            >
+              {saveActiveMut.isPending ? "Сохранение..." : "Сохранить как версию"}
+            </button>
+            <button
+              onClick={handleDeleteVersion}
+              disabled={deleteVersionMut.isPending}
+              className="rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
+            >
+              {deleteVersionMut.isPending ? "Удаление..." : "Удалить версию"}
+            </button>
+          </>
         )}
         {!isActiveVersion && (
           <button
@@ -664,13 +796,20 @@ const handleCSV = () => {
           </button>
         )}
       </div>
-        {/* Диалог восстановления версии */}
+      <InputDialog
+        open={inputDialog.show}
+        title={inputDialog.title}
+        defaultValue={inputDialog.defaultValue}
+        onConfirm={inputDialog.onConfirm}
+        onCancel={() => setInputDialog({ show: false, title: "", onConfirm: () => {} })}
+      />
+      {/* Диалог восстановления версии */}
       {restoreDialog.show && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
           <div className="max-w-md rounded border border-border bg-background p-6 shadow-lg">
             <p className="mb-4 text-foreground">
               Вы собираетесь загрузить версию «{restoreDialog.versionName}» как активную.
-              Текущее активное расписание будет заменено. Желаете сохранить текущее расписание перед заменой?
+              Текущее активное расписание будет безвозвратно удалено. Желаете сохранить текущее расписание перед заменой?
             </p>
             <div className="flex justify-end gap-2">
               <button
@@ -687,7 +826,7 @@ const handleCSV = () => {
               </button>
               <button
                 onClick={handleRestoreSaveAndProceed}
-                className="rounded bg-primary px-4 py-2 text-white hover:bg-primary/90"
+                className="hover:bg-primary/90 rounded bg-primary px-4 py-2 text-white"
               >
                 Сохранить и продолжить
               </button>
@@ -695,6 +834,7 @@ const handleCSV = () => {
           </div>
         </div>
       )}
+
       {/* Легенда */}
       <div className="mb-4 flex flex-wrap gap-4 rounded border border-border bg-muted p-3 text-sm">
         {activeWeeksData.map((week, idx) => (
@@ -742,27 +882,28 @@ const handleCSV = () => {
         </div>
       )}
 
-        <div className="mb-4 flex gap-4">
-          <button onClick={() => setViewMode("units")} className={viewMode === "units" ? "border-b-2 border-blue-500 font-bold" : ""}>По юнитам</button>
-          <button onClick={() => setViewMode("groups")} className={viewMode === "groups" ? "border-b-2 border-blue-500 font-bold" : ""}>По группам</button>
-          <button onClick={handlePrint} className="ml-2 rounded bg-blue-600 px-3 py-1 text-white hover:bg-blue-700">🖨️ Печать</button>
-          <button onClick={handleCSV} className="ml-2 rounded bg-green-600 px-3 py-1 text-white hover:bg-green-700">📥 CSV</button>
+      <div className="mb-4 flex gap-4">
+        <button onClick={() => setViewMode("units")} className={viewMode === "units" ? "border-b-2 border-blue-500 font-bold" : ""}>По юнитам</button>
+        <button onClick={() => setViewMode("groups")} className={viewMode === "groups" ? "border-b-2 border-blue-500 font-bold" : ""}>По группам</button>
+        <button onClick={handlePrint} className="ml-2 rounded bg-blue-600 px-3 py-1 text-white hover:bg-blue-700">🖨️ Печать</button>
+        <button onClick={handleCSV} className="ml-2 rounded bg-green-600 px-3 py-1 text-white hover:bg-green-700">📥 CSV</button>
+        <button
+          onClick={() => optimizeScheduleMut.mutate({ versionId: selectedVersionId })}
+          disabled={editMode || optimizeScheduleMut.isPending || !isActiveVersion}
+          className="rounded bg-purple-600 px-3 py-1 text-white hover:bg-purple-700 disabled:bg-gray-400"
+        >
+          {optimizeScheduleMut.isPending ? "Оптимизация..." : "Оптимизировать"}
+        </button>
+        {viewMode === "units" && (
           <button
-            onClick={() => optimizeScheduleMut.mutate({ versionId: selectedVersionId })}
-            disabled={editMode || optimizeScheduleMut.isPending}
-            className="rounded bg-purple-600 px-3 py-1 text-white hover:bg-purple-700 disabled:bg-gray-400"
+            onClick={() => setEditMode(!editMode)}
+            disabled={!isActiveVersion}
+            className="ml-auto rounded bg-blue-500 px-3 py-1 text-white hover:bg-blue-600 disabled:bg-gray-400"
           >
-            {optimizeScheduleMut.isPending ? "Оптимизация..." : "Оптимизировать"}
+            {editMode ? "Завершить редактирование" : "Редактировать"}
           </button>
-          {viewMode === "units" && (
-            <button
-              onClick={() => setEditMode(!editMode)}
-              className="ml-auto rounded bg-blue-500 px-3 py-1 text-white hover:bg-blue-600"
-            >
-              {editMode ? "Завершить редактирование" : "Редактировать"}
-            </button>
-          )}
-        </div>
+        )}
+      </div>
 
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
         <div className="flex min-h-0 flex-1 items-stretch gap-4">
@@ -808,7 +949,6 @@ const handleCSV = () => {
                               <td key={`${day.id}-${pair.id}-${code}`} className="min-w-[180px] border border-border p-1 align-top">
                                 <div className="flex flex-col gap-1">
                                   {activeWeeksData.map((week, weekIdx) => {
-
                                     const matchFn = (r: AnyRow) =>
                                       viewMode === "units"
                                         ? r.unitCode === code
