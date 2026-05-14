@@ -186,6 +186,41 @@ export default function AdminSchedulePage() {
   const [restoredVersionName, setRestoredVersionName] = useState<string | null>(null);
   const [restoredVersionId, setRestoredVersionId] = useState<number | null>(null);
 
+
+  const [showAnnealingDialog, setShowAnnealingDialog] = useState(false);
+  const [annealingTemp, setAnnealingTemp] = useState(1000);
+  const [annealingRate, setAnnealingRate] = useState(0.95);
+  const tempQuery = trpc.settings.get.useQuery(
+    { key: "opt_initial_temperature" },
+    { enabled: showAnnealingDialog }
+  );
+  const rateQuery = trpc.settings.get.useQuery(
+    { key: "opt_cooling_rate" },
+    { enabled: showAnnealingDialog }
+  );
+
+  const settingsUpdateMut = trpc.settings.update.useMutation({
+    onSuccess: () => {toast.success("Настройки отжига сохранены")},
+    onError: (e) => {toast.error(e.message)},
+  });
+
+  const handleSaveAnnealingSettings = async () => {
+    try {
+      await settingsUpdateMut.mutateAsync({ key: "opt_initial_temperature", value: String(annealingTemp) });
+      await settingsUpdateMut.mutateAsync({ key: "opt_cooling_rate", value: String(annealingRate) });
+      setShowAnnealingDialog(false);
+    } catch (e) {}
+  };
+  // При изменении данных записываем в локальное состояние
+  useEffect(() => {
+    if (tempQuery.data) setAnnealingTemp(Number(tempQuery.data) || 1000);
+  }, [tempQuery.data]);
+
+  useEffect(() => {
+    if (rateQuery.data) setAnnealingRate(Number(rateQuery.data) || 0.95);
+  }, [rateQuery.data]);
+
+
   const [confirmDialog, setConfirmDialog] = useState<{
     show: boolean; message: string; onConfirm: () => void;
   }>({ show: false, message: "", onConfirm: () => {} });
@@ -894,6 +929,19 @@ export default function AdminSchedulePage() {
         >
           {optimizeScheduleMut.isPending ? "Оптимизация..." : "Оптимизировать"}
         </button>
+        {editMode && isActiveVersion && (
+          <button
+            onClick={() => {
+              setShowAnnealingDialog(true);
+              tempQuery.refetch();
+              rateQuery.refetch();
+            }}
+            className="rounded bg-gray-600 px-3 py-1 text-white hover:bg-gray-700"
+            title="Настройки отжига"
+          >
+            ⚙️
+          </button>
+        )}
         {viewMode === "units" && (
           <button
             onClick={() => setEditMode(!editMode)}
@@ -1034,6 +1082,64 @@ export default function AdminSchedulePage() {
               </button>
               <button onClick={saveFlags} className="hover:bg-primary/90 rounded bg-primary px-3 py-1 text-white">
                 Сохранить
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showAnnealingDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
+          <div className="w-full max-w-md rounded border border-border bg-background p-6 shadow-lg">
+            <h2 className="mb-4 text-lg font-bold text-foreground">Параметры отжига</h2>
+            <p className="mb-4 text-sm text-muted-foreground">
+              Эти параметры влияют на работу оптимизатора расписания. 
+              <strong>Начальная температура</strong> определяет, насколько активно перемешиваются занятия в начале. 
+              Чем выше температура, тем больше случайных перемещений, что помогает избежать застревания в локальных минимумах. 
+              <strong>Скорость охлаждения</strong> определяет, как быстро температура снижается. 
+              Значение близкое к 1 даёт более тщательный поиск, но увеличивает время оптимизации.
+            </p>
+            <div className="mb-4">
+              <label className="mb-1 block text-sm text-foreground">
+                Начальная температура
+              </label>
+              <input
+                type="number"
+                min={1}
+                step={10}
+                value={annealingTemp}
+                onChange={(e) => setAnnealingTemp(Number(e.target.value))}
+                className="w-full rounded border border-border bg-background px-3 py-2 text-foreground"
+                title="Начальная температура (1–10000). Чем выше, тем больше случайных перестановок на старте."
+              />
+            </div>
+            <div className="mb-4">
+              <label className="mb-1 block text-sm text-foreground">
+                Скорость охлаждения
+              </label>
+              <input
+                type="number"
+                min={0.001}
+                max={0.999}
+                step={0.001}
+                value={annealingRate}
+                onChange={(e) => setAnnealingRate(Number(e.target.value))}
+                className="w-full rounded border border-border bg-background px-3 py-2 text-foreground"
+                title="Скорость охлаждения (0.001–0.999). Ближе к 1 – медленное охлаждение, дольше оптимизация, потенциально лучший результат."
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowAnnealingDialog(false)}
+                className="rounded border border-border px-4 py-2 text-foreground hover:bg-muted"
+              >
+                Отмена
+              </button>
+              <button
+                onClick={handleSaveAnnealingSettings}
+                disabled={settingsUpdateMut.isPending}
+                className="hover:bg-primary/90 rounded bg-primary px-4 py-2 text-white"
+              >
+                {settingsUpdateMut.isPending ? "Сохранение..." : "Сохранить"}
               </button>
             </div>
           </div>

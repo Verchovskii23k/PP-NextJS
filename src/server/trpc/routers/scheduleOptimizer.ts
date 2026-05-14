@@ -62,6 +62,35 @@ interface   OptimizationContext {
 
 const slotKey = (weekId: number, d: number, p: number): SlotKey => `${weekId}-${d}-${p}`;
 
+// В начало файла, после импортов, добавим функцию загрузки параметров отжига
+async function loadAnnealingParams(): Promise<{ initialTemperature: number; coolingRate: number }> {
+  const keys = ["opt_initial_temperature", "opt_cooling_rate"];
+  const rows = await db
+    .select({ key: settingsTable.key, value: settingsTable.value })
+    .from(settingsTable)
+    .where(inArray(settingsTable.key, keys));
+
+  const tempRow = rows.find(r => r.key === "opt_initial_temperature");
+  const rateRow = rows.find(r => r.key === "opt_cooling_rate");
+
+  const initialTemperature = tempRow ? Number(tempRow.value) : 1000;
+  const coolingRate = rateRow ? Number(rateRow.value) : 0.95;
+
+  // Если записи отсутствуют, создадим их с умолчаниями
+  if (!tempRow || !rateRow) {
+    const missing = [];
+    if (!tempRow) missing.push({ key: "opt_initial_temperature", value: "1000" });
+    if (!rateRow) missing.push({ key: "opt_cooling_rate", value: "0.95" });
+    await db
+      .insert(settingsTable)
+      .values(missing)
+      .onConflictDoNothing();
+  }
+
+  return { initialTemperature, coolingRate };
+}
+
+
 async function loadWeights(): Promise<OptimizationContext["weights"]> {
   const defaultWeights = {
     teacherWindow: 1,
@@ -659,8 +688,8 @@ export async function optimizeSchedule(versionId?: number | null) {
   const MAX_GROUP_ATTEMPTS = 5;
 
   // Параметры имитации отжига
-  let temperature = 50;
-  const coolingRate = 0.995;
+  const { initialTemperature, coolingRate } = await loadAnnealingParams();
+  let temperature = initialTemperature;
 
   const mergeGroups = [...ctx.mergeMap.values()];
   let bestScore = currentScore;
