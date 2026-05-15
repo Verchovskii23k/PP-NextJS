@@ -73,6 +73,16 @@ export const generateScheduleRouter = router({
         lessonUnitMap.set(l.id, unitCodeById.get(l.unitId) || "");
       }
 
+      // lessonId -> teacherId (загружаем один раз)
+      const teacherMap = new Map<number, number>();
+      const allLessonsWithTeacher = await ctx.db
+        .select({ id: lessons.id, teacherId: lessons.teacherId })
+        .from(lessons)
+        .where(and(eq(lessons.isActive, true), isNull(lessons.versionId)));
+      for (const l of allLessonsWithTeacher) {
+        if (l.teacherId) teacherMap.set(l.id, l.teacherId);
+      }
+
       // Сортировка по количеству групп (больше групп → выше приоритет)
       const sortedLessons = [...allLessons].sort((a, b) => {
         const codeA = lessonUnitMap.get(a.id) || "";
@@ -106,7 +116,7 @@ export const generateScheduleRouter = router({
         .delete(schedule)
         .where(and(eq(schedule.isActive, true), isNull(schedule.versionId)));
 
-      const scheduleRows: (typeof schedule.$inferInsert & { _unitCode?: string })[] = [];
+      const scheduleRows: (typeof schedule.$inferInsert & { _unitCode?: string; _teacherId?: number })[] = [];
 
       // Структура занятости слотов
       const slotOccupancy = new Map<
@@ -131,8 +141,9 @@ export const generateScheduleRouter = router({
         const classroomIds = lessonClassroomMap.get(lesson.id) || [];
         const lessonUnitCode = lessonUnitMap.get(lesson.id) || "";
         const lessonGroups = unitToGroups.get(lessonUnitCode) ?? new Set<number>();
+        const teacherId = teacherMap.get(lesson.id);
 
-        if (lesson.teacherId == null || classroomIds.length === 0) continue;
+        if (teacherId == null || classroomIds.length === 0) continue;
         if (lessonGroups.size === 0) {
           console.warn(
             `Занятие ${lesson.id} не связано с группами (unitCode=${lessonUnitCode}), пропущено`
@@ -160,7 +171,7 @@ export const generateScheduleRouter = router({
             if (placed >= S) break;
             let placedInSlot = false;
 
-            // Перебираем слоты целевой недели в случайном порядке (чтобы не было bias)
+            // Перебираем слоты целевой недели в случайном порядке
             const shuffledSlots = weekSlots.sort(() => Math.random() - 0.5);
             for (const { day, pair } of shuffledSlots) {
               const slotKey = `${targetWeekId}-${day.id}-${pair.id}`;
@@ -174,7 +185,7 @@ export const generateScheduleRouter = router({
               }
               const occupancy = slotOccupancy.get(slotKey)!;
 
-              if (occupancy.teacherIds.has(lesson.teacherId!)) continue;
+              if (occupancy.teacherIds.has(teacherId)) continue;
               if ([...lessonGroups].some((g) => occupancy.groupIds.has(g))) continue;
 
               let freeClassroomId: number | null = null;
@@ -196,11 +207,12 @@ export const generateScheduleRouter = router({
                 mergeFlag: undefined,
                 positionFlag: undefined,
                 _unitCode: lessonUnitCode,
+                _teacherId: teacherId,
                 isActive: true,
                 versionId: null,
               });
 
-              occupancy.teacherIds.add(lesson.teacherId!);
+              occupancy.teacherIds.add(teacherId);
               occupancy.classroomIds.add(freeClassroomId);
               for (const g of lessonGroups) occupancy.groupIds.add(g);
 
@@ -208,14 +220,31 @@ export const generateScheduleRouter = router({
               placedInSlot = true;
               break;
             }
-            if (!placedInSlot) break; // не смогли найти свободный слот на этой неделе – прекращаем попытки
+            if (!placedInSlot) break;
           }
         }
       }
 
+      // Дедупликация scheduleRows (как было)
+      const dedupMap = new Map<string, number>();
+      const uniqueRows: typeof scheduleRows = [];
+      for (let i = 0; i < scheduleRows.length; i++) {
+        const row = scheduleRows[i];
+        const teacherId = row._teacherId;
+        if (!teacherId) {
+          uniqueRows.push(row);
+          continue;
+        }
+        const key = `${row.weekId}-${row.dayOfWeekId}-${row.pairNumberId}-t${teacherId}`;
+        if (!dedupMap.has(key)) {
+          dedupMap.set(key, i);
+          uniqueRows.push(row);
+        }
+      }
+
       // Вставка schedule
-      if (scheduleRows.length > 0) {
-        const cleanRows = scheduleRows.map(({ _unitCode, ...rest }) => rest);
+      if (uniqueRows.length > 0) {
+        const cleanRows = uniqueRows.map(({ _unitCode, _teacherId, ...rest }) => rest);
         await ctx.db.insert(schedule).values(cleanRows);
       }
 
@@ -241,6 +270,7 @@ export const generateScheduleRouter = router({
             buildingNumber: buildings.number,
             roomNumber: classrooms.roomNumber,
             unitCode: units.code,
+            teacherId: lessons.teacherId, // ← добавляем
           })
           .from(schedule)
           .innerJoin(lessons, eq(schedule.lessonId, lessons.id))
@@ -255,7 +285,8 @@ export const generateScheduleRouter = router({
           .leftJoin(classrooms, eq(schedule.classroomId, classrooms.id))
           .leftJoin(buildings, eq(classrooms.buildingId, buildings.id));
 
-        const displayRows = enriched.map((row) => {
+        // Формируем displayRows с teacherId
+        const displayRowsWithTeacher = enriched.map((row) => {
           const typeMap: Record<string, string> = {
             lecture: "лек.",
             lab: "лаб.",
@@ -283,18 +314,37 @@ export const generateScheduleRouter = router({
             isBuffered: false,
             isActive: true,
             versionId: null,
+            teacherId: row.teacherId, // ← сохраняем
           };
         });
 
-        if (displayRows.length > 0) {
-          await ctx.db.insert(scheduleDisplay).values(displayRows);
+        // Дедупликация по преподавателю в одном слоте
+        const displayDedupMap = new Map<string, number>();
+        const uniqueDisplayRows: typeof displayRowsWithTeacher = [];
+        for (const dRow of displayRowsWithTeacher) {
+          const teacherId = dRow.teacherId;
+          if (teacherId == null) {
+            uniqueDisplayRows.push(dRow);
+            continue;
+          }
+          const key = `${dRow.weekId}-${dRow.dayOfWeekId}-${dRow.pairNumberId}-t${teacherId}`;
+          if (!displayDedupMap.has(key)) {
+            displayDedupMap.set(key, uniqueDisplayRows.length);
+            uniqueDisplayRows.push(dRow);
+          }
+        }
+
+        const finalDisplayRows = uniqueDisplayRows.map(({ teacherId, ...rest }) => rest);
+
+        if (finalDisplayRows.length > 0) {
+          await ctx.db.insert(scheduleDisplay).values(finalDisplayRows);
         }
       }
 
       return {
         status: "schedule generated",
-        totalSlots: scheduleRows.length,
-        placedLessons: new Set(scheduleRows.map((r) => r.lessonId)).size,
+        totalSlots: uniqueRows.length,
+        placedLessons: new Set(uniqueRows.map((r) => r.lessonId)).size,
       };
     }),
 });

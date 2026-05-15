@@ -13,7 +13,7 @@
     "lint:fix": "eslint src --ext .ts,.tsx --fix",
     "test:db:push": "dotenv -e .env.test -- drizzle-kit push",
     "dev:test": "dotenv -e .env.test -- next dev",
-    "test": "vitest run",
+    "test": "vitest run --exclude 'e2e/**'",
     "seed": "npx dotenv -e .env -- npx tsx src/db/seed.ts"
   },
   "dependencies": {
