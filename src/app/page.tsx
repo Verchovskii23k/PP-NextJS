@@ -1,14 +1,19 @@
-// src/app/page.tsx
 import { redirect } from "next/navigation";
 import { db } from "@/db";
-import { securityCenter } from "@/db/schema";
-import { count } from "drizzle-orm";
+import { securityCenter, roles } from "@/db/schema";
+import { count, eq } from "drizzle-orm";
 
 export default async function HomePage() {
-  const [result] = await db.select({ value: count() }).from(securityCenter);
-  const userCount = result?.value ?? 0;
+  // Проверяем наличие хотя бы одной учётной записи с ролью "admin"
+  const [result] = await db
+    .select({ value: count() })
+    .from(securityCenter)
+    .innerJoin(roles, eq(securityCenter.roleId, roles.id))
+    .where(eq(roles.name, "admin"));
 
-  if (userCount === 0) {
+  const adminCount = result?.value ?? 0;
+
+  if (adminCount === 0) {
     redirect("/setup");
   } else {
     redirect("/login");

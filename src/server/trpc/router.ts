@@ -43,6 +43,7 @@ import { crudImportExportRouter } from "./routers/crudImportExport";
 import { globalImportExportRouter } from "./routers/globalImportExport";
 import { batchDeleteRouter } from "./routers/batchDelete"
 import { scheduleVersionsRouter } from './routers/scheduleVersions';
+import { e2eTestHelpersRouter } from "./routers/e2eTestHelpers";
 
 export const appRouter = router({
   auth: authRouter,
@@ -88,6 +89,8 @@ export const appRouter = router({
   globalImportExport: globalImportExportRouter,
   batchDelete: batchDeleteRouter,
   scheduleVersions: scheduleVersionsRouter,
+  e2eTestHelpers: e2eTestHelpersRouter,
+  
 });
 
 export type AppRouter = typeof appRouter;
