@@ -5,8 +5,9 @@ import {
   classrooms, buildings, departments,
   lessons, units, unitRoots, studyGroups, unitTypes, disciplines,
 } from "@/db/schema";
-import { eq, sql, and, gte, isNull, or, SQL } from "drizzle-orm";  // добавлен SQL
+import { eq, sql, and, gte, isNull, or, SQL } from "drizzle-orm";
 import { safeDelete } from "@/lib/safeDelete";
+import { recalculateUsageMetrics } from "@/lib/usageMetrics";
 
 export const classroomsRouter = router({
   list: adminProcedure
@@ -29,8 +30,7 @@ export const classroomsRouter = router({
         })
         .from(classrooms)
         .leftJoin(buildings, eq(classrooms.buildingId, buildings.id))
-        .leftJoin(departments, eq(classrooms.departmentId, departments.id))
-        // .where(eq(classrooms.isActive, true));
+        .leftJoin(departments, eq(classrooms.departmentId, departments.id));
 
       if (input?.lessonId) {
         const [lesson] = await ctx.db
@@ -40,7 +40,6 @@ export const classroomsRouter = router({
           .limit(1);
         if (!lesson) return [];
 
-        // Вычисляем вместимость юнита
         let unitSize = 0;
         const [unit] = await ctx.db
           .select({ id: units.id, code: units.code, unitTypeId: units.unitTypeId })
@@ -73,7 +72,6 @@ export const classroomsRouter = router({
           }
         }
 
-        // Кафедра дисциплины
         const [disc] = await ctx.db
           .select({ departmentId: disciplines.departmentId })
           .from(disciplines)
@@ -81,7 +79,6 @@ export const classroomsRouter = router({
           .limit(1);
         const deptId = disc?.departmentId ?? null;
 
-        // Фильтрация
         const conditions: SQL<unknown>[] = [ gte(classrooms.capacity, unitSize) ];
         if (deptId !== null) {
           conditions.push(or(eq(classrooms.departmentId, deptId), isNull(classrooms.departmentId)) as SQL<unknown>);
@@ -133,7 +130,11 @@ export const classroomsRouter = router({
       usageMetric: z.coerce.number().optional(),
       isActive: z.boolean().default(true),
     }))
-    .mutation(async ({ ctx, input }) => ctx.db.insert(classrooms).values(input).returning()),
+    .mutation(async ({ ctx, input }) => {
+      const result = await ctx.db.insert(classrooms).values(input).returning();
+      await recalculateUsageMetrics();
+      return result;
+    }),
 
   update: adminProcedure
     .input(z.object({
@@ -154,7 +155,11 @@ export const classroomsRouter = router({
       return ctx.db.update(classrooms).set(data).where(eq(classrooms.id, id)).returning();
     }),
 
-delete: adminProcedure
+  delete: adminProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => safeDelete(classrooms, input.id)),
+    .mutation(async ({ input }) => {
+      await safeDelete(classrooms, input.id);
+      await recalculateUsageMetrics();
+      return { success: true };
+    }),
 });

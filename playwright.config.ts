@@ -6,7 +6,10 @@ export default defineConfig({
   retries: 1,
   use: {
     baseURL: 'http://localhost:3000',
-    headless: true,
+    headless: false,
+    launchOptions: {
+      slowMo: 500,            // задержка 500 мс между действиями
+    },
     screenshot: 'only-on-failure',
     trace: 'on-first-retry',
   },

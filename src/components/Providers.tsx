@@ -94,7 +94,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
       <TRPCProvider>
         <div className="flex h-screen flex-col overflow-hidden bg-background">
           <HeaderContent /> 
-          <main className="flex-1 overflow-hidden">
+          <main className="flex-1 overflow-auto">
             {children}
           </main>
           <Toaster richColors />

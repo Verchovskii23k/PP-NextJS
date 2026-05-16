@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { router, adminProcedure } from "../trpc";
-import { securityCenter, employees, students } from "@/db/schema";
+import { securityCenter, employees, students, roles } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { hashPassword } from "@/server/auth/password";
 import { sendPasswordResetEmail } from "@/server/email";
@@ -12,9 +12,10 @@ export const userManagementRouter = router({
       .select({
         id: securityCenter.id,
         login: securityCenter.login,
-        roleId: securityCenter.roleId,
+        role: roles.name, // <-- добавили роль
       })
-      .from(securityCenter);
+      .from(securityCenter)
+      .innerJoin(roles, eq(securityCenter.roleId, roles.id));
 
     const result = await Promise.all(
       securityRows.map(async (sec) => {

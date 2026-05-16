@@ -8,10 +8,9 @@ import {
 } from "@/db/schema";
 import { db } from "@/db";
 import { eq, sql } from "drizzle-orm";
+import { recalculateUsageMetrics } from "@/lib/usageMetrics";
 
-// Функция пересчёта displayText для всех слотов урока
 async function syncScheduleDisplayForLesson(localDb: typeof db, lessonId: number) {
-  // Находим все отображаемые слоты этого урока
   const rows = await localDb
     .select({
       id: scheduleDisplay.id,
@@ -36,7 +35,6 @@ async function syncScheduleDisplayForLesson(localDb: typeof db, lessonId: number
     .leftJoin(buildings, eq(classrooms.buildingId, buildings.id))
     .where(eq(scheduleDisplay.lessonId, lessonId));
 
-  // Пересчитываем displayText для каждой найденной строки
   for (const row of rows) {
     const typeMap: Record<string, string> = {
       lecture: 'лек.',
@@ -109,8 +107,8 @@ export const lessonClassroomsRouter = router({
     .input(z.object({ lessonId: z.coerce.number().int(), classroomId: z.coerce.number().int() }))
     .mutation(async ({ ctx, input }) => {
       await ctx.db.insert(lessonClassrooms).values(input).returning();
-      // Синхронизируем расписание
       await syncScheduleDisplayForLesson(ctx.db, input.lessonId);
+      await recalculateUsageMetrics();
       return { success: true };
     }),
 
@@ -119,7 +117,6 @@ export const lessonClassroomsRouter = router({
     .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;
       await ctx.db.update(lessonClassrooms).set(data).where(eq(lessonClassrooms.id, id)).returning();
-      // Получаем lessonId, чтобы синхронизировать (если он не был передан явно, ищем по id)
       let lessonId = data.lessonId;
       if (!lessonId) {
         const [existing] = await ctx.db.select({ lessonId: lessonClassrooms.lessonId }).from(lessonClassrooms).where(eq(lessonClassrooms.id, id)).limit(1);
@@ -134,12 +131,11 @@ export const lessonClassroomsRouter = router({
   delete: adminProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
-      // Получаем lessonId перед удалением
       const [existing] = await ctx.db.select({ lessonId: lessonClassrooms.lessonId }).from(lessonClassrooms).where(eq(lessonClassrooms.id, input.id)).limit(1);
       if (existing) {
         await ctx.db.delete(lessonClassrooms).where(eq(lessonClassrooms.id, input.id));
-        // После удаления аудитории синхронизируем расписание (аудитория станет "б/а")
         await syncScheduleDisplayForLesson(ctx.db, existing.lessonId);
+        await recalculateUsageMetrics();
       }
       return { success: true };
     }),

@@ -11,17 +11,13 @@ import {
   unitTypes,
   hourTypeMapping,
 } from "@/db/schema";
+import { recalculateUsageMetrics } from "@/lib/usageMetrics";
 import { eq, and, gte, isNull, or, sql, SQL } from "drizzle-orm";
 
 export const assignClassroomsRouter = router({
   assignClassroomsAuto: adminProcedure.mutation(async ({ ctx }) => {
-    // Сброс метрики использования только у активных аудиторий
-    await ctx.db
-      .update(classrooms)
-      .set({ usageMetric: 0 })
-      .where(eq(classrooms.isActive, true));
+    // Больше не сбрасываем метрику в начале – пересчитаем в конце
 
-    // Только активные занятия (не архивные)
     const allLessons = await ctx.db
       .select()
       .from(lessons)
@@ -31,7 +27,7 @@ export const assignClassroomsRouter = router({
     let assigned = 0;
 
     for (const lesson of allLessons) {
-      // --- размер юнита ---
+      // --- определение unitSize (без изменений) ---
       let unitSize = 0;
       const [unit] = await ctx.db
         .select({ id: units.id, code: units.code, unitTypeId: units.unitTypeId })
@@ -49,7 +45,6 @@ export const assignClassroomsRouter = router({
         continue;
       }
 
-      // Определяем тип юнита
       const [unitType] = await ctx.db
         .select({ name: unitTypes.name, maxSize: unitTypes.maxSize })
         .from(unitTypes)
@@ -63,7 +58,6 @@ export const assignClassroomsRouter = router({
       if (unitType.name === "ПОДГРУППА") {
         unitSize = unitType.maxSize ?? 0;
       } else {
-        // Только активные связи unitRoots
         const roots = await ctx.db
           .select({ studyGroupId: unitRoots.studyGroupId })
           .from(unitRoots)
@@ -82,7 +76,7 @@ export const assignClassroomsRouter = router({
             .where(
               and(
                 sql`${studyGroups.id} IN ${groupIds}`,
-                eq(studyGroups.isActive, true) // группы в активной области
+                eq(studyGroups.isActive, true)
               )
             );
           unitSize = groupsData.reduce(
@@ -94,7 +88,7 @@ export const assignClassroomsRouter = router({
         }
       }
 
-      // --- кафедра дисциплины ---
+      // --- кафедра дисциплины (без изменений) ---
       const [disc] = await ctx.db
         .select({ departmentId: disciplines.departmentId })
         .from(disciplines)
@@ -102,7 +96,7 @@ export const assignClassroomsRouter = router({
         .limit(1);
       const deptId = disc?.departmentId ?? null;
 
-      // --- приоритетная колонка ---
+      // --- приоритетная колонка (без изменений) ---
       const [mapping] = await ctx.db
         .select({ priorityColumn: hourTypeMapping.priorityColumn })
         .from(hourTypeMapping)
@@ -127,7 +121,7 @@ export const assignClassroomsRouter = router({
       >;
       const priorityColumn = mapping.priorityColumn as ClassroomPriorityKey;
 
-      // --- фильтрация кандидатов ---
+      // --- фильтрация кандидатов (без изменений) ---
       const conditions: SQL<unknown>[] = [
         eq(classrooms.isActive, true),
         gte(classrooms.capacity, unitSize),
@@ -154,7 +148,7 @@ export const assignClassroomsRouter = router({
         continue;
       }
 
-      // --- сортировка ---
+      // --- сортировка (без изменений) ---
       candidates.sort((a, b) => {
         const prioA = (a[priorityColumn] as number) ?? 99;
         const prioB = (b[priorityColumn] as number) ?? 99;
@@ -169,7 +163,7 @@ export const assignClassroomsRouter = router({
 
       const best = candidates[0];
 
-      // Проверяем, нет ли уже активной связи с таким lessonId
+      // Проверка и вставка связи (без изменений)
       const [existingLink] = await ctx.db
         .select({ id: lessonClassrooms.id })
         .from(lessonClassrooms)
@@ -183,22 +177,24 @@ export const assignClassroomsRouter = router({
         .limit(1);
 
       if (!existingLink) {
-        // Вставляем только если нет активной связи
         await ctx.db.insert(lessonClassrooms).values({
           lessonId: lesson.id,
           classroomId: best.id,
           isActive: true,
         });
+        assigned++
       }
 
-      // Увеличиваем метрику (только для активных аудиторий)
+      // Увеличиваем метрику только для текущего назначения (чтобы сортировка в цикле работала)
       await ctx.db
         .update(classrooms)
         .set({ usageMetric: (best.usageMetric ?? 0) + 1 })
         .where(eq(classrooms.id, best.id));
 
-      assigned++;
     }
+
+    // Финальный пересчёт метрики по фактическому состоянию lessonClassrooms
+    await recalculateUsageMetrics();
 
     return {
       assignedClassrooms: assigned,

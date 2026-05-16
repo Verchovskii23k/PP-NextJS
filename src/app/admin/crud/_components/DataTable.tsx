@@ -59,7 +59,7 @@ interface DataTableProps {
 
 export function DataTable({ tableName }: DataTableProps) {
   // ---------- все хуки на верхнем уровне ----------
-  const [sorting, setSorting] = React.useState<SortingState>([]);
+  const [sorting, setSorting] = React.useState<SortingState>([{ id: 'id', desc: false }]);
   const [pagination, setPagination] = React.useState<PaginationState>({
     pageIndex: 0,
     pageSize: 10000,
@@ -107,7 +107,7 @@ export function DataTable({ tableName }: DataTableProps) {
 
   // ---------- эффект сброса ----------
   React.useEffect(() => {
-    setSorting([]);
+    setSorting([{ id: 'id', desc: false }]);
     setPagination({ pageIndex: 0, pageSize: 10000 });
     setGlobalFilter("");
     setColumnFilters([]);

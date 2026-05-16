@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { router, adminProcedure } from "../trpc";
-import { employees, employeesDepartments, departments, specialties, profiles } from "@/db/schema";
+import { employees, employeesDepartments, securityCenter, departments, specialties, profiles } from "@/db/schema";
 import { eq, asc, sql } from "drizzle-orm";
-import { safeDelete } from "@/lib/safeDelete";
+
 export const employeesRouter = router({
   list: adminProcedure
     .input(z.object({
@@ -11,7 +11,6 @@ export const employeesRouter = router({
       profileId: z.number().optional(),
     }).optional())
     .query(async ({ ctx, input }) => {
-      // Фильтр по кафедре профиля (для куратора)
       if (input?.profileId) {
         const [profile] = await ctx.db
           .select({ specialtyId: profiles.specialtyId })
@@ -36,10 +35,8 @@ export const employeesRouter = router({
               .orderBy(asc(sql`display`));
           }
         }
-        return []; // если профиль не найден, возвращаем пустой массив
+        return [];
       }
-
-      // Фильтр по кафедре (для зав. кафедрой)
       if (input?.departmentId) {
         return ctx.db
           .selectDistinct({
@@ -51,8 +48,6 @@ export const employeesRouter = router({
           .where(eq(employeesDepartments.departmentId, input.departmentId))
           .orderBy(asc(sql`display`));
       }
-
-      // Фильтр по институту (для директора)
       if (input?.instituteId) {
         return ctx.db
           .selectDistinct({
@@ -65,8 +60,6 @@ export const employeesRouter = router({
           .where(eq(departments.instituteId, input.instituteId))
           .orderBy(asc(sql`display`));
       }
-
-      // Полный список
       return ctx.db
         .select({
           id: employees.id,
@@ -100,7 +93,6 @@ export const employeesRouter = router({
         .limit(1);
       return rows[0] ?? null;
     }),
-  // create, update, delete без изменений
   create: adminProcedure
     .input(z.object({
       surname: z.string().min(1),
@@ -127,7 +119,31 @@ export const employeesRouter = router({
       const { id, ...data } = input;
       return ctx.db.update(employees).set(data).where(eq(employees.id, id)).returning();
     }),
-delete: adminProcedure
+  delete: adminProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => safeDelete(employees, input.id)),
+    .mutation(async ({ ctx, input }) => {
+      // 1. Получаем сотрудника, чтобы узнать authenticationId
+      const [employee] = await ctx.db
+        .select({ authenticationId: employees.authenticationId })
+        .from(employees)
+        .where(eq(employees.id, input.id))
+        .limit(1);
+      if (!employee) throw new Error("Сотрудник не найден");
+
+      // 2. Удаляем привязки к кафедрам
+      await ctx.db
+        .delete(employeesDepartments)
+        .where(eq(employeesDepartments.employeeId, input.id));
+
+      // 3. Если есть учётная запись – удаляем её
+      if (employee.authenticationId) {
+        await ctx.db
+          .delete(securityCenter)
+          .where(eq(securityCenter.id, employee.authenticationId));
+      }
+
+      // 4. Удаляем самого сотрудника
+      await ctx.db.delete(employees).where(eq(employees.id, input.id));
+      return { success: true };
+    }),
 });
