@@ -10,18 +10,33 @@ export default function AccountPage() {
   // Проверка авторизации
   const { data: user, isLoading: userLoading } = trpc.auth.me.useQuery();
 
-  // Смена логина
-  const [newLogin, setNewLogin] = useState("");
-  const [showLogin, setShowLogin] = useState(false);
-  const [loginError, setLoginError] = useState<string | null>(null);
-  const changeLoginMut = trpc.auth.changeLogin.useMutation({
+  // Смена email (логина)
+  const [newEmail, setNewEmail] = useState("");
+  const [showEmail, setShowEmail] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const changeEmailMut = trpc.auth.changeEmail.useMutation({
     onSuccess: () => {
-      setNewLogin("");
-      setLoginError(null);
-      toast("Логин успешно изменён");
+      setNewEmail('');
+      setEmailError(null);
+      toast('Email успешно изменён');
     },
-    onError: (e) => setLoginError(e.message),
+    onError: (e) => setEmailError(e.message),
   });
+
+  // Валидация email на клиенте
+  const handleChangeEmailSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setEmailError(null);
+
+    // Простая проверка на email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(newEmail)) {
+      setEmailError('Введите корректный email');
+      return;
+    }
+
+    changeEmailMut.mutate({ newEmail });
+  };
 
   // Смена пароля
   const [currentPassword, setCurrentPassword] = useState("");
@@ -66,47 +81,43 @@ export default function AccountPage() {
     <div className="mx-auto h-full max-w-4xl overflow-y-auto bg-background p-6 text-foreground">
       <h1 className="mb-6 text-2xl font-bold">Настройки аккаунта</h1>
 
-      {/* Смена логина */}
+      {/* Смена email (логина) */}
       <div className="mb-6 rounded-lg border border-border bg-background p-4 shadow-sm">
-        <h2 className="mb-3 text-lg font-semibold">Сменить логин</h2>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            changeLoginMut.mutate({ newLogin });
-          }}
-        >
-          <label className="text-sm text-muted-foreground">Новый логин</label>
+        <h2 className="mb-3 text-lg font-semibold">Сменить email (логин)</h2>
+        <form onSubmit={handleChangeEmailSubmit}>
+          <label className="text-sm text-muted-foreground">Новый email</label>
           <div className="relative mb-2">
             <input
-              type={showLogin ? "text" : "password"}
-              value={newLogin}
-              onChange={(e) => setNewLogin(e.target.value)}
+              type="email"
+              value={newEmail}
+              onChange={(e) => setNewEmail(e.target.value)}
               className="w-full rounded border border-border bg-background px-3 py-2 pr-10 text-foreground"
               required
+              placeholder="user@example.com"
             />
             <button
               type="button"
-              onClick={() => setShowLogin(!showLogin)}
+              onClick={() => setShowEmail(!showEmail)}
               className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              aria-label="Показать логин"
+              aria-label="Показать email"
             >
-              {showLogin ? <EyeOff size={20} /> : <Eye size={20} />}
+              {showEmail ? <EyeOff size={20} /> : <Eye size={20} />}
             </button>
           </div>
-          {loginError && (
-            <p className="mb-2 text-sm text-red-500">{loginError}</p>
+          {emailError && (
+            <p className="mb-2 text-sm text-red-500">{emailError}</p>
           )}
           <button
             type="submit"
-            disabled={changeLoginMut.isPending}
+            disabled={changeEmailMut.isPending}
             className="hover:bg-primary/90 rounded bg-primary px-4 py-2 text-white disabled:opacity-50"
           >
-            {changeLoginMut.isPending ? "Сохранение..." : "Сохранить"}
+            {changeEmailMut.isPending ? "Сохранение..." : "Сохранить"}
           </button>
         </form>
       </div>
 
-      {/* Смена пароля */}
+      {/* Смена пароля (без изменений) */}
       <div className="rounded-lg border border-border bg-background p-4 shadow-sm">
         <h2 className="mb-3 text-lg font-semibold">Сменить пароль</h2>
         <form

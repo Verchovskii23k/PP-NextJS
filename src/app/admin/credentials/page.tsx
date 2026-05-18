@@ -2,12 +2,12 @@
 import { trpc } from "@/trpc/client";
 import { useState } from "react";
 import { useConfirmContext } from "@/contexts/ConfirmContext";
-type SecurityLevel = "low" | "medium" | "high"
+type SecurityLevel = "low" | "medium" | "high";
 
 export default function CredentialsPage() {
   const { confirm } = useConfirmContext();
   const [error, setError] = useState<string | null>(null);
-  const [credSecurity, setCredSecurity] = useState<"low" | "medium" | "high">("medium");
+  const [credSecurity, setCredSecurity] = useState<SecurityLevel>("medium");
   const [credLength, setCredLength] = useState<number>(16);
   const [credTargets, setCredTargets] = useState({
     employees: true,
@@ -15,25 +15,26 @@ export default function CredentialsPage() {
   });
   const [credResult, setCredResult] = useState<{
     count: number;
-    credentials: { fullName: string; login: string; password: string; role: string }[];
+    credentials: { fullName: string; email: string; password: string; role: string }[];
   } | null>(null);
 
   const credMut = trpc.generations.generateCredentials.useMutation({
     onSuccess: (data) => setCredResult(data),
     onError: (e) => setError(e.message),
   });
-  // Очистка всех учётных записей
+
   const clearAllMut = trpc.adminManagement.clearAllCredentials.useMutation({
     onSuccess: () => {
       window.location.href = '/setup';
     },
     onError: (e) => setError(e.message),
   });
+
   const downloadCredentials = () => {
     if (!credResult) return;
-    const header = "ФИО;Логин;Пароль;Роль\n";
+    const header = "ФИО;Email;Пароль;Роль\n";
     const rows = credResult.credentials
-      .map((c) => `${c.fullName};${c.login};${c.password};${c.role}`)
+      .map((c) => `${c.fullName};${c.email};${c.password};${c.role}`)
       .join("\n");
     const bom = "\uFEFF";
     const blob = new Blob([bom + header + rows], { type: "text/csv;charset=utf-8;" });
@@ -61,7 +62,7 @@ export default function CredentialsPage() {
             <label className="text-sm text-muted-foreground">Уровень защиты</label>
             <select
               value={credSecurity}
-              onChange={(e) => setCredSecurity(e.target.value as  SecurityLevel)}
+              onChange={(e) => setCredSecurity(e.target.value as SecurityLevel)}
               className="ml-2 rounded border border-border bg-background px-2 py-1 text-foreground"
             >
               <option value="low">Низкий (s_фамилия / t_фамилия)</option>
@@ -133,7 +134,7 @@ export default function CredentialsPage() {
                 <thead>
                   <tr className="text-left text-muted-foreground">
                     <th>ФИО</th>
-                    <th>Логин</th>
+                    <th>Email (логин)</th>
                     <th>Пароль</th>
                     <th>Роль</th>
                   </tr>
@@ -142,7 +143,7 @@ export default function CredentialsPage() {
                   {credResult.credentials.map((c, i) => (
                     <tr key={i} className="border-t border-border">
                       <td className="py-1 pr-2">{c.fullName}</td>
-                      <td className="py-1 pr-2">{c.login}</td>
+                      <td className="py-1 pr-2">{c.email}</td>
                       <td className="py-1 pr-2">{c.password}</td>
                       <td className="py-1">{c.role}</td>
                     </tr>
@@ -162,7 +163,7 @@ export default function CredentialsPage() {
       <div className="mt-4 rounded-lg border border-border bg-background p-4 shadow-sm">
         <h2 className="mb-2 text-lg font-semibold text-red-600">Опасная зона</h2>
         <button
-            onClick={async () => {
+          onClick={async () => {
             const ok = await confirm({
               title: "Сброс всех учётных записей",
               message: "Удалить ВСЕ учётные записи (логины/пароли) студентов и сотрудников? Это действие нельзя отменить!",

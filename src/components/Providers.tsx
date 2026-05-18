@@ -1,4 +1,5 @@
 "use client";
+import { authClient } from '@/lib/auth/client';
 import { ThemeProvider } from "next-themes";
 import { TRPCProvider } from "@/trpc/provider";
 import ThemeToggle from "./ThemeToggle";
@@ -7,6 +8,7 @@ import { Home, LogOut } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { trpc } from "@/trpc/client";
 import { Toaster } from "sonner";
+import { ReactNode } from 'react';
 
 function HeaderContent() {
   const pathname = usePathname();
@@ -15,11 +17,10 @@ function HeaderContent() {
   const isPublicPage = isLoginPage || isSetupPage;
 
   const { data: user } = trpc.auth.me.useQuery();
-  const logoutMut = trpc.auth.logout.useMutation({
-    onSuccess: () => {
-      window.location.href = "/login";
-    },
-  });
+  const handleLogout = async () => {
+    await authClient.signOut();
+    window.location.href = "/login";
+  };
 
   const homePath =
     user?.role === "admin"
@@ -73,8 +74,8 @@ function HeaderContent() {
           <ThemeToggle />
           {!isPublicPage && user && (
             <button
-              onClick={() => logoutMut.mutate()}
-              disabled={logoutMut.isPending}
+              onClick={handleLogout}
+              disabled={false}
               className="flex items-center gap-1.5 text-muted-foreground transition-colors hover:text-foreground"
               aria-label="Выйти"
             >
@@ -88,12 +89,12 @@ function HeaderContent() {
   );
 }
 
-export default function Providers({ children }: { children: React.ReactNode }) {
+export default function Providers({ children }: { children: ReactNode }) {
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
       <TRPCProvider>
         <div className="flex h-screen flex-col overflow-hidden bg-background">
-          <HeaderContent /> 
+          <HeaderContent />
           <main className="flex-1 overflow-auto">
             {children}
           </main>

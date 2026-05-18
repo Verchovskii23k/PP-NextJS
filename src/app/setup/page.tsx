@@ -10,12 +10,10 @@ export default function SetupPage() {
     name: "",
     patronymic: "",
     phone: "",
-    email: "",
-    login: "",
+    email: "",          // теперь обязательный email
     password: "",
   });
   const [showPassword, setShowPassword] = useState(false);
-  const [showLogin, setShowLogin] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
 
@@ -63,8 +61,7 @@ export default function SetupPage() {
             name: form.name,
             patronymic: form.patronymic || undefined,
             phone: form.phone || undefined,
-            email: form.email || undefined,
-            login: form.login,
+            email: form.email,   // обязателен, без || undefined
             password: form.password,
           });
         }}
@@ -128,7 +125,7 @@ export default function SetupPage() {
         {/* Email */}
         <div className="mb-3">
           <label className="mb-1 block text-sm text-muted-foreground">
-            Email
+            Email <span className="text-red-500">*</span>
           </label>
           <input
             className="w-full rounded border border-border bg-background px-3 py-2 text-foreground"
@@ -136,33 +133,8 @@ export default function SetupPage() {
             type="email"
             value={form.email}
             onChange={handleChange}
-            placeholder="Необязательно"
+            required
           />
-        </div>
-
-        {/* Логин */}
-        <div className="mb-3">
-          <label className="mb-1 block text-sm text-muted-foreground">
-            Логин <span className="text-red-500">*</span>
-          </label>
-          <div className="relative">
-            <input
-              className="w-full rounded border border-border bg-background px-3 py-2 pr-10 text-foreground"
-              type={showLogin ? "text" : "password"}
-              name="login"
-              value={form.login}
-              onChange={handleChange}
-              required
-            />
-            <button
-              type="button"
-              onClick={() => setShowLogin(!showLogin)}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              aria-label="Показать логин"
-            >
-              {showLogin ? <EyeOff size={20} /> : <Eye size={20} />}
-            </button>
-          </div>
         </div>
 
         {/* Пароль */}
@@ -178,6 +150,7 @@ export default function SetupPage() {
               value={form.password}
               onChange={handleChange}
               required
+              minLength={6}
             />
             <button
               type="button"

@@ -1,11 +1,27 @@
 import { z } from "zod";
 import { router, adminProcedure } from "../trpc";
-import { students, securityCenter } from "@/db/schema";
+import { students, users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
 export const studentsRouter = router({
   list: adminProcedure.query(async ({ ctx }) => {
-    return ctx.db.select().from(students);
+    return ctx.db
+      .select({
+        id: students.id,
+        surname: students.surname,
+        name: students.name,
+        patronymic: students.patronymic,
+        admissionYear: students.admissionYear,
+        profileId: students.profileId,
+        studyGroupId: students.studyGroupId,
+        course: students.course,
+        phone: students.phone,
+        email: students.email,        // контактный email
+        isActive: students.isActive,
+        loginEmail: users.email,      // email-логин из users
+      })
+      .from(students)
+      .leftJoin(users, eq(students.userId, users.id));
   }),
   create: adminProcedure
     .input(z.object({
@@ -42,28 +58,41 @@ export const studentsRouter = router({
   get: adminProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ ctx, input }) => {
-      const rows = await ctx.db.select().from(students).where(eq(students.id, input.id)).limit(1);
+      const rows = await ctx.db
+        .select({
+          id: students.id,
+          surname: students.surname,
+          name: students.name,
+          patronymic: students.patronymic,
+          admissionYear: students.admissionYear,
+          profileId: students.profileId,
+          studyGroupId: students.studyGroupId,
+          course: students.course,
+          phone: students.phone,
+          email: students.email,
+          isActive: students.isActive,
+          loginEmail: users.email,
+        })
+        .from(students)
+        .leftJoin(users, eq(students.userId, users.id))
+        .where(eq(students.id, input.id))
+        .limit(1);
       return rows[0] ?? null;
     }),
   delete: adminProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
-      // 1. Получаем студента, чтобы узнать authenticationId
       const [student] = await ctx.db
-        .select({ authenticationId: students.authenticationId })
+        .select({ userId: students.userId })
         .from(students)
         .where(eq(students.id, input.id))
         .limit(1);
       if (!student) throw new Error("Студент не найден");
 
-      // 2. Если есть учётная запись – удаляем её
-      if (student.authenticationId) {
-        await ctx.db
-          .delete(securityCenter)
-          .where(eq(securityCenter.id, student.authenticationId));
+      if (student.userId) {
+        await ctx.db.delete(users).where(eq(users.id, student.userId));
       }
 
-      // 3. Удаляем самого студента
       await ctx.db.delete(students).where(eq(students.id, input.id));
       return { success: true };
     }),

@@ -7,7 +7,7 @@ import { TRPCError } from "@trpc/server";
 
 // Таблицы, которые разрешено массово удалять (все, кроме системных)
 const ALLOWED_DELETE_TABLES = Object.keys(tablesMeta).filter(
-  (key) => !["security_center", "sessions", "settings"].includes(key)
+  (key) => !["user", "account", "session", "verification_token", "settings"].includes(key)
 );
 
 export const batchDeleteRouter = router({

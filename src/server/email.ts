@@ -14,7 +14,6 @@ const transporter = nodemailer.createTransport({
 
 export async function sendPasswordResetEmail(
   email: string,
-  login: string,
   tokenOrPassword?: string,
   isNewCredentials = false
 ) {
@@ -24,7 +23,7 @@ export async function sendPasswordResetEmail(
   if (isNewCredentials) {
     subject = 'Новые учётные данные';
     html = `<p>Ваши новые данные для входа:</p>
-            <p><strong>Логин:</strong> ${login}</p>
+            <p><strong>Логин:</strong> ${email}</p>
             <p><strong>Пароль:</strong> ${tokenOrPassword}</p>`;
   } else {
     const resetLink = `http://localhost:3000/reset-password?token=${tokenOrPassword}`;
@@ -39,6 +38,39 @@ export async function sendPasswordResetEmail(
       from: process.env.SMTP_FROM || '"Расписание" <noreply@university.ru>',
       to: email,
       subject,
+      html,
+    });
+    return true;
+  } catch (e) {
+    console.error('Email sending failed:', e);
+    return false;
+  }
+}
+// В конец файла src/server/email.ts добавь:
+export async function sendResetCodeEmail(email: string, code: string) {
+  const html = `<p>Ваш код для сброса пароля: <strong>${code}</strong></p><p>Код действителен 10 минут.</p>`;
+  try {
+    await transporter.sendMail({
+      from: process.env.SMTP_FROM || '"Расписание" <noreply@university.ru>',
+      to: email,
+      subject: 'Код сброса пароля',
+      html,
+    });
+    return true;
+  } catch (e) {
+    console.error('Email sending failed:', e);
+    return false;
+  }
+}
+export async function sendNewCredentialsEmail(email: string, password: string) {
+  const html = `<p>Ваши новые данные для входа:</p>
+                <p><strong>Логин:</strong> ${email}</p>
+                <p><strong>Пароль:</strong> ${password}</p>`;
+  try {
+    await transporter.sendMail({
+      from: process.env.SMTP_FROM || '"Расписание" <noreply@university.ru>',
+      to: email,
+      subject: 'Новые учётные данные',
       html,
     });
     return true;

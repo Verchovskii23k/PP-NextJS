@@ -7,7 +7,6 @@ import { generateScheduleRouter } from "./generateSchedule";
 import { clearGeneratedData } from "../../../../lib/clearGeneratedData";
 import { generateCredentialsRouter } from "./generateCredentials";
 
-
 export const generationsRouter = router({
   ...generateGroupsRouter._def.procedures,
   ...generateUnitsRouter._def.procedures,

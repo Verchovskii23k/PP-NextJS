@@ -1,12 +1,12 @@
-import { z } from "zod";
-import { router, publicProcedure, protectedProcedure } from "../trpc";
-import { securityCenter, roles, employees, students } from "@/db/schema";
-import { eq, and, sql } from "drizzle-orm";
-import { hashPassword, verifyPassword } from "@/server/auth/password";
-import { createSession, deleteSession } from "@/server/auth/session";
-import { cookies } from "next/headers";
+import { z } from 'zod';
+import { router, publicProcedure, protectedProcedure } from '../trpc';
+import { users, employees, students, verificationTokens, accounts } from '@/db/schema';
+import { and, eq, sql } from 'drizzle-orm';
+import { auth } from '@/lib/auth/config';
 import { sendPasswordResetEmail } from "@/server/email";
-import { randomBytes } from "crypto";
+import { randomBytes } from 'crypto';
+import bcrypt from 'bcryptjs';
+import { TRPCError } from '@trpc/server';
 
 export const authRouter = router({
   setup: publicProcedure
@@ -15,457 +15,241 @@ export const authRouter = router({
       name: z.string().min(1),
       patronymic: z.string().optional(),
       phone: z.string().optional(),
-      email: z.string().email().optional().or(z.literal("")),
-      login: z.string().min(3),
+      email: z.string().email(),
       password: z.string().min(6),
     }))
     .mutation(async ({ ctx, input }) => {
-      // Проверим, нет ли уже сотрудников-администраторов
       const [existingAdmin] = await ctx.db
-        .select({ id: employees.id })
-        .from(employees)
-        .where(eq(employees.isAdmin, true))
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.role, 'admin'))
         .limit(1);
-
       if (existingAdmin) {
-        throw new Error("Setup already completed");
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Первичная настройка уже выполнена' });
       }
 
-      // Получаем или создаём роль admin
-      let [adminRole] = await ctx.db.select().from(roles).where(eq(roles.name, "admin")).limit(1);
-      if (!adminRole) {
-        [adminRole] = await ctx.db.insert(roles).values({ name: "admin", description: "Администратор" }).returning();
+      let result;
+      try {
+        result = await auth.api.signUpEmail({
+          body: {
+            email: input.email,
+            password: input.password,
+            name: `${input.surname} ${input.name}`,
+          },
+        });
+      } catch (e) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Не удалось создать администратора. Попробуйте позже.',
+        });
       }
 
-      const passwordHash = await hashPassword(input.password);
+      if (!result?.user) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Не удалось создать администратора. Попробуйте позже.',
+        });
+      }
 
-      // Транзакция: создаём сотрудника и учётную запись
-      const [newUser] = await ctx.db.transaction(async (tx) => {
-        const [newEmployee] = await tx.insert(employees).values({
-          surname: input.surname,
-          name: input.name,
-          patronymic: input.patronymic || null,
-          phone: input.phone || null,
-          email: input.email || null,
-          isAdmin: true,
-          isActive: true,
-        }).returning({ id: employees.id });
+      const hashed = await bcrypt.hash(input.password, 10);
+      await ctx.db.update(users).set({ role: 'admin', hashedPassword: hashed }).where(eq(users.id, result.user.id));
 
-        const [newSec] = await tx.insert(securityCenter).values({
-          login: input.login,
-          passwordHash,
-          roleId: adminRole.id,
-        }).returning({ id: securityCenter.id });
-
-        // Связываем сотрудника с учётной записью
-        await tx.update(employees)
-          .set({ authenticationId: newSec.id })
-          .where(eq(employees.id, newEmployee.id));
-
-        return [newSec];
-      });
-
-      // Создаём сессию
-      const token = await createSession(newUser.id);
-      (await cookies()).set("session", token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        path: "/",
-        maxAge: 60 * 60 * 24 * 7,
+      await ctx.db.insert(employees).values({
+        surname: input.surname,
+        name: input.name,
+        patronymic: input.patronymic || null,
+        phone: input.phone || null,
+        email: input.email,
+        userId: result.user.id,
+        isAdmin: true,
+        isActive: true,
       });
 
       return { success: true };
     }),
 
-login: publicProcedure
-  .input(z.object({ login: z.string(), password: z.string() }))
-  .mutation(async ({ ctx, input }) => {
-    try {
-      const [user] = await ctx.db
-        .select()
-        .from(securityCenter)
-        .where(eq(securityCenter.login, input.login))
-        .limit(1);
-
-      if (!user || !(await verifyPassword(input.password, user.passwordHash))) {
-        throw new Error("Invalid credentials");
-      }
-
-      const token = await createSession(user.id);
-      (await cookies()).set("session", token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        path: "/",
-        maxAge: 60 * 60 * 24 * 7,
-      });
-      return { success: true };
-    } catch (e: unknown) {
-      console.error("Login error:", e);
-      if (e instanceof Error && e.message === "Invalid credentials") {
-        throw e; // пробрасываем, чтобы клиент получил корректную ошибку
-      }
-      // Остальные ошибки (например, БД недоступна) превращаем в универсальное сообщение
-      throw new Error("Внутренняя ошибка сервера. Попробуйте позже.");
-    }
-  }),
-
-  logout: publicProcedure.mutation(async () => {
-    const cookieStore = await cookies();
-    const token = cookieStore.get("session")?.value;
-    if (token) {
-      deleteSession(token);
-      cookieStore.delete("session");
-    }
-    return { success: true };
-  }),
-
-  me: publicProcedure.query(async ({ ctx }) => {
-    if (!ctx.user) return null;
-    
-    // Основные данные учётной записи
-    const [sec] = await ctx.db
+  me: protectedProcedure.query(async ({ ctx }) => {
+    const userId = ctx.user!.id;
+    const [user] = await ctx.db
       .select({
-        id: securityCenter.id,
-        login: securityCenter.login,
-        role: roles.name,
+        id: users.id,
+        email: users.email,
+        role: users.role,
       })
-      .from(securityCenter)
-      .innerJoin(roles, eq(securityCenter.roleId, roles.id))
-      .where(eq(securityCenter.id, ctx.user.id))
+      .from(users)
+      .where(eq(users.id, userId))
       .limit(1);
 
-    if (!sec) return null;
+    if (!user) return null;
 
-    // Пробуем найти сотрудника
     const [emp] = await ctx.db
-      .select({
-        surname: employees.surname,
-        name: employees.name,
-        patronymic: employees.patronymic,
-      })
+      .select({ fullName: sql<string>`concat(${employees.surname}, ' ', ${employees.name}, ' ', ${employees.patronymic})` })
       .from(employees)
-      .where(eq(employees.authenticationId, ctx.user.id))
+      .where(eq(employees.userId, userId))
       .limit(1);
 
-    if (emp) {
-      const fullName = `${emp.surname} ${emp.name}${emp.patronymic ? ' ' + emp.patronymic : ''}`;
-      return { ...sec, fullName };
-    }
+    if (emp) return { ...user, fullName: emp.fullName };
 
-    // Пробуем найти студента
     const [stu] = await ctx.db
-      .select({
-        surname: students.surname,
-        name: students.name,
-      })
+      .select({ fullName: sql<string>`concat(${students.surname}, ' ', ${students.name})` })
       .from(students)
-      .where(eq(students.authenticationId, ctx.user.id))
+      .where(eq(students.userId, userId))
       .limit(1);
 
-    if (stu) {
-      const fullName = `${stu.surname} ${stu.name}`;
-      return { ...sec, fullName };
-    }
-
-    // Если ни к кому не привязан (например, старый технический админ), показываем логин
-    return { ...sec, fullName: sec.login };
+    return { ...user, fullName: stu?.fullName || user.email };
   }),
-  changeLogin: protectedProcedure
-    .input(z.object({ newLogin: z.string().min(3) }))
+
+  changeEmail: protectedProcedure
+    .input(z.object({ newEmail: z.string().email() }))
     .mutation(async ({ ctx, input }) => {
       const userId = ctx.user!.id;
-
-      // Получаем текущий хэш пароля
-      const [currentUser] = await ctx.db
-        .select({ passwordHash: securityCenter.passwordHash })
-        .from(securityCenter)
-        .where(eq(securityCenter.id, userId))
-        .limit(1);
-
-      if (!currentUser) throw new Error("Пользователь не найден");
-
-      // Проверяем, нет ли уже такой пары (логин + хэш)
-      const [existing] = await ctx.db
-        .select({ id: securityCenter.id })
-        .from(securityCenter)
-        .where(
-          and(
-            eq(securityCenter.login, input.newLogin),
-            eq(securityCenter.passwordHash, currentUser.passwordHash)
-          )
-        )
-        .limit(1);
-
-      if (existing && existing.id !== userId) {
-        throw new Error("Такая пара логин/пароль уже существует");
-      }
-
-      await ctx.db
-        .update(securityCenter)
-        .set({ login: input.newLogin })
-        .where(eq(securityCenter.id, userId));
-
+      await ctx.db.update(users).set({ email: input.newEmail }).where(eq(users.id, userId));
       return { success: true };
     }),
 
-    // Смена пароля
-    changePassword: protectedProcedure
-    .input(
-      z.object({
-        currentPassword: z.string().min(1),
-        newPassword: z.string().min(6),
-      })
-    )
+  changePassword: protectedProcedure
+    .input(z.object({
+      currentPassword: z.string().min(1),
+      newPassword: z.string().min(6),
+    }))
     .mutation(async ({ ctx, input }) => {
-      const userId = ctx.user!.id;
+      try {
+        await auth.api.changePassword({
+          body: {
+            currentPassword: input.currentPassword,
+            newPassword: input.newPassword,
+          },
+          headers: ctx.req.headers,
+        });
+        } catch (e: unknown) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: e instanceof Error ? e.message : 'Не удалось сменить пароль',
+          });
+        }
+      return { success: true };
+    }),
+
+  forgotPassword: publicProcedure
+    .input(z.object({ email: z.string().email() }))
+    .mutation(async ({ ctx, input }) => {
+      const [user] = await ctx.db
+        .select({ id: users.id, email: users.email })
+        .from(users)
+        .where(eq(users.email, input.email))
+        .limit(1);
+
+      if (user) {
+        const token = randomBytes(32).toString("hex");
+        const expires = new Date(Date.now() + 1000 * 60 * 60);
+        await ctx.db.insert(verificationTokens).values({
+          identifier: user.email,
+          token,
+          expires,
+        });
+
+        await sendPasswordResetEmail(user.email, token);
+      }
+
+      return { message: "Инструкция отправлена на ваш email, если он зарегистрирован." };
+    }),
+
+  resetPassword: publicProcedure
+    .input(z.object({
+      token: z.string(),
+      newPassword: z.string().min(6),
+      newEmail: z.string().email().optional(),   // ← добавляем
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const [tokenRecord] = await ctx.db
+        .select()
+        .from(verificationTokens)
+        .where(eq(verificationTokens.token, input.token))
+        .limit(1);
+
+      if (!tokenRecord || tokenRecord.expires < new Date()) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Токен недействителен или истёк' });
+      }
 
       const [user] = await ctx.db
-        .select({
-          login: securityCenter.login,
-          passwordHash: securityCenter.passwordHash,
-        })
-        .from(securityCenter)
-        .where(eq(securityCenter.id, userId))
+        .select({ id: users.id, email: users.email })
+        .from(users)
+        .where(eq(users.email, tokenRecord.identifier))
         .limit(1);
 
-      if (!user) throw new Error("Пользователь не найден");
-
-      // Проверяем старый пароль
-      const isValid = await verifyPassword(input.currentPassword, user.passwordHash);
-      if (!isValid) {
-        throw new Error("Неверный текущий пароль");
+      if (!user) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Пользователь не найден' });
       }
 
-      // Хэшируем новый пароль
-      const newHash = await hashPassword(input.newPassword);
-
-      // Проверяем, нет ли уже такой пары (логин + новый хэш) у другого пользователя
-      const [conflict] = await ctx.db
-        .select({ id: securityCenter.id })
-        .from(securityCenter)
-        .where(
-          and(
-            eq(securityCenter.login, user.login),
-            eq(securityCenter.passwordHash, newHash)
-          )
-        )
-        .limit(1);
-
-      if (conflict && conflict.id !== userId) {
-        throw new Error("Такая пара логин/пароль уже занята другим пользователем");
-      }
-
-      // Обновляем хэш
-      await ctx.db
-        .update(securityCenter)
-        .set({ passwordHash: newHash, passwordChangedAt: new Date() })
-        .where(eq(securityCenter.id, userId));
-
-      return { success: true };
-    }),
-
-
-forgotPassword: publicProcedure
-  .input(
-    z.object({
-      login: z.string().optional(),
-      email: z.string().email().optional(),
-    }).refine(data => data.login || data.email, {
-      message: "Укажите логин или email",
-    })
-  )
-  .mutation(async ({ ctx, input }) => {
-    let userId: number | undefined;
-    let userLogin: string | undefined;
-    let userEmail: string | null = null;
-
-    // 1. Поиск пользователя
-    if (input.login) {
-      const [u] = await ctx.db
-        .select({ id: securityCenter.id, login: securityCenter.login })
-        .from(securityCenter)
-        .where(eq(securityCenter.login, input.login))
-        .limit(1);
-      if (u) {
-        userId = u.id;
-        userLogin = u.login;
-      }
-    } else if (input.email) {
-      // Поиск по email (регистронезависимый) среди сотрудников
-      const [emp] = await ctx.db
-        .select({ authenticationId: employees.authenticationId })
-        .from(employees)
-        .where(sql`lower(${employees.email}) = ${input.email.toLowerCase()}`)
-        .limit(1);
-      if (emp?.authenticationId) {
-        const [u] = await ctx.db
-          .select({ id: securityCenter.id, login: securityCenter.login })
-          .from(securityCenter)
-          .where(eq(securityCenter.id, emp.authenticationId))
+      // Если передан новый email, проверяем его уникальность
+      if (input.newEmail && input.newEmail !== user.email) {
+        const [existing] = await ctx.db
+          .select({ id: users.id })
+          .from(users)
+          .where(eq(users.email, input.newEmail))
           .limit(1);
-        if (u) {
-          userId = u.id;
-          userLogin = u.login;
+        if (existing) {
+          throw new TRPCError({ code: 'CONFLICT', message: 'Пользователь с таким email уже существует' });
         }
       }
-      // Если не нашли среди сотрудников – ищем студента
-      if (!userId) {
-        const [stu] = await ctx.db
-          .select({ authenticationId: students.authenticationId })
-          .from(students)
-          .where(sql`lower(${students.email}) = ${input.email.toLowerCase()}`)
+
+      const newEmail = input.newEmail || user.email;
+      const hashed = await bcrypt.hash(input.newPassword, 10);
+
+      // Обновляем email и пароль в users
+      await ctx.db.update(users)
+        .set({ email: newEmail, hashedPassword: hashed })
+        .where(eq(users.id, user.id));
+
+      // Обновляем/создаём запись в accounts
+      const [acc] = await ctx.db.select({ id: accounts.id })
+        .from(accounts)
+        .where(and(eq(accounts.userId, user.id), eq(accounts.providerId, "credential")))
+        .limit(1);
+
+      if (acc) {
+        await ctx.db.update(accounts)
+          .set({ password: hashed, accountId: newEmail })
+          .where(eq(accounts.id, acc.id));
+      } else {
+        await ctx.db.insert(accounts).values({
+          userId: user.id,
+          providerId: "credential",
+          accountId: newEmail,
+          password: hashed,
+        });
+      }
+
+      // Если изменился email, обновим его в employees/students (если есть связь)
+      if (input.newEmail && input.newEmail !== user.email) {
+        // Пробуем обновить у сотрудника
+        const [emp] = await ctx.db
+          .select({ id: employees.id })
+          .from(employees)
+          .where(eq(employees.userId, user.id))
           .limit(1);
-        if (stu?.authenticationId) {
-          const [u] = await ctx.db
-            .select({ id: securityCenter.id, login: securityCenter.login })
-            .from(securityCenter)
-            .where(eq(securityCenter.id, stu.authenticationId))
+        if (emp) {
+          await ctx.db.update(employees)
+            .set({ email: newEmail })
+            .where(eq(employees.id, emp.id));
+        } else {
+          // Пробуем обновить у студента
+          const [stu] = await ctx.db
+            .select({ id: students.id })
+            .from(students)
+            .where(eq(students.userId, user.id))
             .limit(1);
-          if (u) {
-            userId = u.id;
-            userLogin = u.login;
+          if (stu) {
+            await ctx.db.update(students)
+              .set({ email: newEmail })
+              .where(eq(students.id, stu.id));
           }
         }
       }
-    }
 
-    // 2. Если пользователь не найден – универсальное сообщение
-    if (!userId) {
-      return { message: "Если учётная запись с такими данными существует, инструкция отправлена." };
-    }
+      // Удаляем использованный токен
+      await ctx.db.delete(verificationTokens).where(eq(verificationTokens.token, input.token));
 
-    // 3. Генерируем токен и сохраняем
-    const token = randomBytes(32).toString("hex");
-    const expires = new Date(Date.now() + 1000 * 60 * 60); // 1 час
-    await ctx.db
-      .update(securityCenter)
-      .set({ resetToken: token, resetTokenExpires: expires })
-      .where(eq(securityCenter.id, userId));
-
-    // 4. Находим email пользователя (точный, какой есть в базе)
-    const [empEmail] = await ctx.db
-      .select({ email: employees.email })
-      .from(employees)
-      .where(eq(employees.authenticationId, userId))
-      .limit(1);
-    if (empEmail?.email) userEmail = empEmail.email;
-
-    if (!userEmail) {
-      const [stuEmail] = await ctx.db
-        .select({ email: students.email })
-        .from(students)
-        .where(eq(students.authenticationId, userId))
-        .limit(1);
-      if (stuEmail?.email) userEmail = stuEmail.email;
-    }
-
-    // 5. Пытаемся отправить письмо или возвращаем токен
-    if (userEmail) {
-      try {
-        const sent = await sendPasswordResetEmail(userEmail, userLogin!, token, false);
-        if (sent) return { message: "Инструкция отправлена на ваш email" };
-      } catch (e) {
-        console.error("Email sending failed, falling back to token:", e);
-      }
-    }
-
-    return { token };
-  }),
-
-  resetPassword: publicProcedure
-  .input(z.object({
-    token: z.string(),
-    newPassword: z.string().min(6),
-    newLogin: z.string().min(3).optional(),
-  }))
-  .mutation(async ({ ctx, input }) => {
-    // Ищем пользователя по токену
-    const [user] = await ctx.db
-      .select({ id: securityCenter.id })
-      .from(securityCenter)
-      .where(eq(securityCenter.resetToken, input.token))
-      .limit(1);
-
-    if (!user) throw new Error("Токен недействителен или истёк");
-
-    // Проверяем срок действия
-    const [fullUser] = await ctx.db
-      .select({ resetTokenExpires: securityCenter.resetTokenExpires })
-      .from(securityCenter)
-      .where(eq(securityCenter.id, user.id))
-      .limit(1);
-    if (!fullUser?.resetTokenExpires || fullUser.resetTokenExpires < new Date()) {
-      throw new Error("Токен истёк");
-    }
-
-    const newHash = await hashPassword(input.newPassword);
-
-    // Определяем итоговый логин: если передан новый – используем его, иначе не меняем
-    let targetLogin: string | undefined = undefined;
-    if (input.newLogin) {
-      targetLogin = input.newLogin;
-    }
-
-    // Проверяем уникальность пары (логин + хэш) только если логин задан (явно или остаётся текущий)
-    if (targetLogin) {
-      const [conflict] = await ctx.db
-        .select({ id: securityCenter.id })
-        .from(securityCenter)
-        .where(
-          and(
-            eq(securityCenter.login, targetLogin),
-            eq(securityCenter.passwordHash, newHash),
-            sql`${securityCenter.id} != ${user.id}`
-          )
-        )
-        .limit(1);
-      if (conflict) {
-        throw new Error("Пользователь с таким логином и паролем уже существует. Выберите другую комбинацию.");
-      }
-    } else {
-      // Если логин не меняется, проверяем пару с текущим логином пользователя
-      const [current] = await ctx.db
-        .select({ login: securityCenter.login })
-        .from(securityCenter)
-        .where(eq(securityCenter.id, user.id))
-        .limit(1);
-      if (current) {
-        targetLogin = current.login;
-        const [conflict] = await ctx.db
-          .select({ id: securityCenter.id })
-          .from(securityCenter)
-          .where(
-            and(
-              eq(securityCenter.login, targetLogin),
-              eq(securityCenter.passwordHash, newHash),
-              sql`${securityCenter.id} != ${user.id}`
-            )
-          )
-          .limit(1);
-        if (conflict) {
-          throw new Error("Пользователь с таким логином и паролем уже существует. Выберите другой пароль.");
-        }
-      }
-    }
-
-    // Формируем объект обновления
-    const updateData: Record<string, unknown> = {
-      passwordHash: newHash,
-      resetToken: null,
-      resetTokenExpires: null,
-      passwordChangedAt: new Date(),
-    };
-    if (input.newLogin) {
-      updateData.login = input.newLogin;
-    }
-
-    await ctx.db
-      .update(securityCenter)
-      .set(updateData)
-      .where(eq(securityCenter.id, user.id));
-
-    return { success: true };
-  }),
+      return { success: true };
+    }),
 });

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { trpc } from "@/trpc/client";
 import { tablesMeta, type FieldMeta } from "@/lib/table-meta";
+import { TRPCClientError } from "@trpc/client";
 
 const TOGGLE_FIELDS = new Set(["isActive", "positionFlag", "classroomFlag", "isBuffered"]);
 
@@ -61,9 +62,21 @@ export function RecordForm({ tableName, editId, onClose }: RecordFormProps) {
   const createMutation = router?.create?.useMutation?.();
   const updateMutation = router?.update?.useMutation?.();
 
-  // Инициализируем пустой формой, заполним позже
   const [formValues, setFormValues] = useState<Record<string, unknown>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Хуки для фильтрации в disciplineTeachers
+  const selectedDisciplineId = (tableName === "disciplineTeachers" ? formValues.disciplineId : undefined) as number | undefined;
+  const { data: selectedDiscipline } = trpc.disciplines.get.useQuery(
+    { id: selectedDisciplineId! },
+    { enabled: tableName === "disciplineTeachers" && !!selectedDisciplineId }
+  );
+
+  const selectedTeacherDeptId = (tableName === "disciplineTeachers" ? formValues.teacherDepartmentId : undefined) as number | undefined;
+  const { data: selectedEmpDept } = trpc.employeesDepartments.get.useQuery(
+    { id: selectedTeacherDeptId! },
+    { enabled: tableName === "disciplineTeachers" && !!selectedTeacherDeptId }
+  );
 
   // Заполнение формы данными при изменении existingData
   useEffect(() => {
@@ -74,8 +87,8 @@ export function RecordForm({ tableName, editId, onClose }: RecordFormProps) {
       const initial: Record<string, unknown> = {};
       meta.fields.forEach((f) => {
         if (f.dbName === "id") return;
-        if (f.isFK) {
-          initial[f.dbName] = null;
+        if (f.inputType === "radioGroup") {
+          initial[f.dbName] = 3;
         } else if (TOGGLE_FIELDS.has(f.dbName)) {
           initial[f.dbName] = f.dbName === "isActive" ? true : false;
         } else if (isNumericField(f)) {
@@ -139,7 +152,9 @@ export function RecordForm({ tableName, editId, onClose }: RecordFormProps) {
       }
       onClose();
     } catch (err: unknown) {
-      setErrors({ _form: (err instanceof Error ? err.message : "Неизвестная ошибка") });
+      console.log('tRPC error:', err); 
+      const message = err instanceof TRPCClientError ? err.message : (err instanceof Error ? err.message : "Неизвестная ошибка");
+      setErrors({ _form: message });
     }
   };
 
@@ -168,6 +183,22 @@ export function RecordForm({ tableName, editId, onClose }: RecordFormProps) {
           : formValues.profileId;
         input = profileId ? { profileId: profileId as number } : undefined;
       }
+
+      // ========== БЛОК: фильтрация для disciplineTeachers ==========
+      if (tableName === "disciplineTeachers") {
+        if (field.dbName === "teacherDepartmentId") {
+          // При выборе дисциплины – фильтруем преподавателей по её кафедре
+          if (selectedDiscipline?.departmentId) {
+            input = { departmentId: selectedDiscipline.departmentId as number };
+          }
+        } else if (field.dbName === "disciplineId") {
+          // При выборе преподавателя – фильтруем дисциплины по его кафедре
+          if (selectedEmpDept?.departmentId) {
+            input = { departmentId: selectedEmpDept.departmentId as number };
+          }
+        }
+      }
+      // ========== КОНЕЦ БЛОКА ==========
 
       const refRouter = refRouterKey
         ? (trpc as unknown as Record<string, { list: { useQuery: (input?: unknown) => { data?: Record<string, unknown>[]; isLoading?: boolean } } }>)[refRouterKey]
@@ -198,7 +229,37 @@ export function RecordForm({ tableName, editId, onClose }: RecordFormProps) {
         </div>
       );
     }
-
+    if (field.inputType === "radioGroup") {
+      const selectedValue = (value as number) || 3; // по умолчанию 3 (Низкий)
+      const options = [
+        { value: 3, label: "Низкий" },
+        { value: 2, label: "Средний" },
+        { value: 1, label: "Высокий" },
+      ];
+      return (
+        <div key={field.dbName} className="mb-3">
+          <label className="mb-1 block text-sm font-medium text-foreground">
+            {field.displayName}
+            {field.required && <span className="ml-1 text-red-500">*</span>}
+          </label>
+          <div className="flex gap-4">
+            {options.map((opt) => (
+              <label key={opt.value} className="flex items-center gap-1 text-sm">
+                <input
+                  type="radio"
+                  name={field.dbName}
+                  value={opt.value}
+                  checked={selectedValue === opt.value}
+                  onChange={() => handleChange(field.dbName, opt.value)}
+                />
+                {opt.label}
+              </label>
+            ))}
+          </div>
+          {hasError && <p className="mt-1 text-xs text-red-500">{errorMsg}</p>}
+        </div>
+      );
+    }
     // toggle
     if (TOGGLE_FIELDS.has(field.dbName) || field.inputType === "toggle") {
       const isActive = !!value;
@@ -249,7 +310,8 @@ export function RecordForm({ tableName, editId, onClose }: RecordFormProps) {
   };
 
   const isPending = createMutation?.isPending || updateMutation?.isPending;
-    useEffect(() => {
+
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         onClose();

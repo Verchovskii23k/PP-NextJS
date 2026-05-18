@@ -4,9 +4,19 @@ import { disciplines, curriculum, disciplineTeachers } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { safeDelete } from "@/lib/safeDelete";
 export const disciplinesRouter = router({
-  list: adminProcedure.query(async ({ ctx }) => {
-    return ctx.db.select().from(disciplines);
-  }),
+  list: adminProcedure
+    .input(
+      z.object({
+        departmentId: z.number().optional(),
+      }).optional()
+    )
+    .query(async ({ ctx, input }) => {
+      const query = ctx.db.select().from(disciplines);
+      if (input?.departmentId) {
+        query.where(eq(disciplines.departmentId, input.departmentId));
+      }
+      return query;
+    }),
   get: adminProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ ctx, input }) => {

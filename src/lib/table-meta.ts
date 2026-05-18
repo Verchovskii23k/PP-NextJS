@@ -4,7 +4,7 @@ export interface FieldMeta {
   displayName: string;
   isFK: boolean;
   required?: boolean;
-  inputType?: "text" | "number" | "select" | "toggle";
+  inputType?: "text" | "number" | "select" | "toggle" | "radioGroup"
   showInCreate?: boolean;
   references?: {
     table: string;
@@ -130,10 +130,10 @@ export const tablesMeta: Record<string, TableMeta> = {
       { dbName: "roomNumber", displayName: "Номер аудитории", isFK: false, required: true },
       { dbName: "capacity", displayName: "Вместимость", isFK: false, required: true },
       { dbName: "departmentId", displayName: "Кафедра", isFK: true, references: { table: "departments", displayField: "display" } },
-      { dbName: "priorityLecture", displayName: "Приоритет лекций", isFK: false },
-      { dbName: "priorityWorkshop", displayName: "Приоритет практик", isFK: false },
-      { dbName: "priorityGuidedStudy", displayName: "Приоритет КСР", isFK: false },
-      { dbName: "priorityLab", displayName: "Приоритет лаб.", isFK: false },
+      { dbName: "priorityLecture", displayName: "Приоритет лекций", isFK: false, required: true, inputType: "radioGroup" },
+      { dbName: "priorityWorkshop", displayName: "Приоритет практик", isFK: false, required: true, inputType: "radioGroup" },
+      { dbName: "priorityGuidedStudy", displayName: "Приоритет КСР", isFK: false, required: true, inputType: "radioGroup" },
+      { dbName: "priorityLab", displayName: "Приоритет лаб.", isFK: false, required: true, inputType: "radioGroup" },
       { dbName: "usageMetric", displayName: "Метрика использования", isFK: false },
       { dbName: "isActive", displayName: "Активен", isFK: false, required: true, inputType: "toggle" }
     ],
@@ -161,37 +161,39 @@ export const tablesMeta: Record<string, TableMeta> = {
     ],
   },
   employees: {
-    nameRu: "Сотрудники",
-    routerKey: "employees",
-    dbTableName: "employees",
-    fields: [
-      { dbName: "id", displayName: "ID", isFK: false },
-      { dbName: "surname", displayName: "Фамилия", isFK: false, required: true },
-      { dbName: "name", displayName: "Имя", isFK: false, required: true },
-      { dbName: "patronymic", displayName: "Отчество", isFK: false },
-      { dbName: "phone", displayName: "Телефон", isFK: false },
-      { dbName: "email", displayName: "Email", isFK: false },
-      { dbName: "isActive", displayName: "Активен", isFK: false, required: true, inputType: "toggle" },
-    ],
-  },
-  students: {
-    nameRu: "Студенты",
-    routerKey: "students",
-    dbTableName: "students",
-    fields: [
-      { dbName: "id", displayName: "ID", isFK: false },
-      { dbName: "surname", displayName: "Фамилия", isFK: false, required: true },
-      { dbName: "name", displayName: "Имя", isFK: false, required: true },
-      { dbName: "patronymic", displayName: "Отчество", isFK: false },
-      { dbName: "admissionYear", displayName: "Год поступления", isFK: false, required: true },
-      { dbName: "profileId", displayName: "Профиль", isFK: true, references: { table: "profiles", displayField: "profileDisplay" }, required: true },
-      { dbName: "studyGroupId", displayName: "Учебная группа", isFK: true, references: { table: "studyGroups", displayField: "display" } },
-      { dbName: "course", displayName: "Курс", isFK: false },
-      { dbName: "phone", displayName: "Телефон", isFK: false },
-      { dbName: "email", displayName: "Email", isFK: false },
-      { dbName: "isActive", displayName: "Активен", isFK: false, required: true, inputType: "toggle" },
-    ],
-  },
+      nameRu: "Сотрудники",
+      routerKey: "employees",
+      dbTableName: "employees",
+      fields: [
+        { dbName: "id", displayName: "ID", isFK: false },
+        { dbName: "surname", displayName: "Фамилия", isFK: false, required: true },
+        { dbName: "name", displayName: "Имя", isFK: false, required: true },
+        { dbName: "patronymic", displayName: "Отчество", isFK: false },
+        { dbName: "phone", displayName: "Телефон", isFK: false },
+        { dbName: "email", displayName: "Email (контактный)", isFK: false },
+        { dbName: "loginEmail", displayName: "Логин (email)", isFK: false, showInCreate: false },
+        { dbName: "isActive", displayName: "Активен", isFK: false, required: true, inputType: "toggle" },
+      ],
+    },
+    students: {
+      nameRu: "Студенты",
+      routerKey: "students",
+      dbTableName: "students",
+      fields: [
+        { dbName: "id", displayName: "ID", isFK: false },
+        { dbName: "surname", displayName: "Фамилия", isFK: false, required: true },
+        { dbName: "name", displayName: "Имя", isFK: false, required: true },
+        { dbName: "patronymic", displayName: "Отчество", isFK: false },
+        { dbName: "admissionYear", displayName: "Год поступления", isFK: false, required: true },
+        { dbName: "profileId", displayName: "Профиль", isFK: true, references: { table: "profiles", displayField: "profileDisplay" }, required: true },
+        { dbName: "studyGroupId", displayName: "Учебная группа", isFK: true, references: { table: "studyGroups", displayField: "display" } },
+        { dbName: "course", displayName: "Курс", isFK: false },
+        { dbName: "phone", displayName: "Телефон", isFK: false },
+        { dbName: "email", displayName: "Email (контактный)", isFK: false },
+        { dbName: "loginEmail", displayName: "Логин (email)", isFK: false, showInCreate: false },
+        { dbName: "isActive", displayName: "Активен", isFK: false, required: true, inputType: "toggle" },
+      ],
+    },
   studyGroups: {
     nameRu: "Учебные группы",
     routerKey: "studyGroups",

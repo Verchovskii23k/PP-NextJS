@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { router, adminProcedure } from "../trpc";
-import { employees, employeesDepartments, securityCenter, departments, specialties, profiles } from "@/db/schema";
+import { employees, employeesDepartments, users, departments, specialties, profiles } from "@/db/schema";
 import { eq, asc, sql } from "drizzle-orm";
 
 export const employeesRouter = router({
@@ -11,6 +11,7 @@ export const employeesRouter = router({
       profileId: z.number().optional(),
     }).optional())
     .query(async ({ ctx, input }) => {
+      // Фильтрованные запросы (только id/display)
       if (input?.profileId) {
         const [profile] = await ctx.db
           .select({ specialtyId: profiles.specialtyId })
@@ -60,6 +61,7 @@ export const employeesRouter = router({
           .where(eq(departments.instituteId, input.instituteId))
           .orderBy(asc(sql`display`));
       }
+      // Основной запрос списка с логином
       return ctx.db
         .select({
           id: employees.id,
@@ -67,11 +69,13 @@ export const employeesRouter = router({
           name: employees.name,
           patronymic: employees.patronymic,
           phone: employees.phone,
-          email: employees.email,
+          email: employees.email,          // контактный email
           isActive: employees.isActive,
           display: sql<string>`${employees.surname} || ' ' || left(${employees.name},1) || '.' || left(${employees.patronymic},1) || '.'`.as('display'),
+          loginEmail: users.email,        // email-логин из users
         })
         .from(employees)
+        .leftJoin(users, eq(employees.userId, users.id))
         .orderBy(asc(employees.surname));
     }),
   get: adminProcedure
@@ -87,8 +91,10 @@ export const employeesRouter = router({
           email: employees.email,
           isActive: employees.isActive,
           display: sql<string>`${employees.surname} || ' ' || left(${employees.name},1) || '.' || left(${employees.patronymic},1) || '.'`.as('display'),
+          loginEmail: users.email,
         })
         .from(employees)
+        .leftJoin(users, eq(employees.userId, users.id))
         .where(eq(employees.id, input.id))
         .limit(1);
       return rows[0] ?? null;
@@ -122,27 +128,23 @@ export const employeesRouter = router({
   delete: adminProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
-      // 1. Получаем сотрудника, чтобы узнать authenticationId
       const [employee] = await ctx.db
-        .select({ authenticationId: employees.authenticationId })
+        .select({ userId: employees.userId })
         .from(employees)
         .where(eq(employees.id, input.id))
         .limit(1);
       if (!employee) throw new Error("Сотрудник не найден");
 
-      // 2. Удаляем привязки к кафедрам
       await ctx.db
         .delete(employeesDepartments)
         .where(eq(employeesDepartments.employeeId, input.id));
 
-      // 3. Если есть учётная запись – удаляем её
-      if (employee.authenticationId) {
+      if (employee.userId) {
         await ctx.db
-          .delete(securityCenter)
-          .where(eq(securityCenter.id, employee.authenticationId));
+          .delete(users)
+          .where(eq(users.id, employee.userId));
       }
 
-      // 4. Удаляем самого сотрудника
       await ctx.db.delete(employees).where(eq(employees.id, input.id));
       return { success: true };
     }),

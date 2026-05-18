@@ -1,4 +1,4 @@
-// src/server/api/routers/schedule.ts
+// src/server/trpc/routers/schedule.ts
 import { z } from "zod";
 import { router, publicProcedure } from "../trpc";
 import {

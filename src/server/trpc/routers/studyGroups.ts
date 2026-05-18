@@ -3,6 +3,7 @@ import { router, adminProcedure } from "../trpc";
 import { studyGroups, profiles, specialties, employees, employeesDepartments, institutes, departments } from "@/db/schema";
 import { eq, asc, sql, and } from "drizzle-orm";
 import { safeDelete } from "@/lib/safeDelete";
+import { TRPCError } from "@trpc/server";
 export const studyGroupsRouter = router({
   list: adminProcedure.query(async ({ ctx }) => {
     return ctx.db
@@ -51,22 +52,22 @@ export const studyGroupsRouter = router({
       curatorId: z.coerce.number().int().nullable().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      // Проверка, что куратор принадлежит кафедре профиля
-      if (input.curatorId) {
-        // Проверка, что сотрудник не директор и не зав. кафедрой
-          const [isDirector] = await ctx.db
-            .select({ id: institutes.id })
-            .from(institutes)
-            .where(eq(institutes.directorId, input.curatorId))
-            .limit(1);
-          if (isDirector) throw new Error('Этот сотрудник является директором института и не может быть куратором');
+    if (input.curatorId) {
+      // Не может быть директором
+      const [isDirector] = await ctx.db
+        .select({ id: institutes.id })
+        .from(institutes)
+        .where(eq(institutes.directorId, input.curatorId))
+        .limit(1);
+      if (isDirector) throw new TRPCError({ code: 'CONFLICT', message: 'Этот сотрудник уже является директором института' });
 
-          const [isHead] = await ctx.db
-            .select({ id: departments.id })
-            .from(departments)
-            .where(eq(departments.headId, input.curatorId))
-            .limit(1);
-          if (isHead) throw new Error('Этот сотрудник является заведующим кафедрой и не может быть куратором');
+      // Не может быть зав. кафедрой
+      const [isHead] = await ctx.db
+        .select({ id: departments.id })
+        .from(departments)
+        .where(eq(departments.headId, input.curatorId))
+        .limit(1);
+      if (isHead) throw new TRPCError({ code: 'CONFLICT', message: 'Этот сотрудник уже является заведующим кафедрой' });
 
         // Проверка, что куратор принадлежит кафедре профиля
         const [profile] = await ctx.db.select({ specialtyId: profiles.specialtyId })
@@ -82,9 +83,9 @@ export const studyGroupsRouter = router({
                 eq(employeesDepartments.departmentId, specialty.departmentId)
               ))
               .limit(1);
-            if (link.length === 0) {
-              throw new Error('Выбранный куратор не работает на кафедре этого профиля');
-            }
+          if (link.length === 0) {
+            throw new TRPCError({ code: 'CONFLICT', message: 'Выбранный куратор не работает на кафедре этого профиля' });
+          }
           }
         }
       }
@@ -104,11 +105,17 @@ export const studyGroupsRouter = router({
       if (curatorId) {
         // Проверка, что сотрудник не директор и не зав. кафедрой
         const [isDirector] = await ctx.db.select({ id: institutes.id }).from(institutes).where(eq(institutes.directorId, curatorId)).limit(1);
-        if (isDirector) throw new Error('Этот сотрудник является директором института и не может быть куратором');
+        if (isDirector) throw new TRPCError({ code: 'CONFLICT', message: 'Этот сотрудник уже является директором института' });
 
         const [isHead] = await ctx.db.select({ id: departments.id }).from(departments).where(eq(departments.headId, curatorId)).limit(1);
-        if (isHead) throw new Error('Этот сотрудник является заведующим кафедрой и не может быть куратором');
+        if (isHead) throw new TRPCError({ code: 'CONFLICT', message: 'Этот сотрудник уже является заведующим кафедрой' });
         // Определяем текущий profileId: если его передали, используем его, иначе берём из БД
+        const [isCurator] = await ctx.db
+          .select({ id: studyGroups.id })
+          .from(studyGroups)
+          .where(and(eq(studyGroups.curatorId, curatorId), sql`${studyGroups.id} != ${id}`))
+          .limit(1);
+        if (isCurator) throw new TRPCError({ code: 'CONFLICT', message: 'Этот сотрудник уже является куратором другой группы' });
         const currentProfileId = data.profileId ?? (await ctx.db.select({ profileId: studyGroups.profileId }).from(studyGroups).where(eq(studyGroups.id, id)).limit(1))[0]?.profileId;
         if (currentProfileId) {
           const [profile] = await ctx.db.select({ specialtyId: profiles.specialtyId })

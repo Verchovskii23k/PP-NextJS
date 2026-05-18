@@ -1,10 +1,10 @@
-import { z } from "zod";
-import { router, adminProcedure } from "../trpc";
-import { employees, securityCenter, roles, students } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { z } from 'zod';
+import { router, adminProcedure } from '../trpc';
+import { employees, sessions, students, users } from '@/db/schema';
+import { eq, and, or, isNull } from 'drizzle-orm';
+import { TRPCError } from '@trpc/server';
 
 export const adminManagementRouter = router({
-  // Получить всех сотрудников с полем isAdmin
   listEmployeesWithAdminFlag: adminProcedure.query(async ({ ctx }) => {
     const result = await ctx.db
       .select({
@@ -14,80 +14,84 @@ export const adminManagementRouter = router({
         patronymic: employees.patronymic,
         email: employees.email,
         isAdmin: employees.isAdmin,
-        authenticationId: employees.authenticationId,
+        userId: employees.userId,
       })
       .from(employees)
-      .where(eq(employees.isActive, true))
-      .orderBy(employees.surname, employees.name);
+      .leftJoin(users, eq(employees.userId, users.id))
+      .where(
+        and(
+          eq(employees.isActive, true),
+          or(
+            isNull(employees.userId),
+            eq(users.role, 'teacher'),
+            eq(users.role, 'admin')
+          )
+        )
+      );
 
     return result;
   }),
 
-  // Переключить флаг isAdmin и обновить роль в security_center
-    toggleAdmin: adminProcedure
+  toggleAdmin: adminProcedure
     .input(z.object({ employeeId: z.number(), isAdmin: z.boolean() }))
     .mutation(async ({ ctx, input }) => {
-        const { employeeId, isAdmin } = input;
+      const { employeeId, isAdmin } = input;
 
-        // Получаем текущий authenticationId
-        const [emp] = await ctx.db
-        .select({ authenticationId: employees.authenticationId })
+      const [emp] = await ctx.db
+        .select({
+          id: employees.id,
+          userId: employees.userId,
+          isAdmin: employees.isAdmin,
+        })
         .from(employees)
         .where(eq(employees.id, employeeId))
         .limit(1);
 
-        if (!emp) throw new Error("Сотрудник не найден");
+      if (!emp) throw new TRPCError({ code: 'NOT_FOUND', message: 'Сотрудник не найден' });
 
-        // Обновляем флаг isAdmin в любом случае
-        await ctx.db
+      if (ctx.user?.id === emp.userId) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Нельзя изменить свою роль' });
+      }
+
+      await ctx.db
         .update(employees)
         .set({ isAdmin })
         .where(eq(employees.id, employeeId));
 
-        // Если у сотрудника нет учётной записи – предупреждаем, но не прерываем
-        if (!emp.authenticationId) {
-        return {
-            success: true,
-            warning: "У сотрудника нет учётной записи. После генерации логинов и паролей роль будет применена автоматически.",
-        };
-        }
-
-        // Меняем роль в существующей учётной записи
-        const [adminRole] = await ctx.db
-        .select({ id: roles.id })
-        .from(roles)
-        .where(eq(roles.name, "admin"))
-        .limit(1);
-        const [teacherRole] = await ctx.db
-        .select({ id: roles.id })
-        .from(roles)
-        .where(eq(roles.name, "teacher"))
-        .limit(1);
-
-        if (!adminRole || !teacherRole) throw new Error("Роли не найдены");
-
-        const newRoleId = isAdmin ? adminRole.id : teacherRole.id;
+      if (emp.userId) {
+        const newRole = isAdmin ? 'admin' : 'teacher';
         await ctx.db
-        .update(securityCenter)
-        .set({ roleId: newRoleId })
-        .where(eq(securityCenter.id, emp.authenticationId));
+          .update(users)
+          .set({ role: newRole })
+          .where(eq(users.id, emp.userId));
+      } else {
+        return {
+          success: true,
+          warning:
+            'У сотрудника нет учётной записи. Роль будет применена после генерации логинов и паролей.',
+        };
+      }
 
-        return { success: true };
+      return { success: true };
     }),
-    // Полная очистка всех учётных записей (для отладки)
-    clearAllCredentials: adminProcedure.mutation(async ({ ctx }) => {
+
+  // Полная очистка всех учётных записей (для отладки)
+  clearAllCredentials: adminProcedure.mutation(async ({ ctx }) => {
+    // Принудительно завершаем сессию текущего администратора
+    if (ctx.session?.session?.id) {
+      await ctx.db.delete(sessions).where(eq(sessions.id, ctx.session.session.id));
+    }
+
     await ctx.db.transaction(async (tx) => {
-        // Отвязываем сотрудников и снимаем флаг администратора
-        await tx.update(employees)
-        .set({ authenticationId: null, isAdmin: false })
+      await tx.update(employees)
+        .set({ userId: null, isAdmin: false })
         .where(eq(employees.isActive, true));
-        // Отвязываем студентов
-        await tx.update(students)
-        .set({ authenticationId: null })
+      await tx.update(students)
+        .set({ userId: null })
         .where(eq(students.isActive, true));
-        // Удаляем все записи из security_center
-        await tx.delete(securityCenter);
+      await tx.delete(users);
     });
+
     return { success: true };
-    }),
+  }),
 });

@@ -24,17 +24,17 @@ export default function AdministratorsPage() {
   if (isLoading) return <div className="p-6"><SkeletonTable rows={5} /></div>;
   if (error) return <div className="p-6 text-red-500">Ошибка: {error.message}</div>;
 
-  return (
+ return (
     <div className="mx-auto h-full max-w-4xl overflow-y-auto bg-background p-6 text-foreground">
       <h1 className="mb-6 text-2xl font-bold">Управление администраторами</h1>
-      
+
       {mutError && (
-        <div className="mb-4 rounded border border-red-400 bg-red-100 px-4 py-3 text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400">
+        <div className="mb-4 rounded border border-red-400 bg-red-100 px-4 py-3 text-red-700">
           {mutError}
         </div>
       )}
       {mutWarning && (
-        <div className="mb-4 rounded border border-yellow-400 bg-yellow-100 px-4 py-3 text-yellow-700 dark:border-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400">
+        <div className="mb-4 rounded border border-yellow-400 bg-yellow-100 px-4 py-3 text-yellow-700">
           {mutWarning}
         </div>
       )}
@@ -50,7 +50,7 @@ export default function AdministratorsPage() {
           </thead>
           <tbody className="divide-y divide-border">
             {data?.map((emp) => {
-              const isCurrentUser = me?.id === emp.authenticationId;
+              const isCurrentUser = me?.id === emp.userId;
               return (
                 <tr key={emp.id} className="hover:bg-muted/50">
                   <td className="px-4 py-2">
@@ -69,10 +69,9 @@ export default function AdministratorsPage() {
                           { employeeId: emp.id, isAdmin: !emp.isAdmin },
                           {
                             onSuccess: (data) => {
-                              if ((data as { warning?: string }).warning) {
-                                setMutWarning((data as { warning?: string }).warning ?? null);
+                              if (data.warning) {
+                                setMutWarning(data.warning);
                               }
-                              // Инвалидируем список, чтобы toggle сразу обновился
                               utils.adminManagement.listEmployeesWithAdminFlag.invalidate();
                             },
                             onError: (e) => setMutError(e.message),

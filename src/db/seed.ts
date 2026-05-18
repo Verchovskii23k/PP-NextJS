@@ -10,8 +10,7 @@ import {
   curriculum, curriculumProfiles,
   classrooms, studyGroups,
   employeesDepartments,
-  weeks, daysOfWeek, pairs, unitRoots, units, settings, scheduleDisplay,
-  roles, schedule, lessonClassrooms, lessons,
+  weeks, daysOfWeek, pairs, unitRoots, units, settings, scheduleDisplay, schedule, lessonClassrooms, lessons,
 } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
 async function main() {
@@ -368,14 +367,7 @@ console.log('Студентов в базе после seed:', studentCount[0].c
     { id: 2, type: "even" },
   ]);
 
-  // Роли, если отсутствуют (admin уже есть после setup, добавим teacher, student)
-  const existingRoles = await db.select().from(roles);
-  if (!existingRoles.find(r => r.name === "teacher")) {
-    await db.insert(roles).values({ name: "teacher", description: "Преподаватель" });
-  }
-  if (!existingRoles.find(r => r.name === "student")) {
-    await db.insert(roles).values({ name: "student", description: "Студент" });
-  }
+
 // Настройки
   const existingSettings = await db.select().from(settings).where(eq(settings.key, 'total_weeks'));
   if (existingSettings.length === 0) {

@@ -1,6 +1,6 @@
 {
-  "id": "91d5b5f9-ac12-4e1d-b545-e58d7cf82627",
-  "prevId": "00000000-0000-0000-0000-000000000000",
+  "id": "ee144b0c-1aa4-44b4-b741-a38d56ec7e68",
+  "prevId": "91d5b5f9-ac12-4e1d-b545-e58d7cf82627",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -2937,6 +2937,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "hashed_password": {
+          "name": "hashed_password",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
@@ -3047,8 +3053,7 @@
       "values": [
         "admin",
         "teacher",
-        "student",
-        "inactive"
+        "student"
       ]
     }
   },

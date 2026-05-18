@@ -6,6 +6,20 @@ CREATE TABLE "academic_load_types" (
 	"is_active" boolean DEFAULT true NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "account" (
+	"id" text PRIMARY KEY NOT NULL,
+	"userId" text NOT NULL,
+	"providerId" text NOT NULL,
+	"accountId" text NOT NULL,
+	"refreshToken" text,
+	"accessToken" text,
+	"expiresAt" timestamp,
+	"password" text,
+	"createdAt" timestamp DEFAULT now() NOT NULL,
+	"updatedAt" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "account_providerId_accountId_unique" UNIQUE("providerId","accountId")
+);
+--> statement-breakpoint
 CREATE TABLE "buildings" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"number" integer NOT NULL,
@@ -122,11 +136,11 @@ CREATE TABLE "employees" (
 	"patronymic" text,
 	"phone" text,
 	"email" text,
-	"authentication_id" integer,
+	"user_id" text,
 	"is_active" boolean DEFAULT true NOT NULL,
 	"is_admin" boolean DEFAULT false NOT NULL,
 	CONSTRAINT "employees_email_unique" UNIQUE("email"),
-	CONSTRAINT "employees_authentication_id_unique" UNIQUE("authentication_id")
+	CONSTRAINT "employees_user_id_unique" UNIQUE("user_id")
 );
 --> statement-breakpoint
 CREATE TABLE "employees_departments" (
@@ -219,13 +233,6 @@ CREATE TABLE "profiles" (
 	CONSTRAINT "unique_profile_code" UNIQUE("letter_code","specialty_id")
 );
 --> statement-breakpoint
-CREATE TABLE "roles" (
-	"id" serial PRIMARY KEY NOT NULL,
-	"name" text NOT NULL,
-	"description" text,
-	CONSTRAINT "roles_name_unique" UNIQUE("name")
-);
---> statement-breakpoint
 CREATE TABLE "schedule" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"week_number" integer NOT NULL,
@@ -263,27 +270,16 @@ CREATE TABLE "schedule_versions" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "security_center" (
-	"id" serial PRIMARY KEY NOT NULL,
-	"login" text NOT NULL,
-	"password_hash" text NOT NULL,
-	"role_id" integer NOT NULL,
-	"password_changed_at" timestamp with time zone,
-	"last_login_at" timestamp with time zone,
-	"failed_login_attempts" integer DEFAULT 0,
-	"locked_until" timestamp with time zone,
-	"reset_token" text,
-	"reset_token_expires" timestamp with time zone,
-	CONSTRAINT "unique_login_password" UNIQUE("login","password_hash")
-);
---> statement-breakpoint
-CREATE TABLE "sessions" (
-	"id" serial PRIMARY KEY NOT NULL,
-	"user_id" integer NOT NULL,
+CREATE TABLE "session" (
+	"id" text PRIMARY KEY NOT NULL,
+	"userId" text NOT NULL,
 	"token" text NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"expires_at" timestamp with time zone NOT NULL,
-	CONSTRAINT "sessions_token_unique" UNIQUE("token")
+	"expiresAt" timestamp NOT NULL,
+	"ipAddress" text,
+	"userAgent" text,
+	"createdAt" timestamp DEFAULT now() NOT NULL,
+	"updatedAt" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "session_token_unique" UNIQUE("token")
 );
 --> statement-breakpoint
 CREATE TABLE "settings" (
@@ -315,10 +311,10 @@ CREATE TABLE "students" (
 	"course" integer,
 	"phone" text,
 	"email" text,
-	"authentication_id" integer,
+	"user_id" text,
 	"is_active" boolean DEFAULT true NOT NULL,
 	CONSTRAINT "students_email_unique" UNIQUE("email"),
-	CONSTRAINT "students_authentication_id_unique" UNIQUE("authentication_id")
+	CONSTRAINT "students_user_id_unique" UNIQUE("user_id")
 );
 --> statement-breakpoint
 CREATE TABLE "study_groups" (
@@ -360,12 +356,34 @@ CREATE TABLE "units" (
 	"is_active" boolean DEFAULT true NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "user" (
+	"id" text PRIMARY KEY NOT NULL,
+	"name" text,
+	"email" text NOT NULL,
+	"emailVerified" boolean DEFAULT false,
+	"image" text,
+	"role" "role" DEFAULT 'student' NOT NULL,
+	"createdAt" timestamp DEFAULT now() NOT NULL,
+	"updatedAt" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "user_email_unique" UNIQUE("email")
+);
+--> statement-breakpoint
+CREATE TABLE "verificationToken" (
+	"id" text PRIMARY KEY NOT NULL,
+	"identifier" text NOT NULL,
+	"token" text NOT NULL,
+	"expires" timestamp NOT NULL,
+	"createdAt" timestamp DEFAULT now(),
+	CONSTRAINT "verificationToken_token_unique" UNIQUE("token")
+);
+--> statement-breakpoint
 CREATE TABLE "weeks" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"type" text NOT NULL,
 	"is_active" boolean DEFAULT true NOT NULL
 );
 --> statement-breakpoint
+ALTER TABLE "account" ADD CONSTRAINT "account_userId_user_id_fk" FOREIGN KEY ("userId") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "classrooms" ADD CONSTRAINT "classrooms_building_id_buildings_id_fk" FOREIGN KEY ("building_id") REFERENCES "public"."buildings"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "classrooms" ADD CONSTRAINT "classrooms_department_id_departments_id_fk" FOREIGN KEY ("department_id") REFERENCES "public"."departments"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "curriculum" ADD CONSTRAINT "curriculum_discipline_id_disciplines_id_fk" FOREIGN KEY ("discipline_id") REFERENCES "public"."disciplines"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -381,7 +399,7 @@ ALTER TABLE "discipline_teachers" ADD CONSTRAINT "discipline_teachers_teacher_de
 ALTER TABLE "disciplines" ADD CONSTRAINT "disciplines_department_id_departments_id_fk" FOREIGN KEY ("department_id") REFERENCES "public"."departments"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "education" ADD CONSTRAINT "education_level_id_education_levels_id_fk" FOREIGN KEY ("level_id") REFERENCES "public"."education_levels"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "education" ADD CONSTRAINT "education_form_id_education_forms_id_fk" FOREIGN KEY ("form_id") REFERENCES "public"."education_forms"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "employees" ADD CONSTRAINT "employees_authentication_id_security_center_id_fk" FOREIGN KEY ("authentication_id") REFERENCES "public"."security_center"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "employees" ADD CONSTRAINT "employees_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "employees_departments" ADD CONSTRAINT "employees_departments_employee_id_employees_id_fk" FOREIGN KEY ("employee_id") REFERENCES "public"."employees"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "employees_departments" ADD CONSTRAINT "employees_departments_department_id_departments_id_fk" FOREIGN KEY ("department_id") REFERENCES "public"."departments"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "employees_departments" ADD CONSTRAINT "employees_departments_employment_type_id_employment_types_id_fk" FOREIGN KEY ("employment_type_id") REFERENCES "public"."employment_types"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -411,12 +429,11 @@ ALTER TABLE "schedule_display" ADD CONSTRAINT "schedule_display_day_of_week_id_d
 ALTER TABLE "schedule_display" ADD CONSTRAINT "schedule_display_pair_number_id_pairs_id_fk" FOREIGN KEY ("pair_number_id") REFERENCES "public"."pairs"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "schedule_display" ADD CONSTRAINT "schedule_display_classroom_id_classrooms_id_fk" FOREIGN KEY ("classroom_id") REFERENCES "public"."classrooms"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "schedule_display" ADD CONSTRAINT "schedule_display_version_id_schedule_versions_id_fk" FOREIGN KEY ("version_id") REFERENCES "public"."schedule_versions"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "security_center" ADD CONSTRAINT "security_center_role_id_roles_id_fk" FOREIGN KEY ("role_id") REFERENCES "public"."roles"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "sessions" ADD CONSTRAINT "sessions_user_id_security_center_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."security_center"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "session" ADD CONSTRAINT "session_userId_user_id_fk" FOREIGN KEY ("userId") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "specialties" ADD CONSTRAINT "specialties_department_id_departments_id_fk" FOREIGN KEY ("department_id") REFERENCES "public"."departments"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "students" ADD CONSTRAINT "students_profile_id_profiles_id_fk" FOREIGN KEY ("profile_id") REFERENCES "public"."profiles"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "students" ADD CONSTRAINT "students_study_group_id_study_groups_id_fk" FOREIGN KEY ("study_group_id") REFERENCES "public"."study_groups"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "students" ADD CONSTRAINT "students_authentication_id_security_center_id_fk" FOREIGN KEY ("authentication_id") REFERENCES "public"."security_center"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "students" ADD CONSTRAINT "students_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "study_groups" ADD CONSTRAINT "study_groups_profile_id_profiles_id_fk" FOREIGN KEY ("profile_id") REFERENCES "public"."profiles"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "study_groups" ADD CONSTRAINT "study_groups_curator_id_employees_id_fk" FOREIGN KEY ("curator_id") REFERENCES "public"."employees"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "unit_roots" ADD CONSTRAINT "unit_roots_study_group_id_study_groups_id_fk" FOREIGN KEY ("study_group_id") REFERENCES "public"."study_groups"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint

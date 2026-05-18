@@ -1,4 +1,4 @@
-// src\db\schema.ts
+// src/db/schema.ts
 import { eq } from "drizzle-orm";
 import {
   pgTable,
@@ -8,50 +8,71 @@ import {
   boolean,
   timestamp,
   unique,
-  pgEnum,
   uniqueIndex,
+  pgEnum,
 } from "drizzle-orm/pg-core";
+// Enums
+export const roleEnum = pgEnum('role', ['admin', 'teacher', 'student']);
 
-// Enums (можно заменить текстовыми полями, но enum'ы строже)
-export const roleEnum = pgEnum('role', ['admin', 'teacher', 'student', 'inactive']);
+// ==================== ТАБЛИЦЫ BETTER-AUTH (автоматически сгенерированные) ====================
+// ==================== ТАБЛИЦЫ BETTER-AUTH (явное описание) ====================
+export const users = pgTable("user", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  name: text("name"),
+  email: text("email").notNull().unique(),
+  emailVerified: boolean("emailVerified").default(false),
+  image: text("image"),
+  role: roleEnum("role").notNull().default('student'),   // кастомное поле
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+  hashedPassword: text("hashed_password"),
+});
 
+export const sessions = pgTable("session", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  userId: text("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+  token: text("token").notNull().unique(),
+  expiresAt: timestamp("expiresAt").notNull(),
+  ipAddress: text("ipAddress"),
+  userAgent: text("userAgent"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+
+export const accounts = pgTable("account", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  userId: text("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+  providerId: text("providerId").notNull(),
+  accountId: text("accountId").notNull(),          // именно accountId
+  refreshToken: text("refreshToken"),
+  accessToken: text("accessToken"),
+  expiresAt: timestamp("expiresAt"),
+  password: text("password"),                      // хеш пароля для credential-провайдера
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+}, (table) => ({
+  providerAccountUnique: unique().on(table.providerId, table.accountId),
+}));
+
+export const verificationTokens = pgTable("verificationToken", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  identifier: text("identifier").notNull(),
+  token: text("token").notNull().unique(),
+  expires: timestamp("expires").notNull(),
+  createdAt: timestamp("createdAt").defaultNow(),
+});
+
+
+// ==================== ТВОИ ТАБЛИЦЫ ====================
 export const scheduleVersions = pgTable("schedule_versions", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
-export const roles = pgTable("roles", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull().unique(),
-  description: text("description"),
-});
 
-export const securityCenter = pgTable("security_center", {
-  id: serial("id").primaryKey(),
-  login: text("login").notNull(),   // больше не unique
-  passwordHash: text("password_hash").notNull(),
-  roleId: integer("role_id").notNull().references(() => roles.id),
-  passwordChangedAt: timestamp("password_changed_at", { withTimezone: true }),
-  lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
-  failedLoginAttempts: integer("failed_login_attempts").default(0),
-  lockedUntil: timestamp("locked_until", { withTimezone: true }),
-  resetToken: text("reset_token"),                                          // ← новое
-  resetTokenExpires: timestamp("reset_token_expires", { withTimezone: true }), // ← новое
-}, (table) => ({
-  uniqueLoginPassword: unique("unique_login_password").on(table.login, table.passwordHash),
-}));
-export const sessions = pgTable("sessions", {
-  id: serial("id").primaryKey(),
-  userId: integer("user_id")
-    .notNull()
-    .references(() => securityCenter.id, { onDelete: "cascade" }),
-  token: text("token").notNull().unique(),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-});
+// ❌ securityCenter удалён полностью
+// ❌ sessions удалён (используется таблица session выше)
 
 export const institutes = pgTable("institutes", {
   id: serial("id").primaryKey(),
@@ -136,8 +157,8 @@ export const employees = pgTable("employees", {
   name: text("name").notNull(),
   patronymic: text("patronymic"),
   phone: text("phone"),
-  email: text("email").unique(),
-  authenticationId: integer("authentication_id").unique().references(() => securityCenter.id),
+  email: text("email").unique(),                     // контактный email (не для входа)
+  userId: text("user_id").unique().references(() => users.id), // связь с учётной записью
   isActive: boolean("is_active").notNull().default(true),
   isAdmin: boolean("is_admin").default(false).notNull(),
 });
@@ -162,8 +183,8 @@ export const students = pgTable("students", {
   studyGroupId: integer("study_group_id").references(() => studyGroups.id),
   course: integer("course"),
   phone: text("phone"),
-  email: text("email").unique(),
-  authenticationId: integer("authentication_id").unique().references(() => securityCenter.id),
+  email: text("email").unique(),                     // контактный email
+  userId: text("user_id").unique().references(() => users.id), // связь
   isActive: boolean("is_active").notNull().default(true),
 });
 
@@ -226,7 +247,6 @@ export const curriculumProfiles = pgTable("curriculum_profiles", {
   isActive: boolean("is_active").notNull().default(true),
 }, (table) => ({
   uniqueCurriculumProfile: unique().on(table.curriculumId, table.profileId),
-
 }));
 
 export const employeesDepartments = pgTable("employees_departments", {
@@ -268,10 +288,9 @@ export const units = pgTable("units", {
   unitTypeId: integer("unit_type_id").notNull().references(() => unitTypes.id),
   versionId: integer("version_id").references(() => scheduleVersions.id),
   isActive: boolean("is_active").notNull().default(true),
-  }, 
-    (table) => ({
-    uniqueActiveCode: uniqueIndex("idx_units_code_active").on(table.code).where(eq(table.isActive, true)),
-  }));
+}, (table) => ({
+  uniqueActiveCode: uniqueIndex("idx_units_code_active").on(table.code).where(eq(table.isActive, true)),
+}));
 
 export const unitRoots = pgTable("unit_roots", {
   id: serial("id").primaryKey(),
@@ -279,9 +298,9 @@ export const unitRoots = pgTable("unit_roots", {
   studyGroupId: integer("study_group_id").notNull().references(() => studyGroups.id),
   versionId: integer("version_id").references(() => scheduleVersions.id),
   isActive: boolean("is_active").notNull().default(true),
-  }, (table) => ({
-    uniqueUnitGroup: uniqueIndex("idx_unit_roots_active").on(table.unitCode, table.studyGroupId).where(eq(table.isActive, true)),
-  }));
+}, (table) => ({
+  uniqueUnitGroup: uniqueIndex("idx_unit_roots_active").on(table.unitCode, table.studyGroupId).where(eq(table.isActive, true)),
+}));
 
 export const lessons = pgTable("lessons", {
   id: serial("id").primaryKey(),
@@ -301,9 +320,9 @@ export const lessonClassrooms = pgTable("lesson_classrooms", {
   classroomId: integer("classroom_id").notNull().references(() => classrooms.id),
   versionId: integer("version_id").references(() => scheduleVersions.id),
   isActive: boolean("is_active").notNull().default(true),
-  }, (table) => ({
-    uniqueLessonClassroom: unique().on(table.lessonId, table.classroomId),
-  }));
+}, (table) => ({
+  uniqueLessonClassroom: unique().on(table.lessonId, table.classroomId),
+}));
 
 export const daysOfWeek = pgTable("days_of_week", {
   id: serial("id").primaryKey(),
@@ -336,6 +355,7 @@ export const schedule = pgTable("schedule", {
   versionId: integer("version_id").references(() => scheduleVersions.id),
   isActive: boolean("is_active").notNull().default(true)
 });
+
 export const scheduleDisplay = pgTable("schedule_display", {
   id: serial("id").primaryKey(),
   lessonId: integer("lesson_id").references(() => lessons.id, { onDelete: "set null" }),
@@ -360,6 +380,7 @@ export const settings = pgTable('settings', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
+
 export const positions = pgTable("positions", {
   id: serial("id").primaryKey(),
   name: text("name").notNull().unique(),

@@ -70,7 +70,7 @@ export default function GenerationsPage() {
   const groups = trpc.generations.generateGroups.useMutation({
     onSuccess: (data) => {
       setError(null);
-      utils.students.list.invalidate();
+      // utils.students.list.invalidate();
       utils.studyGroups.list.invalidate();
       toast.success(`Групп: ${data.createdGroups}, студентов: ${data.assignedStudents}`);
     },
