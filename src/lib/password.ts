@@ -45,7 +45,8 @@ export function transliterate(name: string): string {
 export function makeEmail(surname: string, name: string): string {
   const base = transliterate(surname).toLowerCase();
   const initial = name.charAt(0).toLowerCase();
-  return `${base}.${initial}@internal.uni`;
+  const randomSuffix = Math.floor(10 + Math.random() * 90); // двухзначное число
+  return `${base}.${initial}${randomSuffix}@internal.uni`;
 }
 
 /** Хеширование пароля */

@@ -19,6 +19,7 @@ import {
   unitRoots,
   weeks,
 } from "@/db/schema";
+import { TRPCError } from "@trpc/server";
 
 export const generateScheduleRouter = router({
   generateSchedule: adminProcedure
@@ -36,7 +37,7 @@ export const generateScheduleRouter = router({
         .orderBy(asc(weeks.id));
       const cycleLength = weeksList.length;
       if (cycleLength === 0)
-        throw new Error("Нет активных недель в таблице weeks");
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Нет активных недель. Проверьте таблицу weeks' });
 
       const totalWeeks = input.totalWeeks ?? 16;
       const step = Math.ceil(totalWeeks / cycleLength);
@@ -47,7 +48,7 @@ export const generateScheduleRouter = router({
         .from(lessons)
         .where(and(eq(lessons.isActive, true), isNull(lessons.versionId)));
 
-      if (allLessons.length === 0) throw new Error("Нет занятий");
+      if (allLessons.length === 0) throw new TRPCError({ code: 'BAD_REQUEST', message: 'Нет активных занятий для генерации расписания' });
 
       // Загрузка связей юнитов с группами (только активные)
       const allUnitRoots = await ctx.db
@@ -106,7 +107,7 @@ export const generateScheduleRouter = router({
       const days = await ctx.db.select().from(daysOfWeek).orderBy(daysOfWeek.id);
       const pairsList = await ctx.db.select().from(pairs).orderBy(pairs.number);
       if (days.length === 0 || pairsList.length === 0)
-        throw new Error("Нет дней недели или пар");
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Нет дней недели или пар. Проверьте справочники' });
 
       // Очистка только активных расписаний
       await ctx.db

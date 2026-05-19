@@ -1,4 +1,4 @@
-CREATE TYPE "public"."role" AS ENUM('admin', 'teacher', 'student', 'inactive');--> statement-breakpoint
+CREATE TYPE "public"."role" AS ENUM('admin', 'teacher', 'student');--> statement-breakpoint
 CREATE TABLE "academic_load_types" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"name" text NOT NULL,
@@ -134,12 +134,9 @@ CREATE TABLE "employees" (
 	"surname" text NOT NULL,
 	"name" text NOT NULL,
 	"patronymic" text,
-	"phone" text,
-	"email" text,
 	"user_id" text,
 	"is_active" boolean DEFAULT true NOT NULL,
 	"is_admin" boolean DEFAULT false NOT NULL,
-	CONSTRAINT "employees_email_unique" UNIQUE("email"),
 	CONSTRAINT "employees_user_id_unique" UNIQUE("user_id")
 );
 --> statement-breakpoint
@@ -309,11 +306,8 @@ CREATE TABLE "students" (
 	"profile_id" integer NOT NULL,
 	"study_group_id" integer,
 	"course" integer,
-	"phone" text,
-	"email" text,
 	"user_id" text,
 	"is_active" boolean DEFAULT true NOT NULL,
-	CONSTRAINT "students_email_unique" UNIQUE("email"),
 	CONSTRAINT "students_user_id_unique" UNIQUE("user_id")
 );
 --> statement-breakpoint
@@ -365,6 +359,7 @@ CREATE TABLE "user" (
 	"role" "role" DEFAULT 'student' NOT NULL,
 	"createdAt" timestamp DEFAULT now() NOT NULL,
 	"updatedAt" timestamp DEFAULT now() NOT NULL,
+	"hashed_password" text,
 	CONSTRAINT "user_email_unique" UNIQUE("email")
 );
 --> statement-breakpoint

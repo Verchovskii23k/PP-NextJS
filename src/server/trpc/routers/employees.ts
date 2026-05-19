@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { router, adminProcedure } from "../trpc";
-import { employees, employeesDepartments, users, departments, specialties, profiles } from "@/db/schema";
+import { employees, employeesDepartments, users, departments, specialties, profiles, disciplineTeachers } from "@/db/schema";
 import { eq, asc, sql } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
 
 export const employeesRouter = router({
   list: adminProcedure
@@ -68,11 +69,8 @@ export const employeesRouter = router({
           surname: employees.surname,
           name: employees.name,
           patronymic: employees.patronymic,
-          phone: employees.phone,
-          email: employees.email,          // контактный email
           isActive: employees.isActive,
           display: sql<string>`${employees.surname} || ' ' || left(${employees.name},1) || '.' || left(${employees.patronymic},1) || '.'`.as('display'),
-          loginEmail: users.email,        // email-логин из users
         })
         .from(employees)
         .leftJoin(users, eq(employees.userId, users.id))
@@ -86,12 +84,9 @@ export const employeesRouter = router({
           id: employees.id,
           surname: employees.surname,
           name: employees.name,
-          patronymic: employees.patronymic,
-          phone: employees.phone,
-          email: employees.email,
+          patronymic: employees.patronymic, 
           isActive: employees.isActive,
           display: sql<string>`${employees.surname} || ' ' || left(${employees.name},1) || '.' || left(${employees.patronymic},1) || '.'`.as('display'),
-          loginEmail: users.email,
         })
         .from(employees)
         .leftJoin(users, eq(employees.userId, users.id))
@@ -104,8 +99,6 @@ export const employeesRouter = router({
       surname: z.string().min(1),
       name: z.string().min(1),
       patronymic: z.string().optional(),
-      phone: z.string().nullable().optional(),
-      email: z.string().email().nullable().optional(),
       isActive: z.boolean().default(true),
     }))
     .mutation(async ({ ctx, input }) => {
@@ -117,15 +110,13 @@ export const employeesRouter = router({
       surname: z.string().min(1).optional(),
       name: z.string().min(1).optional(),
       patronymic: z.string().optional(),
-      phone: z.string().nullable().optional(),
-      email: z.string().email().nullable().optional(),
       isActive: z.boolean().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;
       return ctx.db.update(employees).set(data).where(eq(employees.id, id)).returning();
     }),
-  delete: adminProcedure
+delete: adminProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
       const [employee] = await ctx.db
@@ -133,18 +124,33 @@ export const employeesRouter = router({
         .from(employees)
         .where(eq(employees.id, input.id))
         .limit(1);
-      if (!employee) throw new Error("Сотрудник не найден");
+      if (!employee) throw new TRPCError({ code: 'NOT_FOUND', message: 'Сотрудник не найден' });
 
-      await ctx.db
-        .delete(employeesDepartments)
-        .where(eq(employeesDepartments.employeeId, input.id));
+      // Проверяем, не используется ли сотрудник в дисциплинах
+      const [related] = await ctx.db
+        .select({ id: disciplineTeachers.id })
+        .from(disciplineTeachers)
+        .innerJoin(employeesDepartments, eq(disciplineTeachers.teacherDepartmentId, employeesDepartments.id))
+        .where(eq(employeesDepartments.employeeId, input.id))
+        .limit(1);
 
-      if (employee.userId) {
-        await ctx.db
-          .delete(users)
-          .where(eq(users.id, employee.userId));
+      if (related) {
+        throw new TRPCError({
+          code: 'CONFLICT',
+          message: 'Невозможно удалить сотрудника, так как он назначен преподавателем дисциплины. Сначала удалите его из дисциплин.',
+        });
       }
 
+      // 1. Отвязываем учётную запись
+      if (employee.userId) {
+        await ctx.db.update(employees).set({ userId: null }).where(eq(employees.id, input.id));
+        await ctx.db.delete(users).where(eq(users.id, employee.userId));
+      }
+
+      // 2. Удаляем связи с кафедрами
+      await ctx.db.delete(employeesDepartments).where(eq(employeesDepartments.employeeId, input.id));
+
+      // 3. Удаляем самого сотрудника
       await ctx.db.delete(employees).where(eq(employees.id, input.id));
       return { success: true };
     }),

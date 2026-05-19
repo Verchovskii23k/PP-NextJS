@@ -13,6 +13,7 @@ import {
 } from "@/db/schema";
 import { eq, inArray, asc, and, isNull } from "drizzle-orm";
 import { optimizeSchedule } from "./scheduleOptimizer";
+import { TRPCError } from "@trpc/server";
 
 // Вспомогательная функция для построения условия на scheduleDisplay
 function scheduleVersionCondition(
@@ -338,7 +339,7 @@ export const scheduleDisplayRouter = router({
         .where(and(eq(scheduleDisplay.id, input.id), versionCond))
         .limit(1);
       if (!record.length || !record[0].isBuffered)
-        throw new Error("Запись не в буфере");
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Запись не в буфере' });
 
       const existing = await ctx.db
         .select()
@@ -353,7 +354,7 @@ export const scheduleDisplayRouter = router({
             versionCond
           )
         );
-      if (existing.length > 0) throw new Error("Слот занят");
+      if (existing.length > 0) throw new TRPCError({ code: 'CONFLICT', message: 'Слот занят' });
 
       await ctx.db
         .update(scheduleDisplay)
@@ -396,7 +397,7 @@ export const scheduleDisplayRouter = router({
         .from(scheduleDisplay)
         .where(and(eq(scheduleDisplay.id, input.movingId), versionCond))
         .limit(1);
-      if (!moving.length) throw new Error("Занятие не найдено");
+      if (!moving.length) throw new TRPCError({ code: 'NOT_FOUND', message: 'Занятие не найдено' });
       const m = moving[0];
 
       // Группы перемещаемого юнита
@@ -721,7 +722,7 @@ export const scheduleDisplayRouter = router({
             versionCond
           )
         );
-      if (existing.length > 0) throw new Error("Слот занят");
+      if (existing.length > 0 && existing[0].id !== input.id) throw new TRPCError({ code: 'CONFLICT', message: 'Слот занят' });
 
       await ctx.db
         .update(scheduleDisplay)
@@ -765,7 +766,7 @@ export const scheduleDisplayRouter = router({
       const r2 = rec2[0] as typeof scheduleDisplay.$inferSelect;
 
       if (r1.unitCode !== r2.unitCode)
-        throw new Error("Обмен между разными юнитами запрещён");
+        throw new TRPCError({ code: 'CONFLICT', message: 'Обмен между разными юнитами запрещён' });
 
       const slot1 = {
         weekId: r1.weekId,

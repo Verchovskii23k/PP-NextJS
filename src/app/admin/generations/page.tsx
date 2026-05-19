@@ -5,7 +5,6 @@ import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function GenerationsPage() {
-  const [error, setError] = useState<string | null>(null);
   const utils = trpc.useUtils();
 
   const { data: subgroupType, isLoading: thresholdLoading } =
@@ -13,7 +12,7 @@ export default function GenerationsPage() {
 
   const updateThreshold = trpc.unitTypes.update.useMutation({
     onSuccess: () => utils.unitTypes.getByName.invalidate({ name: "ПОДГРУППА" }),
-    onError: (e) => setError(e.message),
+    onError: (e) => { toast.error(e.message); },
   });
 
   const [threshold, setThreshold] = useState<number | undefined>(undefined);
@@ -31,7 +30,7 @@ export default function GenerationsPage() {
 
   const updateTotalWeeks = trpc.settings.update.useMutation({
     onSuccess: () => utils.settings.get.invalidate({ key: "total_weeks" }),
-    onError: (e) => setError(e.message),
+    onError: (e) => { toast.error(e.message); },
   });
 
   const [totalWeeksInput, setTotalWeeksInput] = useState<number | undefined>(undefined);
@@ -51,7 +50,7 @@ export default function GenerationsPage() {
   const { data: semesterSetting } = trpc.settings.get.useQuery({ key: "current_semester" });
   const updateSemester = trpc.settings.update.useMutation({
     onSuccess: () => utils.settings.get.invalidate({ key: "current_semester" }),
-    onError: (e) => setError(e.message),
+    onError: (e) => { toast.error(e.message); },
   });
   const [semesterInput, setSemesterInput] = useState<number | undefined>(undefined);
 
@@ -69,44 +68,55 @@ export default function GenerationsPage() {
 
   const groups = trpc.generations.generateGroups.useMutation({
     onSuccess: (data) => {
-      setError(null);
-      // utils.students.list.invalidate();
       utils.studyGroups.list.invalidate();
-      toast.success(`Групп: ${data.createdGroups}, студентов: ${data.assignedStudents}`);
+      if (data.createdGroups === 0) {
+        toast.warning("Групп не создано. Возможно, все студенты уже распределены или нет активных профилей.");
+      } else {
+        toast.success(`Групп: ${data.createdGroups}, студентов: ${data.assignedStudents}`);
+      }
     },
-    onError: (e) => setError(e.message),
+    onError: (e) => { toast.error(e.message); },
   });
 
   const units = trpc.generations.generateUnits.useMutation({
     onSuccess: (data) => {
-      setError(null);
-      toast.success(`Создано юнитов: ${data.createdUnits}`);
+      if (data.createdUnits === 0) {
+        toast.warning("Юнитов не создано. Проверьте наличие учебных групп.");
+      } else {
+        toast.success(`Создано юнитов: ${data.createdUnits}`);
+      }
     },
-    onError: (e) => setError(e.message),
+    onError: (e) => { toast.error(e.message); },
   });
 
   const lessons = trpc.generations.generateLessons.useMutation({
     onSuccess: (data) => {
-      setError(null);
-      toast.success(`Создано занятий: ${data.lessonsCreated}`);
+      const created = Number(data.lessonsCreated);
+      if (created === 0) {
+        toast.warning("Занятий не создано. Проверьте учебные планы, юниты и типы часов.");
+      } else {
+        toast.success(`Создано занятий: ${created}`);
+      }
     },
-    onError: (e) => setError(e.message),
+    onError: (e) => { toast.error(e.message); },
   });
 
   const classrooms = trpc.generations.assignClassroomsAuto.useMutation({
     onSuccess: (data) => {
-      setError(null);
-      toast.success(`Назначено аудиторий: ${data.assignedClassrooms}`);
+      if (data.assignedClassrooms === 0) {
+        toast.warning("Аудитории не назначены. Возможно, занятия не созданы или нет подходящих аудиторий.");
+      } else {
+        toast.success(`Назначено аудиторий: ${data.assignedClassrooms}`);
+      }
     },
-    onError: (e) => setError(e.message),
+    onError: (e) => { toast.error(e.message); },
   });
 
   const schedule = trpc.generations.generateSchedule.useMutation({
     onSuccess: () => {
-      setError(null);
       toast.success("Расписание сгенерировано");
     },
-    onError: (e) => setError(e.message),
+    onError: (e) => { toast.error(e.message); },
   });
 
   if (thresholdLoading || weeksLoading) 
@@ -117,11 +127,6 @@ export default function GenerationsPage() {
   return (
     <div className="mx-auto h-full max-w-4xl overflow-y-auto bg-background p-6 text-foreground">
       <h1 className="mb-6 text-2xl font-bold">Системные генераторы</h1>
-      {error && (
-        <div className="mb-4 rounded border border-red-400 bg-red-100 px-4 py-3 text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400">
-          {error}
-        </div>
-      )}
 
       {/* Карточка: Группы */}
       <div className="mb-4 rounded-lg border border-border bg-background p-4 shadow-sm">

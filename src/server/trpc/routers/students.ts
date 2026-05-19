@@ -2,6 +2,7 @@ import { z } from "zod";
 import { router, adminProcedure } from "../trpc";
 import { students, users } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
 
 export const studentsRouter = router({
   list: adminProcedure.query(async ({ ctx }) => {
@@ -15,10 +16,7 @@ export const studentsRouter = router({
         profileId: students.profileId,
         studyGroupId: students.studyGroupId,
         course: students.course,
-        phone: students.phone,
-        email: students.email,        // контактный email
-        isActive: students.isActive,
-        loginEmail: users.email,      // email-логин из users
+        isActive: students.isActive, 
       })
       .from(students)
       .leftJoin(users, eq(students.userId, users.id));
@@ -31,8 +29,6 @@ export const studentsRouter = router({
       profileId: z.coerce.number().int(),
       studyGroupId: z.coerce.number().int().nullable().optional(),
       course: z.coerce.number().int().nullable().optional(),
-      phone: z.string().nullable().optional(),
-      email: z.string().email().nullable().optional(),
       isActive: z.boolean().default(true),
     }))
     .mutation(async ({ ctx, input }) => {
@@ -47,8 +43,6 @@ export const studentsRouter = router({
       profileId: z.coerce.number().int().optional(),
       studyGroupId: z.coerce.number().int().nullable().optional(),
       course: z.coerce.number().int().nullable().optional(),
-      phone: z.string().nullable().optional(),
-      email: z.string().email().nullable().optional(),
       isActive: z.boolean().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
@@ -67,11 +61,8 @@ export const studentsRouter = router({
           admissionYear: students.admissionYear,
           profileId: students.profileId,
           studyGroupId: students.studyGroupId,
-          course: students.course,
-          phone: students.phone,
-          email: students.email,
+          course: students.course,    
           isActive: students.isActive,
-          loginEmail: users.email,
         })
         .from(students)
         .leftJoin(users, eq(students.userId, users.id))
@@ -87,12 +78,22 @@ export const studentsRouter = router({
         .from(students)
         .where(eq(students.id, input.id))
         .limit(1);
-      if (!student) throw new Error("Студент не найден");
+      if (!student) throw new TRPCError({ code: 'NOT_FOUND', message: 'Студент не найден' });
 
+      // 1. Отвязываем студента от учётной записи
       if (student.userId) {
-        await ctx.db.delete(users).where(eq(users.id, student.userId));
+        await ctx.db
+          .update(students)
+          .set({ userId: null })
+          .where(eq(students.id, input.id));
+
+        // 2. Удаляем пользователя
+        await ctx.db
+          .delete(users)
+          .where(eq(users.id, student.userId));
       }
 
+      // 3. Удаляем самого студента
       await ctx.db.delete(students).where(eq(students.id, input.id));
       return { success: true };
     }),

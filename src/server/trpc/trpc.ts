@@ -3,23 +3,54 @@ import type { Context } from './context';
 import { users } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 
+// Рекурсивно извлекает первое осмысленное TRPCError-сообщение из цепочки ошибок
+function extractBusinessError(error: unknown): { message: string; code: string } | null {
+  let current = error;
+  while (current) {
+    if (
+      typeof current === 'object' &&
+      current !== null &&
+      'code' in current &&
+      'message' in current &&
+      typeof (current as Record<string, unknown>).code === 'string' &&
+      typeof (current as Record<string, unknown>).message === 'string'
+    ) {
+      const code = (current as Record<string, unknown>).code as string;
+      const message = (current as Record<string, unknown>).message as string;
+      if (
+        code !== 'INTERNAL_SERVER_ERROR' &&
+        message !== 'Возникла непредвиденная ошибка. Попробуйте позже или обратитесь в службу поддержки'
+      ) {
+        return { message, code };
+      }
+    }
+    if (current instanceof Error && current.cause) {
+      current = current.cause;
+    } else {
+      break;
+    }
+  }
+  return null;
+}
+
 const t = initTRPC.context<Context>().create({
   errorFormatter({ shape, error }) {
-    const cause = error.cause;
-    // Проверяем, что это объект с полями code и message (наш TRPCError или его обёртка)
-    if (cause && typeof cause === 'object' && 'code' in cause && 'message' in cause) {
+    const business = extractBusinessError(error);
+    if (business) {
       return {
         ...shape,
-        message: cause.message as string,
+        message: business.message,
         data: {
           ...shape.data,
-          code: cause.code,
+          code: business.code, // можно передавать на клиент для доп. проверок
         },
       };
     }
+    // Общий fallback
     return {
       ...shape,
-      message: 'Возникла непредвиденная ошибка. Попробуйте позже или обратитесь в службу поддержки',
+      message:
+        'Возникла непредвиденная ошибка. Попробуйте позже или обратитесь в службу поддержки',
     };
   },
 });
@@ -33,7 +64,6 @@ export const protectedProcedure = t.procedure.use(async ({ ctx, next }) => {
     throw new TRPCError({ code: 'UNAUTHORIZED' });
   }
 
-  // Загружаем актуальную роль из базы, чтобы избежать кэширования
   let role = (ctx.session.user as unknown as { role?: string }).role;
   if (!role) {
     const [dbUser] = await ctx.db

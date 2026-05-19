@@ -12,9 +12,8 @@ export const adminManagementRouter = router({
         surname: employees.surname,
         name: employees.name,
         patronymic: employees.patronymic,
-        email: employees.email,
         isAdmin: employees.isAdmin,
-        userId: employees.userId,
+        userId: employees.userId
       })
       .from(employees)
       .leftJoin(users, eq(employees.userId, users.id))
@@ -84,12 +83,13 @@ export const adminManagementRouter = router({
 
     await ctx.db.transaction(async (tx) => {
       await tx.update(employees)
-        .set({ userId: null, isAdmin: false })
+        .set({ userId: null, isAdmin: false})
         .where(eq(employees.isActive, true));
       await tx.update(students)
         .set({ userId: null })
         .where(eq(students.isActive, true));
-      await tx.delete(users);
+      await tx.delete(users)
+
     });
 
     return { success: true };

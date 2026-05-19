@@ -1,5 +1,5 @@
 {
-  "id": "91d5b5f9-ac12-4e1d-b545-e58d7cf82627",
+  "id": "8a53bc86-6266-4df4-bee8-e7593df4d57a",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -1000,18 +1000,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "phone": {
-          "name": "phone",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "email": {
-          "name": "email",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "user_id": {
           "name": "user_id",
           "type": "text",
@@ -1051,13 +1039,6 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "employees_email_unique": {
-          "name": "employees_email_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "email"
-          ]
-        },
         "employees_user_id_unique": {
           "name": "employees_user_id_unique",
           "nullsNotDistinct": false,
@@ -2445,18 +2426,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "phone": {
-          "name": "phone",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "email": {
-          "name": "email",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "user_id": {
           "name": "user_id",
           "type": "text",
@@ -2515,13 +2484,6 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "students_email_unique": {
-          "name": "students_email_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "email"
-          ]
-        },
         "students_user_id_unique": {
           "name": "students_user_id_unique",
           "nullsNotDistinct": false,
@@ -2937,6 +2899,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "hashed_password": {
+          "name": "hashed_password",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
@@ -3047,8 +3015,7 @@
       "values": [
         "admin",
         "teacher",
-        "student",
-        "inactive"
+        "student"
       ]
     }
   },

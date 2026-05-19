@@ -5,7 +5,6 @@ import { db } from "@/db";
 import { tablesMeta } from "@/lib/table-meta";
 import { TRPCError } from "@trpc/server";
 
-// Таблицы, которые разрешено массово удалять (все, кроме системных)
 const ALLOWED_DELETE_TABLES = Object.keys(tablesMeta).filter(
   (key) => !["user", "account", "session", "verification_token", "settings"].includes(key)
 );
@@ -22,7 +21,7 @@ export const batchDeleteRouter = router({
       const { tableName, ids } = input;
 
       if (!ALLOWED_DELETE_TABLES.includes(tableName)) {
-        throw new Error(`Таблица "${tableName}" не поддерживает удаление`);
+        throw new TRPCError({ code: 'BAD_REQUEST', message: `Таблица "${tableName}" не поддерживает удаление` });
       }
 
       const dbTableName = tablesMeta[tableName]?.dbTableName || tableName;

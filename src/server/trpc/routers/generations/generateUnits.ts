@@ -7,6 +7,7 @@ import {
   lessons, lessonClassrooms, schedule,
   scheduleDisplay,
 } from "@/db/schema";
+import { TRPCError } from "@trpc/server";
 import { eq, and, inArray, sql, isNull } from "drizzle-orm";
 
 export const generateUnitsRouter = router({
@@ -50,7 +51,7 @@ export const generateUnitsRouter = router({
       .limit(1);
 
     if (!unitTypeGroup || !unitTypeSubgroup || !unitTypeStream) {
-      throw new Error("Не все типы юнитов найдены");
+      throw new TRPCError({ code: 'BAD_REQUEST', message: 'Не все типы юнитов (ГРУППА, ПОДГРУППА, ПОТОК) найдены. Проверьте справочник типов юнитов' });
     }
 
     const maxSubgroupSize = unitTypeSubgroup.maxSize;
@@ -60,7 +61,7 @@ export const generateUnitsRouter = router({
       .select()
       .from(studyGroups)
       .where(eq(studyGroups.isActive, true));
-    if (groups.length === 0) throw new Error("Сначала выполните генерацию групп");
+        if (groups.length === 0) throw new TRPCError({ code: 'BAD_REQUEST', message: 'Нет активных учебных групп. Сначала выполните генерацию групп' });
 
     const profileCourseToGroup = new Map<number, Map<number, typeof groups[0]>>();
     for (const g of groups) {

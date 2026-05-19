@@ -44,7 +44,6 @@ export default function AdministratorsPage() {
           <thead className="bg-muted">
             <tr>
               <th className="px-4 py-2 text-left">Сотрудник</th>
-              <th className="px-4 py-2 text-left">Email</th>
               <th className="px-4 py-2 text-center">Администратор</th>
             </tr>
           </thead>
@@ -59,7 +58,6 @@ export default function AdministratorsPage() {
                       <span className="ml-2 text-xs text-muted-foreground">(вы)</span>
                     )}
                   </td>
-                  <td className="px-4 py-2 text-muted-foreground">{emp.email || "—"}</td>
                   <td className="px-4 py-2 text-center">
                     <button
                       onClick={() => {

@@ -49,7 +49,7 @@ export const generateCredentialsRouter = router({
         await ctx.db.insert(accounts).values({
           userId: newUser.id,
           providerId: "credential",
-          accountId: email,          // email используется как accountId
+          accountId: email,
           password: hashed,
         });
 
@@ -71,7 +71,6 @@ export const generateCredentialsRouter = router({
             name: employees.name,
             patronymic: employees.patronymic,
             isAdmin: employees.isAdmin,
-            email: employees.email,
           })
           .from(employees)
           .where(and(eq(employees.isActive, true), isNull(employees.userId)));
@@ -87,7 +86,6 @@ export const generateCredentialsRouter = router({
             id: students.id,
             surname: students.surname,
             name: students.name,
-            email: students.email, // ← добавить
           })
           .from(students)
           .where(and(eq(students.isActive, true), isNull(students.userId)));

@@ -20,6 +20,7 @@ import {
   scheduleDisplay,
 } from "@/db/schema";
 import { eq, and, inArray, sql, or, gt, isNull } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
 
 export const generateLessonsRouter = router({
   generateLessons: adminProcedure
@@ -349,6 +350,23 @@ export const generateLessonsRouter = router({
         .select({ cnt: sql<number>`count(*)` })
         .from(lessons)
         .where(and(eq(lessons.isActive, true), isNull(lessons.versionId)));
+
+            // === НОВАЯ ПРОВЕРКА ===
+      if ((totalLessons?.cnt ?? 0) === 0) {
+        const reasons: string[] = [];
+        if (plans.length === 0) reasons.push("отсутствуют учебные планы на текущий семестр");
+        if (problems.no_hour_type_mapping) reasons.push("не настроено соответствие типов часов (hourTypeMapping)");
+        if (problems.no_profiles) reasons.push("не найдены активные профили для планов");
+        if (problems.no_groups) reasons.push("отсутствуют учебные группы нужного курса");
+        if (problems.no_units) reasons.push("отсутствуют юниты, связанные с группами");
+        if (problems.no_valid_priority) reasons.push("у юнитов не задан приоритет для типов занятий");
+        if (problems.unknown_priority_column) reasons.push("неизвестная колонка приоритета");
+        if (problems.no_teacher_for_lesson) reasons.push("не назначены преподаватели (все занятия удалены)");
+        const message = reasons.length > 0
+          ? `Занятия не созданы. Возможные причины: ${reasons.join("; ")}.`
+          : "Занятия не созданы. Проверьте учебные планы, группы и юниты.";
+        throw new TRPCError({ code: 'BAD_REQUEST', message });
+      }
       const [uniquePlans] = await ctx.db
         .select({ cnt: sql<number>`count(distinct curriculum_id)` })
         .from(lessons)

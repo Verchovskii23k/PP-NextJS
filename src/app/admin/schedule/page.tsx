@@ -18,6 +18,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useConfirmContext } from "@/contexts/ConfirmContext";
 import { InputDialog } from "@/components/ui/InputDialog";
 
+
 type Day = { id: number; name: string };
 type Pair = { id: number; number: number };
 
@@ -293,12 +294,24 @@ export default function AdminSchedulePage() {
   const activeWeeksData: WeekInfo[] = unitsData?.weeks || groupsData?.weeks || [];
   const activeWeekIds = activeWeeksData.map((w) => w.id);
 
-  const checkSlots = trpc.scheduleDisplay.checkSlots.useMutation();
-  const moveMutation = trpc.scheduleDisplay.move.useMutation();
-  const swapMutation = trpc.scheduleDisplay.swap.useMutation();
-  const updateFlags = trpc.scheduleDisplay.updateFlags.useMutation();
-  const moveToBufferMut = trpc.scheduleDisplay.moveToBuffer.useMutation();
-  const moveFromBufferMut = trpc.scheduleDisplay.moveFromBuffer.useMutation();
+  const moveMutation = trpc.scheduleDisplay.move.useMutation({
+    onError: (e) => { toast.error(e.message); },
+  });
+  const swapMutation = trpc.scheduleDisplay.swap.useMutation({
+    onError: (e) => { toast.error(e.message); },
+  });
+  const updateFlags = trpc.scheduleDisplay.updateFlags.useMutation({
+    onError: (e) => { toast.error(e.message); },
+  });
+  const moveToBufferMut = trpc.scheduleDisplay.moveToBuffer.useMutation({
+    onError: (e) => { toast.error(e.message); },
+  });
+  const moveFromBufferMut = trpc.scheduleDisplay.moveFromBuffer.useMutation({
+    onError: (e) => { toast.error(e.message); },
+  });
+  const checkSlots = trpc.scheduleDisplay.checkSlots.useMutation({
+    onError: (e) => { toast.error(e.message); },
+  });
   const optimizeScheduleMut = trpc.scheduleDisplay.optimizeSchedule.useMutation({
     onSuccess: (data) => {
       toast(`Оптимизация завершена. Итераций: ${data.iterations}, улучшение: с ${data.initialScore} до ${data.finalScore}`);
@@ -330,7 +343,10 @@ export default function AdminSchedulePage() {
       }
 
       const status = slotStatuses[targetId];
-      if (!status) return;
+      if (status === "conflict") {
+        toast.error("Невозможно разместить: конфликт");
+        return;
+      }
 
       try {
         if (status === "free") {
@@ -338,15 +354,14 @@ export default function AdminSchedulePage() {
         } else if (status === "swap") {
           const swapId = slotSwapIds[targetId];
           if (!swapId) {
-            toast("Занятие для обмена не найдено");
+            toast.error("Занятие для обмена не найдено");
             return;
           }
           await swapMutation.mutateAsync({ id1: entry.id, id2: swapId, versionId: selectedVersionId });
         }
         refreshData();
       } catch (e: unknown) {
-        const message = e instanceof Error ? e.message : "Неизвестная ошибка";
-        toast.error(message);
+        toast.error(e instanceof Error ? e.message : "Неизвестная ошибка");
       }
     },
     [slotStatuses, slotSwapIds, moveMutation, swapMutation, refreshData, selectedVersionId]
@@ -368,7 +383,7 @@ export default function AdminSchedulePage() {
           }
         }
       }
-      const result = await checkSlots.mutateAsync({ movingId: entry.id, slots });
+      const result = await checkSlots.mutateAsync({ movingId: entry.id, slots, versionId: selectedVersionId });
       const newStatuses: Record<string, "free" | "conflict" | "swap"> = {};
       const newSwapIds: Record<string, number> = {};
       for (const [key, val] of Object.entries(result)) {

@@ -131,9 +131,9 @@ export const studyGroupsRouter = router({
                   eq(employeesDepartments.departmentId, specialty.departmentId)
                 ))
                 .limit(1);
-              if (link.length === 0) {
-                throw new Error('Выбранный куратор не работает на кафедре этого профиля');
-              }
+                if (link.length === 0) {
+                    throw new TRPCError({ code: 'CONFLICT', message: 'Выбранный куратор не работает на кафедре этого профиля' });
+                }
             }
           }
         }

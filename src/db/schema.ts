@@ -14,8 +14,6 @@ import {
 // Enums
 export const roleEnum = pgEnum('role', ['admin', 'teacher', 'student']);
 
-// ==================== ТАБЛИЦЫ BETTER-AUTH (автоматически сгенерированные) ====================
-// ==================== ТАБЛИЦЫ BETTER-AUTH (явное описание) ====================
 export const users = pgTable("user", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   name: text("name"),
@@ -70,9 +68,6 @@ export const scheduleVersions = pgTable("schedule_versions", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
-
-// ❌ securityCenter удалён полностью
-// ❌ sessions удалён (используется таблица session выше)
 
 export const institutes = pgTable("institutes", {
   id: serial("id").primaryKey(),
@@ -156,8 +151,6 @@ export const employees = pgTable("employees", {
   surname: text("surname").notNull(),
   name: text("name").notNull(),
   patronymic: text("patronymic"),
-  phone: text("phone"),
-  email: text("email").unique(),                     // контактный email (не для входа)
   userId: text("user_id").unique().references(() => users.id), // связь с учётной записью
   isActive: boolean("is_active").notNull().default(true),
   isAdmin: boolean("is_admin").default(false).notNull(),
@@ -182,8 +175,6 @@ export const students = pgTable("students", {
   profileId: integer("profile_id").notNull().references(() => profiles.id),
   studyGroupId: integer("study_group_id").references(() => studyGroups.id),
   course: integer("course"),
-  phone: text("phone"),
-  email: text("email").unique(),                     // контактный email
   userId: text("user_id").unique().references(() => users.id), // связь
   isActive: boolean("is_active").notNull().default(true),
 });

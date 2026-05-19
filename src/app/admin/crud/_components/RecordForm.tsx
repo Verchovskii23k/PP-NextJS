@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { trpc } from "@/trpc/client";
 import { tablesMeta, type FieldMeta } from "@/lib/table-meta";
 import { TRPCClientError } from "@trpc/client";
+import { toast } from "sonner";
 
 const TOGGLE_FIELDS = new Set(["isActive", "positionFlag", "classroomFlag", "isBuffered"]);
 
@@ -151,11 +152,11 @@ export function RecordForm({ tableName, editId, onClose }: RecordFormProps) {
         await createMutation?.mutateAsync(cleanedValues);
       }
       onClose();
-    } catch (err: unknown) {
-      console.log('tRPC error:', err); 
-      const message = err instanceof TRPCClientError ? err.message : (err instanceof Error ? err.message : "Неизвестная ошибка");
-      setErrors({ _form: message });
-    }
+      } catch (err: unknown) {
+        console.log('tRPC error:', err); 
+        const message = err instanceof TRPCClientError ? err.message : (err instanceof Error ? err.message : "Неизвестная ошибка");
+        toast.error(message);
+      }
   };
 
   const renderField = (field: FieldMeta) => {
