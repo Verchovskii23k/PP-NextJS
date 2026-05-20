@@ -1,31 +1,206 @@
-import { seedTestData } from '@/test/fixtures/fixtures';
-import { createTestCaller } from '@/test/trpc';
+// src/server/trpc/routers/__tests__/disciplines.test.ts
 import { beforeAll, describe, expect, it } from 'vitest';
+import { createTestCaller } from '@/test/trpc';
+import {
+  clearAllTestData,
+  createTestInstitute,
+  createTestDepartment,
+  createTestEmployee,
+  createTestEmployeeDepartment,
+} from '@/test/helpers';
+import { db } from '@/db';
+import {
+  disciplines,
+  curriculum,
+  disciplineTeachers,
+  lessonTypes,
+} from '@/db/schema';
+import { TRPCError } from '@trpc/server';
+import { eq } from 'drizzle-orm';
 
 let caller: Awaited<ReturnType<typeof createTestCaller>>;
-let ids: Awaited<ReturnType<typeof seedTestData>>;
+let deptId: number;
+let employeeDeptId: number;
+let lessonTypeId: number;
 
 beforeAll(async () => {
-  ids = await seedTestData();
+  await clearAllTestData();
+
+  const instId = await createTestInstitute();
+  deptId = await createTestDepartment(instId);
+  const empId = await createTestEmployee();
+  employeeDeptId = await createTestEmployeeDepartment(empId, deptId);
+
+  // Создадим тип занятия для disciplineTeachers
+  const [lt] = await db
+    .insert(lessonTypes)
+    .values({ name: 'lecture', abbreviation: 'ЛК' })
+    .returning({ id: lessonTypes.id });
+  lessonTypeId = lt.id;
+
   caller = await createTestCaller({ id: 1, role: 'admin' });
 });
 
 describe('disciplines CRUD', () => {
+  let discId: number;
+  let disc2Id: number;
+
   it('should create a discipline', async () => {
-    const disc = await caller.disciplines.create({
-      name: 'Новая дисциплина',
-      abbreviation: 'НД',
-      departmentId: ids.departments.A,
+    const [row] = await caller.disciplines.create({
+      name: 'Тестовая дисциплина',
+      abbreviation: 'ТД',
+      departmentId: deptId,
     });
-    const created = disc[0];
-    expect(created).toHaveProperty('id');
-    const list = await caller.disciplines.list();
-    expect(list.some(d => d.id === created.id)).toBe(true);
+    expect(row).toHaveProperty('id');
+    discId = row.id;
   });
 
-  it('should reject deletion of department with disciplines', async () => {
+  it('should reject duplicate name', async () => {
     await expect(
-      caller.departments.delete({ id: ids.departments.A })
-    ).rejects.toThrow(/Невозможно удалить/);
+      caller.disciplines.create({
+        name: 'Тестовая дисциплина',
+        abbreviation: 'Дубль',
+        departmentId: deptId,
+      })
+    ).rejects.toThrow(TRPCError);
+    try {
+      await caller.disciplines.create({
+        name: 'Тестовая дисциплина',
+        abbreviation: 'Дубль',
+        departmentId: deptId,
+      });
+    } catch (e) {
+      expect(e).toBeInstanceOf(TRPCError);
+      if (e instanceof TRPCError) {
+        expect(e.code).toBe('CONFLICT');
+        expect(e.message).toBe('Дисциплина с таким названием уже существует');
+      }
+    }
+  });
+
+  it('should reject empty name or abbreviation', async () => {
+    await expect(
+      caller.disciplines.create({
+        name: '',
+        abbreviation: 'Т',
+        departmentId: deptId,
+      })
+    ).rejects.toThrow();
+    await expect(
+      caller.disciplines.create({
+        name: 'Имя',
+        abbreviation: '',
+        departmentId: deptId,
+      })
+    ).rejects.toThrow();
+  });
+
+  it('should list disciplines (all and filtered by department)', async () => {
+    const list = await caller.disciplines.list();
+    expect(list.some(d => d.id === discId)).toBe(true);
+
+    const filtered = await caller.disciplines.list({ departmentId: deptId });
+    expect(filtered.some(d => d.id === discId)).toBe(true);
+
+    // при несуществующем departmentId не должна находиться
+    const filteredOther = await caller.disciplines.list({ departmentId: deptId + 1 });
+    expect(filteredOther.some(d => d.id === discId)).toBe(false);
+  });
+
+  it('should get existing discipline', async () => {
+    const row = await caller.disciplines.get({ id: discId });
+    expect(row).toMatchObject({
+      name: 'Тестовая дисциплина',
+      abbreviation: 'ТД',
+      departmentId: deptId,
+    });
+  });
+
+  it('should return null for non-existent id', async () => {
+    const row = await caller.disciplines.get({ id: 9999 });
+    expect(row).toBeNull();
+  });
+
+  it('should update name', async () => {
+    await caller.disciplines.update({ id: discId, name: 'Обновлённая' });
+    const row = await caller.disciplines.get({ id: discId });
+    expect(row?.name).toBe('Обновлённая');
+  });
+
+  it('should reject update to existing name', async () => {
+    const [row2] = await caller.disciplines.create({
+      name: 'Вторая дисциплина',
+      abbreviation: 'ВД',
+      departmentId: deptId,
+    });
+    disc2Id = row2.id;
+
+    await expect(
+      caller.disciplines.update({ id: discId, name: 'Вторая дисциплина' })
+    ).rejects.toThrow(TRPCError);
+    try {
+      await caller.disciplines.update({ id: discId, name: 'Вторая дисциплина' });
+    } catch (e) {
+      if (e instanceof TRPCError) {
+        expect(e.code).toBe('CONFLICT');
+      }
+    }
+  });
+
+  it('should reject update with empty name', async () => {
+    await expect(
+      caller.disciplines.update({ id: discId, name: '' })
+    ).rejects.toThrow();
+  });
+
+  it('should deactivate discipline and cascade to curriculum and disciplineTeachers', async () => {
+    // создаём учебный план
+    const [cur] = await caller.curriculum.create({
+      course: 1,
+      semester: 1,
+      disciplineId: disc2Id,
+      hoursLecture: 10,
+    });
+    expect(cur).toHaveProperty('id');
+
+    // создаём связь преподавателя
+    const [dt] = await caller.disciplineTeachers.create({
+      lessonTypeId,
+      disciplineId: disc2Id,
+      teacherDepartmentId: employeeDeptId,
+    });
+    expect(dt).toHaveProperty('id');
+
+    // деактивируем дисциплину
+    await caller.disciplines.update({ id: disc2Id, isActive: false });
+
+    const disc = await caller.disciplines.get({ id: disc2Id });
+    expect(disc?.isActive).toBe(false);
+
+    const [curriculumRow] = await db
+      .select()
+      .from(curriculum)
+      .where(eq(curriculum.id, cur.id))
+      .limit(1);
+    expect(curriculumRow?.isActive).toBe(false);
+
+    const [dtRow] = await db
+      .select()
+      .from(disciplineTeachers)
+      .where(eq(disciplineTeachers.id, dt.id))
+      .limit(1);
+    expect(dtRow?.isActive).toBe(false);
+  });
+
+  it('should delete existing discipline', async () => {
+    await caller.disciplines.delete({ id: discId });
+    const row = await caller.disciplines.get({ id: discId });
+    expect(row).toBeNull();
+  });
+
+  it('should not fail on non-existent id delete', async () => {
+    await expect(
+      caller.disciplines.delete({ id: 9999 })
+    ).resolves.toBeDefined();
   });
 });

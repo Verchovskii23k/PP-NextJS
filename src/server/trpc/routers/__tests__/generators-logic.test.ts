@@ -1,14 +1,14 @@
-// src/server/trpc/routers/__tests__/generators-logic.test.ts
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { db } from "@/db";
 import {
   studyGroups, students, units, unitRoots,
   scheduleDisplay, schedule, lessonClassrooms, lessons,
-  securityCenter, employees,
+  users, employees,
 } from "@/db/schema";
 import { eq, and, isNull, count } from "drizzle-orm";
 import { createTestCaller } from "@/test/trpc";
-import { seedTestData, clearDatabase } from "@/test/fixtures/fixtures";
+import { clearDatabase, seedTestData } from "@/test/fixtures/fixtures";
+
 
 let caller: Awaited<ReturnType<typeof createTestCaller>>;
 
@@ -67,22 +67,22 @@ describe("generateCredentials logic", () => {
     expect(result.count).toBeGreaterThan(0);
     expect(result.credentials.length).toBe(result.count);
     for (const cred of result.credentials) {
-      const [sec] = await db.select().from(securityCenter).where(eq(securityCenter.login, cred.login)).limit(1);
-      expect(sec).toBeTruthy();
-      if (cred.role === "Преподаватель" || cred.role === "Администратор") expect(cred.login.startsWith("t_")).toBe(true);
-      else if (cred.role === "Студент") expect(cred.login.startsWith("s_")).toBe(true);
+      const [user] = await db.select().from(users).where(eq(users.email, cred.email)).limit(1);
+      expect(user).toBeTruthy();
+      if (cred.role === "Преподаватель" || cred.role === "Администратор") expect(cred.email.startsWith("t_")).toBe(true);
+      else if (cred.role === "Студент") expect(cred.email.startsWith("s_")).toBe(true);
     }
-    const noAuthEmployees = await db.select().from(employees).where(isNull(employees.authenticationId));
-    const noAuthStudents = await db.select().from(students).where(isNull(students.authenticationId));
+    const noAuthEmployees = await db.select().from(employees).where(isNull(employees.userId));
+    const noAuthStudents = await db.select().from(students).where(isNull(students.userId));
     expect(noAuthEmployees.length).toBe(0);
     expect(noAuthStudents.length).toBe(0);
   });
 
   it("не создаёт дубликаты при повторном запуске", async () => {
-    const cntBefore = (await db.select({ cnt: count() }).from(securityCenter))[0]?.cnt ?? 0;
+    const cntBefore = (await db.select({ cnt: count() }).from(users))[0]?.cnt ?? 0;
     const result = await caller.generations.generateCredentials({ securityLevel: "low", generateFor: ["employees", "students"] });
     expect(result.count).toBe(0);
-    const cntAfter = (await db.select({ cnt: count() }).from(securityCenter))[0]?.cnt ?? 0;
+    const cntAfter = (await db.select({ cnt: count() }).from(users))[0]?.cnt ?? 0;
     expect(cntAfter).toBe(cntBefore);
   });
 });

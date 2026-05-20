@@ -9,6 +9,7 @@ import {
 import { db } from "@/db";
 import { eq, sql } from "drizzle-orm";
 import { recalculateUsageMetrics } from "@/lib/usageMetrics";
+import { TRPCError } from "@trpc/server";
 
 async function syncScheduleDisplayForLesson(localDb: typeof db, lessonId: number) {
   const rows = await localDb
@@ -106,6 +107,20 @@ export const lessonClassroomsRouter = router({
   create: adminProcedure
     .input(z.object({ lessonId: z.coerce.number().int(), classroomId: z.coerce.number().int() }))
     .mutation(async ({ ctx, input }) => {
+      // Проверка уникальности
+      const existing = await ctx.db.query.lessonClassrooms.findFirst({
+        where: (lc, { and, eq }) => and(
+          eq(lc.lessonId, input.lessonId),
+          eq(lc.classroomId, input.classroomId)
+        ),
+      });
+      if (existing) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "Эта аудитория уже назначена для данного занятия",
+        });
+      }
+
       await ctx.db.insert(lessonClassrooms).values(input).returning();
       await syncScheduleDisplayForLesson(ctx.db, input.lessonId);
       await recalculateUsageMetrics();
@@ -116,6 +131,40 @@ export const lessonClassroomsRouter = router({
     .input(z.object({ id: z.number(), lessonId: z.coerce.number().int().optional(), classroomId: z.coerce.number().int().optional() }))
     .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;
+
+      // Если изменяется lessonId или classroomId – проверяем уникальность
+      if (data.lessonId !== undefined || data.classroomId !== undefined) {
+        const current = await ctx.db
+          .select({
+            lessonId: lessonClassrooms.lessonId,
+            classroomId: lessonClassrooms.classroomId,
+          })
+          .from(lessonClassrooms)
+          .where(eq(lessonClassrooms.id, id))
+          .limit(1);
+
+        if (current.length === 0) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Запись не найдена" });
+        }
+
+        const newLessonId = data.lessonId ?? current[0].lessonId;
+        const newClassroomId = data.classroomId ?? current[0].classroomId;
+
+        const conflict = await ctx.db.query.lessonClassrooms.findFirst({
+          where: (lc, { and, eq, ne }) => and(
+            eq(lc.lessonId, newLessonId),
+            eq(lc.classroomId, newClassroomId),
+            ne(lc.id, id)
+          ),
+        });
+        if (conflict) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "Другое назначение с такими же занятием и аудиторией уже существует",
+          });
+        }
+      }
+
       await ctx.db.update(lessonClassrooms).set(data).where(eq(lessonClassrooms.id, id)).returning();
       let lessonId = data.lessonId;
       if (!lessonId) {

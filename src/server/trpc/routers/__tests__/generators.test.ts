@@ -1,7 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { seedTestData } from '@/test/fixtures/fixtures';
+import { clearDatabase, seedTestData } from '@/test/fixtures/fixtures';
 import { createTestCaller } from '@/test/trpc';
-import { clearDatabase } from '@/test/fixtures/fixtures';
 
 let caller: Awaited<ReturnType<typeof createTestCaller>>;
 

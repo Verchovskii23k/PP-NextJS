@@ -80,6 +80,10 @@ export const studentsRouter = router({
         .limit(1);
       if (!student) throw new TRPCError({ code: 'NOT_FOUND', message: 'Студент не найден' });
 
+      if (student.userId && ctx.user?.id === student.userId) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Нельзя удалить самого себя' });
+      }
+
       // 1. Отвязываем студента от учётной записи
       if (student.userId) {
         await ctx.db

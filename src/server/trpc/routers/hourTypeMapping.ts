@@ -1,8 +1,10 @@
 import { z } from "zod";
 import { router, adminProcedure } from "../trpc";
 import { hourTypeMapping } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { safeDelete } from "@/lib/safeDelete";
+import { TRPCError } from "@trpc/server";
+
 export const hourTypeMappingRouter = router({
   list: adminProcedure.query(async ({ ctx }) => ctx.db.select().from(hourTypeMapping)),
   get: adminProcedure
@@ -18,7 +20,15 @@ export const hourTypeMappingRouter = router({
       lessonTypeId: z.coerce.number().int(),
       isActive: z.boolean().default(true)
     }))
-    .mutation(async ({ ctx, input }) => ctx.db.insert(hourTypeMapping).values(input).returning()),
+    .mutation(async ({ ctx, input }) => {
+      const [existing] = await ctx.db
+        .select({ id: hourTypeMapping.id })
+        .from(hourTypeMapping)
+        .where(eq(hourTypeMapping.planHourColumn, input.planHourColumn))
+        .limit(1);
+      if (existing) throw new TRPCError({ code: 'CONFLICT', message: 'Маппинг с такой колонкой плана уже существует' });
+      return ctx.db.insert(hourTypeMapping).values(input).returning();
+    }),
   update: adminProcedure
     .input(z.object({
       id: z.number(),
@@ -29,9 +39,17 @@ export const hourTypeMappingRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;
+      if (data.planHourColumn) {
+        const [existing] = await ctx.db
+          .select({ id: hourTypeMapping.id })
+          .from(hourTypeMapping)
+          .where(and(eq(hourTypeMapping.planHourColumn, data.planHourColumn), sql`${hourTypeMapping.id} != ${id}`))
+          .limit(1);
+        if (existing) throw new TRPCError({ code: 'CONFLICT', message: 'Маппинг с такой колонкой плана уже существует' });
+      }
       return ctx.db.update(hourTypeMapping).set(data).where(eq(hourTypeMapping.id, id)).returning();
     }),
-delete: adminProcedure
+  delete: adminProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => safeDelete(hourTypeMapping, input.id)),
 });

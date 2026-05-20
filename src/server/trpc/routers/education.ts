@@ -1,8 +1,10 @@
 import { z } from "zod";
 import { router, adminProcedure } from "../trpc";
 import { education, educationLevels, educationForms } from "@/db/schema";
-import { eq, asc, sql } from "drizzle-orm";
+import { eq, asc, sql, and } from "drizzle-orm";
 import { safeDelete } from "@/lib/safeDelete";
+import { TRPCError } from "@trpc/server";
+
 export const educationRouter = router({
   list: adminProcedure.query(async ({ ctx }) => {
     return ctx.db
@@ -45,7 +47,15 @@ export const educationRouter = router({
       durationMonths: z.coerce.number().int().optional(),
       isActive: z.boolean().default(true),
     }))
-    .mutation(async ({ ctx, input }) => ctx.db.insert(education).values(input).returning()),
+    .mutation(async ({ ctx, input }) => {
+      const [duplicate] = await ctx.db
+        .select({ id: education.id })
+        .from(education)
+        .where(and(eq(education.levelId, input.levelId), eq(education.formId, input.formId)))
+        .limit(1);
+      if (duplicate) throw new TRPCError({ code: 'CONFLICT', message: 'Такая комбинация уровня и формы уже существует' });
+      return ctx.db.insert(education).values(input).returning();
+    }),
   update: adminProcedure
     .input(z.object({
       id: z.number(),
@@ -56,9 +66,21 @@ export const educationRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;
+      if (data.levelId && data.formId) {
+        const [duplicate] = await ctx.db
+          .select({ id: education.id })
+          .from(education)
+          .where(and(
+            eq(education.levelId, data.levelId),
+            eq(education.formId, data.formId),
+            sql`${education.id} != ${id}`
+          ))
+          .limit(1);
+        if (duplicate) throw new TRPCError({ code: 'CONFLICT', message: 'Такая комбинация уровня и формы уже существует' });
+      }
       return ctx.db.update(education).set(data).where(eq(education.id, id)).returning();
     }),
   delete: adminProcedure
-      .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => safeDelete(education, input.id)),
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => safeDelete(education, input.id)),
 });

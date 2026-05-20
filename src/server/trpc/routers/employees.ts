@@ -125,6 +125,9 @@ delete: adminProcedure
         .where(eq(employees.id, input.id))
         .limit(1);
       if (!employee) throw new TRPCError({ code: 'NOT_FOUND', message: 'Сотрудник не найден' });
+      if (employee.userId && ctx.user?.id === employee.userId) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Нельзя удалить самого себя' });
+      }
 
       // Проверяем, не используется ли сотрудник в дисциплинах
       const [related] = await ctx.db

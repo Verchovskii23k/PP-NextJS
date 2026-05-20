@@ -1,8 +1,7 @@
-// src/app/admin/crud/page.tsx
 "use client";
 import { trpc } from "@/trpc/client";
 import { useState, useEffect } from "react";
-import { tableNames } from "@/lib/table-meta";
+import { tableNames, tablesMeta, TABLE_CATEGORIES } from "@/lib/table-meta";
 import { DataTable } from "./_components/DataTable";
 import {
   DndContext,
@@ -22,9 +21,6 @@ import { CSS } from "@dnd-kit/utilities";
 import { toast } from "sonner";
 import { useConfirmContext } from "@/contexts/ConfirmContext";
 
-
-
-// Иконки для таблиц (можно эмодзи или текст)
 const TABLE_ICONS: Record<string, string> = {
   institutes: "🏛️",
   buildings: "🏗️",
@@ -59,7 +55,6 @@ const TABLE_ICONS: Record<string, string> = {
   employmentTypes: "🕒",
 };
 
-// Компонент одного пункта списка
 function SortableItem({
   id,
   label,
@@ -107,8 +102,10 @@ function SortableItem({
     </li>
   );
 }
-function getDefaultOrder(): string[] {
+
+function getDefaultOrderForCategory(category: string): string[] {
   return tableNames
+    .filter(t => tablesMeta[t.key]?.category === category)
     .map(t => t.key)
     .sort((a, b) => {
       const labelA = tableNames.find(t => t.key === a)?.label ?? a;
@@ -116,33 +113,38 @@ function getDefaultOrder(): string[] {
       return labelA.localeCompare(labelB, "ru");
     });
 }
-export default function AdminCrudPage() {
-  const [selectedTable, setSelectedTable] = useState<string | null>(null);
-  const resetMutation = trpc.generations.resetGeneratedData.useMutation();
-  const { confirm } = useConfirmContext();
+
+function CategorySection({
+  category,
+  selectedTable,
+  onSelectTable,
+}: {
+  category: string;
+  selectedTable: string | null;
+  onSelectTable: (key: string) => void;
+}) {
+  const [collapsed, setCollapsed] = useState(false);
+  const storageKey = `crud_order_${category}`;
+
   const [order, setOrder] = useState<string[]>(() => {
-    const stored = localStorage.getItem("crud_table_order");
-    let initialOrder: string[];
+    if (typeof window === "undefined") return getDefaultOrderForCategory(category);
+    const stored = localStorage.getItem(storageKey);
     if (stored) {
       try {
-        initialOrder = JSON.parse(stored);
-        const allKeys = tableNames.map(t => t.key);
-        const missing = allKeys.filter(k => !initialOrder.includes(k));
-        initialOrder = [...initialOrder.filter(k => allKeys.includes(k)), ...missing];
+        const parsed = JSON.parse(stored);
+        const allKeys = tableNames.filter(t => tablesMeta[t.key]?.category === category).map(t => t.key);
+        const missing = allKeys.filter(k => !parsed.includes(k));
+        return [...parsed.filter((k: string) => allKeys.includes(k)), ...missing];
       } catch {
-        initialOrder = getDefaultOrder();
+        return getDefaultOrderForCategory(category);
       }
-    } else {
-      initialOrder = getDefaultOrder();
     }
-    return initialOrder;
+    return getDefaultOrderForCategory(category);
   });
 
   useEffect(() => {
-    if (order.length > 0) {
-      localStorage.setItem("crud_table_order", JSON.stringify(order));
-    }
-  }, [order]);
+    localStorage.setItem(storageKey, JSON.stringify(order));
+  }, [order, storageKey]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
@@ -159,17 +161,51 @@ export default function AdminCrudPage() {
     }
   };
 
-  const sortedTableList = order
+  const items = order
     .map(key => {
       const meta = tableNames.find(t => t.key === key);
       if (!meta) return null;
-      return {
-        key,
-        label: meta.label,
-        icon: TABLE_ICONS[key] ?? "📄",   // гарантированно string
-      };
+      return { key, label: meta.label, icon: TABLE_ICONS[key] ?? "📄" };
     })
     .filter(Boolean) as { key: string; label: string; icon: string }[];
+
+  if (items.length === 0) return null;
+
+  return (
+    <div className="mb-4">
+      <button
+        onClick={() => setCollapsed(!collapsed)}
+        className="mb-1 flex w-full items-center justify-between text-sm font-semibold text-muted-foreground hover:text-foreground"
+      >
+        <span>{TABLE_CATEGORIES[category] || category}</span>
+        <span className="text-xs">{collapsed ? "▶" : "▼"}</span>
+      </button>
+      {!collapsed && (
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={items.map(i => i.key)} strategy={verticalListSortingStrategy}>
+            <ul className="space-y-1">
+              {items.map(item => (
+                <SortableItem
+                  key={item.key}
+                  id={item.key}
+                  label={item.label}
+                  icon={item.icon}
+                  isActive={selectedTable === item.key}
+                  onClick={() => onSelectTable(item.key)}
+                />
+              ))}
+            </ul>
+          </SortableContext>
+        </DndContext>
+      )}
+    </div>
+  );
+}
+
+export default function AdminCrudPage() {
+  const [selectedTable, setSelectedTable] = useState<string | null>(null);
+  const resetMutation = trpc.generations.resetGeneratedData.useMutation();
+  const { confirm } = useConfirmContext();
 
   const handleSelectTable = (tableKey: string) => {
     setSelectedTable(tableKey);
@@ -179,29 +215,14 @@ export default function AdminCrudPage() {
     <div className="flex h-full overflow-hidden">
       <aside className="w-64 overflow-y-auto border-r border-border bg-muted p-4">
         <h2 className="mb-4 text-lg font-semibold text-foreground">Таблицы</h2>
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleDragEnd}
-        >
-          <SortableContext
-            items={sortedTableList.map(t => t.key)}
-            strategy={verticalListSortingStrategy}
-          >
-            <ul className="space-y-1">
-              {sortedTableList.map(t => (
-                <SortableItem
-                  key={t.key}
-                  id={t.key}
-                  label={t.label}
-                  icon={t.icon}
-                  isActive={selectedTable === t.key}
-                  onClick={() => handleSelectTable(t.key)}
-                />
-              ))}
-            </ul>
-          </SortableContext>
-        </DndContext>
+        {(["reference", "people", "generated"] as const).map(category => (
+          <CategorySection
+            key={category}
+            category={category}
+            selectedTable={selectedTable}
+            onSelectTable={handleSelectTable}
+          />
+        ))}
       </aside>
       <main className="flex-1 overflow-auto bg-background p-6">
         {selectedTable ? (

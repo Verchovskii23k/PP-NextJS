@@ -1,48 +1,197 @@
+// src/server/trpc/routers/__tests__/specialties.test.ts
 import { beforeAll, describe, expect, it } from 'vitest';
-import { seedTestData } from '@/test/fixtures/fixtures';
 import { createTestCaller } from '@/test/trpc';
+import {
+  clearAllTestData,
+  createTestInstitute,
+  createTestDepartment,
+  createTestEducation,
+  createTestProfile,
+} from '@/test/helpers';
+import { db } from '@/db';
+import { profiles } from '@/db/schema';
+import { eq } from 'drizzle-orm';
+import { TRPCError } from '@trpc/server';
 
 let caller: Awaited<ReturnType<typeof createTestCaller>>;
-let ids: Awaited<ReturnType<typeof seedTestData>>;
+let deptId: number;
+let educationId: number; // <-- добавить
 
 beforeAll(async () => {
-  ids = await seedTestData();
+  await clearAllTestData();
+
+  const instId = await createTestInstitute();
+  deptId = await createTestDepartment(instId);
+  educationId = await createTestEducation(); // <-- создать один раз
+
   caller = await createTestCaller({ id: 1, role: 'admin' });
 });
 
 describe('specialties CRUD', () => {
-  let id: number;
+  let specId: number;
+  let spec2Id: number;
 
-  it('create', async () => {
+  it('should create a specialty', async () => {
     const [row] = await caller.specialties.create({
       code: '01.03.05',
       name: 'Тестовая специальность',
-      departmentId: ids.departments.A,
+      departmentId: deptId,
     });
     expect(row).toHaveProperty('id');
-    id = row.id;
+    specId = row.id;
   });
 
-  it('list', async () => {
+  it('should reject duplicate code', async () => {
+    await expect(
+      caller.specialties.create({
+        code: '01.03.05',
+        name: 'Другая',
+        departmentId: deptId,
+      })
+    ).rejects.toThrow(TRPCError);
+    try {
+      await caller.specialties.create({
+        code: '01.03.05',
+        name: 'Другая',
+        departmentId: deptId,
+      });
+    } catch (e) {
+      expect(e).toBeInstanceOf(TRPCError);
+      if (e instanceof TRPCError) {
+        expect(e.code).toBe('CONFLICT');
+        expect(e.message).toBe('Специальность с таким кодом уже существует');
+      }
+    }
+  });
+
+  it('should reject empty code or name', async () => {
+    await expect(
+      caller.specialties.create({ code: '', name: 'Имя', departmentId: deptId })
+    ).rejects.toThrow();
+    await expect(
+      caller.specialties.create({ code: '01.03.06', name: '', departmentId: deptId })
+    ).rejects.toThrow();
+  });
+
+  it('should list and contain created specialty', async () => {
     const list = await caller.specialties.list();
-    expect(list.some(r => r.id === id)).toBe(true);
+    expect(list.some(s => s.id === specId)).toBe(true);
+    // Проверим display
+    const created = list.find(s => s.id === specId);
+    expect(created?.display).toBeDefined();
+    expect(created?.display).toContain('01.03.05');
   });
 
-  it('get', async () => {
-    const row = await caller.specialties.get({ id });
-    expect(row?.name).toBe('Тестовая специальность');
+  it('should get existing specialty with display', async () => {
+    const row = await caller.specialties.get({ id: specId });
+    expect(row).toMatchObject({
+      code: '01.03.05',
+      name: 'Тестовая специальность',
+      departmentId: deptId,
+    });
+    expect(row?.display).toBeDefined();
   });
 
-  it('update', async () => {
-    await caller.specialties.update({ id, name: 'Обновлённая специальность' });
-    const row = await caller.specialties.get({ id });
+  it('should return null for non-existent id', async () => {
+    const row = await caller.specialties.get({ id: 9999 });
+    expect(row).toBeNull();
+  });
+
+  it('should update name', async () => {
+    await caller.specialties.update({ id: specId, name: 'Обновлённая специальность' });
+    const row = await caller.specialties.get({ id: specId });
     expect(row?.name).toBe('Обновлённая специальность');
   });
 
-  it('should reject deletion if linked to profiles', async () => {
-    // в фикстуре профили привязаны к специальностям, поэтому удаление специальности должно вызывать safeDelete
+  it('should reject update to existing code', async () => {
+    // Создаём вторую специальность
+    const [row2] = await caller.specialties.create({
+      code: '01.03.06',
+      name: 'Вторая',
+      departmentId: deptId,
+    });
+    spec2Id = row2.id;
+
     await expect(
-      caller.specialties.delete({ id: ids.specialties.A })
+      caller.specialties.update({ id: spec2Id, code: '01.03.05' })
+    ).rejects.toThrow(TRPCError);
+    try {
+      await caller.specialties.update({ id: spec2Id, code: '01.03.05' });
+    } catch (e) {
+      if (e instanceof TRPCError) {
+        expect(e.code).toBe('CONFLICT');
+      }
+    }
+  });
+
+  it('should reject update with empty code', async () => {
+    await expect(
+      caller.specialties.update({ id: specId, code: '' })
+    ).rejects.toThrow();
+  });
+
+  it('should not fail on non-existent id update', async () => {
+    await expect(
+      caller.specialties.update({ id: 9999, name: 'Ghost' })
+    ).resolves.toBeDefined();
+  });
+
+  it('should deactivate specialty and cascade to profiles', async () => {
+    // Создаём профиль, привязанный к spec2Id
+    const [prof] = await db.insert(profiles).values({
+      name: 'Профиль для каскада',
+      specialtyId: spec2Id,
+      letterCode: 'к',
+      educationId,   // <-- используем существующий
+      isActive: true,
+    }).returning({ id: profiles.id });
+
+    // Деактивируем специальность
+    await caller.specialties.update({ id: spec2Id, isActive: false });
+
+    const spec = await caller.specialties.get({ id: spec2Id });
+    expect(spec?.isActive).toBe(false);
+
+    // Профиль тоже должен стать неактивным
+    const [updatedProf] = await db
+      .select({ isActive: profiles.isActive })
+      .from(profiles)
+      .where(eq(profiles.id, prof.id))
+      .limit(1);
+    expect(updatedProf?.isActive).toBe(false);
+  });
+
+  it('should delete existing specialty', async () => {
+    // Удаляем профиль, который был создан в предыдущем тесте (spec2Id)
+    await db.delete(profiles).where(eq(profiles.specialtyId, spec2Id));
+    // Теперь специальность свободна
+    await caller.specialties.delete({ id: spec2Id });
+    const row = await caller.specialties.get({ id: spec2Id });
+    expect(row).toBeNull();
+  });
+
+  it('should not fail on non-existent id delete', async () => {
+    await expect(
+      caller.specialties.delete({ id: 9999 })
+    ).resolves.toBeDefined();
+  });
+
+  it('should reject deletion if linked to profiles', async () => {
+    const [spec] = await caller.specialties.create({
+      code: '01.03.07',
+      name: 'Связанная',
+      departmentId: deptId,
+    });
+    await db.insert(profiles).values({
+      name: 'Активный профиль',
+      specialtyId: spec.id,
+      letterCode: 'св',
+      educationId,
+      isActive: true,
+    });
+
+    await expect(
+      caller.specialties.delete({ id: spec.id })
     ).rejects.toThrow(/Невозможно удалить/);
   });
 });

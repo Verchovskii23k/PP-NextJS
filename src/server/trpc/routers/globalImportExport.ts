@@ -7,13 +7,18 @@ import { tablesMeta } from "@/lib/table-meta";
 
 // Таблицы, которые НЕЛЬЗЯ экспортировать/импортировать
 const EXCLUDED_TABLES = new Set([
-  "security_center",
-  "sessions",
+  "user",                // better-auth
+  "account",             // better-auth
+  "session",             // better-auth
+  "verification_token",  // better-auth
+  "settings",            // настройки (не переносим)
+  // "security_center" удалена, "roles" удалена
 ]);
 
 // Порядок таблиц для импорта (родители → потомки)
 const IMPORT_ORDER = [
-  "roles",
+  "employees",
+  "students",
   "education_levels",
   "education_forms",
   "days_of_week",
@@ -34,13 +39,11 @@ const IMPORT_ORDER = [
   "education",
   "profiles",
   "classrooms",
-  "employees",
   "curriculum",
   "curriculum_profiles",
   "employees_departments",
   "discipline_teachers",
   "study_groups",
-  "students",
   "units",
   "unit_roots",
   "lessons",
@@ -49,9 +52,8 @@ const IMPORT_ORDER = [
   "schedule_display",
 ];
 
-// Уникальные ключи для поиска дубликатов при импорте
+// Уникальные ключи для поиска дубликатов при импорте (employees/students отсутствуют)
 const UNIQUE_KEYS: Record<string, string[]> = {
-  roles: ["name"],
   education_levels: ["name"],
   education_forms: ["name"],
   days_of_week: ["name"],
@@ -72,6 +74,10 @@ const UNIQUE_KEYS: Record<string, string[]> = {
   education: ["level_id", "form_id"],
   profiles: ["letter_code", "specialty_id"],
   classrooms: ["room_number", "building_id"],
+  curriculum: ["discipline_id", "course", "semester"],
+  curriculum_profiles: ["curriculum_id", "profile_id"],
+  employees_departments: ["employee_id", "department_id"],
+  discipline_teachers: ["lesson_type_id", "discipline_id", "teacher_department_id"],
   study_groups: ["code"],
   unit_roots: ["unit_code", "study_group_id"],
 };
@@ -103,7 +109,6 @@ function transformKeysToCamel(obj: unknown): unknown {
 
 // Заменяет значения внешних ключей в dbRow на актуальные id согласно картам
 function remapForeignKeys(tableName: string, dbRow: Record<string, unknown>): void {
-  // FK-столбцы для разных таблиц
   const fkColumns = getForeignKeyColumns(tableName);
   for (const col of fkColumns) {
     const val = dbRow[col];
@@ -137,7 +142,7 @@ const fkReferences: Record<string, string> = {
   teacher_department_id: "employees_departments",
   curator_id: "employees",
   unit_type_id: "unit_types",
-  unit_code: "units", // особая связь через code
+  unit_code: "units",
   unit_id: "units",
   teacher_id: "employees_departments",
   lesson_id: "lessons",
@@ -149,10 +154,6 @@ const fkReferences: Record<string, string> = {
 };
 
 function getForeignKeyColumns(tableName: string): string[] {
-  // Упрощённо перечислим столбцы, которые могут быть FK для данной таблицы
-  if (tableName === "employees" || tableName === "students") {
-    return ["study_group_id", "profile_id"];
-  }
   if (tableName === "curriculum") return ["discipline_id", "additional_task_id", "control_type_id"];
   if (tableName === "curriculum_profiles") return ["curriculum_id", "profile_id"];
   if (tableName === "employees_departments") return ["employee_id", "department_id", "employment_type_id", "position_id"];
@@ -207,19 +208,20 @@ export const globalImportExportRouter = router({
         stats[tableName] = { inserted: 0, updated: 0, skipped: 0, errors: [] };
 
         const uniqueKeys = UNIQUE_KEYS[tableName] || [];
-        const allowedFieldsRaw = tablesMeta[tableName]?.fields?.map(f => camelToSnake(f.dbName)) ?? [];
-        const effectiveAllowedFields = allowedFieldsRaw.length > 0 ? allowedFieldsRaw : null;
+        const allowedFields = tablesMeta[tableName]?.fields?.map(f => f.dbName) ?? [];
 
         for (const _row of rows) {
           const row = _row as Record<string, unknown>;
           try {
+            // 1. Собираем только разрешённые поля (фильтрация по table-meta)
             const dbRow: Record<string, unknown> = {};
             for (const [key, val] of Object.entries(row)) {
-              if (key === "id") continue;
-              const snakeKey = camelToSnake(key);
-              if (effectiveAllowedFields === null || effectiveAllowedFields.includes(snakeKey)) {
-                dbRow[snakeKey] = val === undefined ? null : val;
-              }
+                if (key === "id") continue;
+                // Проверяем по camelCase‑ключу (как в table‑meta)
+                if (allowedFields.includes(key)) {
+                    const snakeKey = camelToSnake(key);
+                    dbRow[snakeKey] = val === undefined ? null : val;
+                }
             }
 
             if (Object.keys(dbRow).length === 0) {
@@ -229,52 +231,19 @@ export const globalImportExportRouter = router({
 
             remapForeignKeys(tableName, dbRow);
 
-            // Для unit_roots: unit_code – это не FK, а обычное текстовое поле, оставляем как есть
-            // (маппинг unit_code через remapForeignKeys обработает его, если есть в idMaps units.code → units.id,
-            // но у нас карта по id, а не по code, поэтому unit_code остаётся строкой – это правильно)
-
-            // employees / students
+            // 2. Сотрудники и студенты – всегда вставляем новую запись
             if (tableName === "employees" || tableName === "students") {
-              const email = dbRow["email"];
-              let existingByEmail: Record<string, unknown> | null = null;
-              if (email) {
-                const existingRows = (await db.execute(
-                  sql`SELECT * FROM ${sql.identifier(dbTableName)} WHERE email = ${email} LIMIT 1`
-                )) as unknown[];
-                if (existingRows.length > 0) existingByEmail = existingRows[0] as Record<string, unknown>;
-              }
-              if (existingByEmail) {
-                const existingId = existingByEmail.id as number;
-                idMaps[tableName].set(Number(row.id), existingId);
-                try {
-                  const setEntries = Object.entries(dbRow).map(([k, v]) => sql`${sql.identifier(k)} = ${v}`);
-                  await db.execute(sql`UPDATE ${sql.identifier(dbTableName)} SET ${sql.join(setEntries, sql`, `)} WHERE email = ${email}`);
-                  stats[tableName].updated++;
-                } catch (e: unknown) {
-                  const message = e instanceof Error ? e.message : "Неизвестная ошибка";
-                  stats[tableName].errors.push(`Update failed: ${message}`);
-                }
-              } else {
-                try {
-                  const columns = Object.keys(dbRow);
-                  const values = Object.values(dbRow);
-                  const inserted = await db.execute(
-                    sql`INSERT INTO ${sql.identifier(dbTableName)} (${sql.join(columns.map(c => sql.identifier(c)), sql`, `)})
-                        VALUES (${sql.join(values.map(v => sql`${v}`), sql`, `)})
-                        RETURNING id`
-                  );
-                  const newId = (inserted as unknown as { id: number }[])[0].id;
-                  idMaps[tableName].set(Number(row.id), newId);
-                  stats[tableName].inserted++;
-                } catch (e: unknown) {
-                  const message = e instanceof Error ? e.message : "Неизвестная ошибка";
-                  stats[tableName].errors.push(`Update failed: ${message}`);
-                }
-              }
+              const columns = Object.keys(dbRow);
+              const values = Object.values(dbRow);
+              await db.execute(
+                sql`INSERT INTO ${sql.identifier(dbTableName)} (${sql.join(columns.map(c => sql.identifier(c)), sql`, `)})
+                    VALUES (${sql.join(values.map(v => sql`${v}`), sql`, `)})`
+              );
+              stats[tableName].inserted++;
               continue;
             }
 
-            // остальные таблицы
+            // 3. Остальные таблицы: ищем по уникальному ключу
             let existing: Record<string, unknown> | null = null;
             if (uniqueKeys.length > 0 && uniqueKeys.every(k => dbRow[k] !== undefined && dbRow[k] !== null)) {
               const conditions = uniqueKeys.map(k => sql`${sql.identifier(k)} = ${dbRow[k]}`);
@@ -286,48 +255,40 @@ export const globalImportExportRouter = router({
             }
 
             if (!existing) {
-              try {
-                const columns = Object.keys(dbRow);
-                const values = Object.values(dbRow);
-                const inserted = await db.execute(
-                  sql`INSERT INTO ${sql.identifier(dbTableName)} (${sql.join(columns.map(c => sql.identifier(c)), sql`, `)})
-                      VALUES (${sql.join(values.map(v => sql`${v}`), sql`, `)})
-                      RETURNING id`
-                );
-                const newId = (inserted as unknown as { id: number }[])[0].id;
-                idMaps[tableName].set(Number(row.id), newId);
-                stats[tableName].inserted++;
-              } catch (e: unknown) {
-                const message = e instanceof Error ? e.message : "Неизвестная ошибка";
-                stats[tableName].errors.push(`Update failed: ${message}`);
-              }
+              // INSERT
+              const columns = Object.keys(dbRow);
+              const values = Object.values(dbRow);
+              const inserted = await db.execute(
+                sql`INSERT INTO ${sql.identifier(dbTableName)} (${sql.join(columns.map(c => sql.identifier(c)), sql`, `)})
+                    VALUES (${sql.join(values.map(v => sql`${v}`), sql`, `)})
+                    RETURNING id`
+              );
+              const newId = (inserted as unknown as { id: number }[])[0].id;
+              idMaps[tableName].set(Number(row.id), newId);
+              stats[tableName].inserted++;
             } else {
+              // Обновляем или пропускаем
               const existingId = existing.id as number;
               idMaps[tableName].set(Number(row.id), existingId);
               let changed = false;
               for (const [k, v] of Object.entries(dbRow)) {
-                if (existing[k] !== v) { changed = true; break; }
+                if (String(existing[k]) !== String(v)) { changed = true; break; }
               }
               if (!changed) {
                 stats[tableName].skipped++;
               } else {
-                try {
-                  const setEntries = Object.entries(dbRow).map(([k, v]) => sql`${sql.identifier(k)} = ${v}`);
-                  const keyConditions = uniqueKeys.map(k => sql`${sql.identifier(k)} = ${existing![k]}`);
-                  const whereClause = keyConditions.length > 1 ? sql.join(keyConditions, sql` AND `) : keyConditions[0];
-                  await db.execute(
-                    sql`UPDATE ${sql.identifier(dbTableName)} SET ${sql.join(setEntries, sql`, `)} WHERE ${whereClause}`
-                  );
-                  stats[tableName].updated++;
-                } catch (e: unknown) {
-                  const message = e instanceof Error ? e.message : "Неизвестная ошибка";
-                  stats[tableName].errors.push(`Update failed: ${message}`);
-                }
+                const setEntries = Object.entries(dbRow).map(([k, v]) => sql`${sql.identifier(k)} = ${v}`);
+                const keyConditions = uniqueKeys.map(k => sql`${sql.identifier(k)} = ${existing![k]}`);
+                const whereClause = keyConditions.length > 1 ? sql.join(keyConditions, sql` AND `) : keyConditions[0];
+                await db.execute(
+                  sql`UPDATE ${sql.identifier(dbTableName)} SET ${sql.join(setEntries, sql`, `)} WHERE ${whereClause}`
+                );
+                stats[tableName].updated++;
               }
             }
           } catch (e: unknown) {
             const message = e instanceof Error ? e.message : "Неизвестная ошибка";
-            stats[tableName].errors.push(`Update failed: ${message}`);
+            stats[tableName].errors.push(`id=${row.id}: ${message}`);
           }
         }
       }

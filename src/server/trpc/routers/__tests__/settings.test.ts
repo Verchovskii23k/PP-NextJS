@@ -1,25 +1,49 @@
+// src/server/trpc/routers/__tests__/settings.test.ts
 import { beforeAll, describe, expect, it } from 'vitest';
-import { seedTestData } from '@/test/fixtures/fixtures';
 import { createTestCaller } from '@/test/trpc';
+import { clearAllTestData } from '@/test/helpers';
 
 let caller: Awaited<ReturnType<typeof createTestCaller>>;
 
 beforeAll(async () => {
-  await seedTestData();
+  await clearAllTestData();
   caller = await createTestCaller({ id: 1, role: 'admin' });
 });
 
 describe('settings', () => {
-  it('should get an existing setting', async () => {
-    const val = await caller.settings.get({ key: 'total_weeks' });
-    expect(val).toBe('16');
+  const TEST_KEY = 'total_weeks';
+  const TEST_VALUE = '16';
+
+  it('should return null for non-existent key', async () => {
+    const val = await caller.settings.get({ key: 'nonexistent' });
+    expect(val).toBeNull();
   });
 
-  it('should update a setting', async () => {
-    await caller.settings.update({ key: 'total_weeks', value: '20' });
-    const val = await caller.settings.get({ key: 'total_weeks' });
+  it('should create a new setting', async () => {
+    await caller.settings.update({ key: TEST_KEY, value: TEST_VALUE });
+    const val = await caller.settings.get({ key: TEST_KEY });
+    expect(val).toBe(TEST_VALUE);
+  });
+
+  it('should update an existing setting', async () => {
+    await caller.settings.update({ key: TEST_KEY, value: '20' });
+    const val = await caller.settings.get({ key: TEST_KEY });
     expect(val).toBe('20');
-    // вернём обратно
-    await caller.settings.update({ key: 'total_weeks', value: '16' });
+  });
+
+  it('should reject empty key', async () => {
+    await expect(
+      caller.settings.get({ key: '' })
+    ).rejects.toThrow();
+
+    await expect(
+      caller.settings.update({ key: '', value: 'x' })
+    ).rejects.toThrow();
+  });
+
+  it('should reject empty value', async () => {
+    await expect(
+      caller.settings.update({ key: 'some', value: '' })
+    ).rejects.toThrow();
   });
 });

@@ -17,7 +17,7 @@ export const batchDeleteRouter = router({
         ids: z.array(z.number()),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx,input }) => {
       const { tableName, ids } = input;
 
       if (!ALLOWED_DELETE_TABLES.includes(tableName)) {
@@ -30,12 +30,23 @@ export const batchDeleteRouter = router({
         errors: [] as { id: number; message: string }[],
       };
 
-      for (const id of ids) {
-        try {
-          await db.execute(
-            sql`DELETE FROM ${sql.identifier(dbTableName)} WHERE id = ${id}`
-          );
-          result.deleted++;
+        for (const id of ids) {
+          try {
+            // Проверка на самозапрет для сотрудников и студентов
+            if (tableName === "employees" || tableName === "students") {
+              const [row] = await db.execute(
+                sql`SELECT user_id FROM ${sql.identifier(dbTableName)} WHERE id = ${id}`
+              ) as unknown as { user_id: string | null }[];
+              if (row?.user_id && ctx.user?.id === row.user_id) {
+                result.errors.push({ id, message: "Нельзя удалить самого себя" });
+                continue;
+              }
+            }
+
+            await db.execute(
+              sql`DELETE FROM ${sql.identifier(dbTableName)} WHERE id = ${id}`
+            );
+            result.deleted++;
         } catch (e: unknown) {
             const err = e as { code?: string; cause?: { code?: string }; message?: string };
             const code = err.code || err.cause?.code;

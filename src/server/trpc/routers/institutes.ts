@@ -1,9 +1,10 @@
 import { z } from "zod";
 import { router, adminProcedure } from "../trpc";
 import { institutes, departments, studyGroups } from "@/db/schema";
-import { eq, sql, and } from "drizzle-orm";
+import { eq, sql, and, or } from "drizzle-orm";   // ← добавили or
 import { safeDelete } from "@/lib/safeDelete";
 import { TRPCError } from "@trpc/server";
+
 const instituteCreateSchema = z.object({
   universityCode: z.number().int().positive(),
   name: z.string().min(1),
@@ -26,11 +27,11 @@ export const institutesRouter = router({
     }),
   create: adminProcedure
     .input(instituteCreateSchema.and(z.object({
-      directorId: z.number().int().optional(),   // если нужно разрешить при создании
+      directorId: z.number().int().optional(),
     })))
     .mutation(async ({ ctx, input }) => {
+      // 1. Проверка занятости сотрудника (уже была)
       if (input.directorId) {
-        // Проверка, что сотрудник не зав. кафедрой
         const [isHead] = await ctx.db
           .select({ id: departments.id })
           .from(departments)
@@ -38,13 +39,28 @@ export const institutesRouter = router({
           .limit(1);
         if (isHead) throw new TRPCError({ code: 'CONFLICT', message: 'Этот сотрудник уже является заведующим кафедрой' });
 
-        // Проверка, что сотрудник не куратор
         const [isCurator] = await ctx.db
           .select({ id: studyGroups.id })
           .from(studyGroups)
           .where(eq(studyGroups.curatorId, input.directorId))
           .limit(1);
         if (isCurator) throw new TRPCError({ code: 'CONFLICT', message: 'Этот сотрудник уже является куратором' });
+      }
+
+      // 2. Проверка уникальности кода и названия
+      const [existing] = await ctx.db
+        .select({ id: institutes.id })
+        .from(institutes)
+        .where(
+          or(
+            eq(institutes.universityCode, input.universityCode),
+            eq(institutes.name, input.name)
+          )
+        )
+        .limit(1);
+
+      if (existing) {
+        throw new TRPCError({ code: 'CONFLICT', message: 'Институт с таким кодом или названием уже существует' });
       }
 
       return ctx.db.insert(institutes).values(input).returning();
@@ -58,42 +74,63 @@ export const institutesRouter = router({
       isActive: z.boolean().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-        const { id, directorId, isActive, ...data } = input;
+      const { id, directorId, isActive, ...data } = input;
 
-        if (directorId) {
-          // Не может быть зав. кафедрой
-          const [isHead] = await ctx.db
-            .select({ id: departments.id })
-            .from(departments)
-            .where(eq(departments.headId, directorId))
-            .limit(1);
-          if (isHead) throw new TRPCError({ code: 'CONFLICT', message: 'Этот сотрудник уже является заведующим кафедрой' });
+      // 1. Проверки занятости сотрудника (уже были)
+      if (directorId) {
+        const [isHead] = await ctx.db
+          .select({ id: departments.id })
+          .from(departments)
+          .where(eq(departments.headId, directorId))
+          .limit(1);
+        if (isHead) throw new TRPCError({ code: 'CONFLICT', message: 'Этот сотрудник уже является заведующим кафедрой' });
 
-          // Не может быть куратором
-          const [isCurator] = await ctx.db
-            .select({ id: studyGroups.id })
-            .from(studyGroups)
-            .where(eq(studyGroups.curatorId, directorId))
-            .limit(1);
-          if (isCurator) throw new TRPCError({ code: 'CONFLICT', message: 'Этот сотрудник уже является куратором' });
+        const [isCurator] = await ctx.db
+          .select({ id: studyGroups.id })
+          .from(studyGroups)
+          .where(eq(studyGroups.curatorId, directorId))
+          .limit(1);
+        if (isCurator) throw new TRPCError({ code: 'CONFLICT', message: 'Этот сотрудник уже является куратором' });
 
-          // Не может быть директором другого института
-          const [isDirector] = await ctx.db
-            .select({ id: institutes.id })
-            .from(institutes)
-            .where(and(eq(institutes.directorId, directorId), sql`${institutes.id} != ${id}`))
-            .limit(1);
-          if (isDirector) throw new TRPCError({ code: 'CONFLICT', message: 'Этот сотрудник уже является директором другого института' });
+        const [isDirector] = await ctx.db
+          .select({ id: institutes.id })
+          .from(institutes)
+          .where(and(eq(institutes.directorId, directorId), sql`${institutes.id} != ${id}`))
+          .limit(1);
+        if (isDirector) throw new TRPCError({ code: 'CONFLICT', message: 'Этот сотрудник уже является директором другого института' });
+      }
+
+      // 2. Проверка уникальности кода и названия
+      if (data.universityCode || data.name) {
+        const conditions = [];
+        if (data.universityCode) {
+          conditions.push(eq(institutes.universityCode, data.universityCode));
         }
-
-        // Каскадное отключение кафедр при isActive = false остаётся без изменений
-        if (isActive === false) {
-          await ctx.db.update(departments).set({ isActive: false }).where(eq(departments.instituteId, id));
+        if (data.name) {
+          conditions.push(eq(institutes.name, data.name));
         }
+        // Исключаем текущий институт
+        conditions.push(sql`${institutes.id} != ${id}`);
 
-        return ctx.db.update(institutes).set({ ...data, directorId, isActive }).where(eq(institutes.id, id)).returning();
-      }),
-delete: adminProcedure
+        const [duplicate] = await ctx.db
+          .select({ id: institutes.id })
+          .from(institutes)
+          .where(and(...conditions))
+          .limit(1);
+
+        if (duplicate) {
+          throw new TRPCError({ code: 'CONFLICT', message: 'Институт с таким кодом или названием уже существует' });
+        }
+      }
+
+      // Каскадное отключение кафедр
+      if (isActive === false) {
+        await ctx.db.update(departments).set({ isActive: false }).where(eq(departments.instituteId, id));
+      }
+
+      return ctx.db.update(institutes).set({ ...data, directorId, isActive }).where(eq(institutes.id, id)).returning();
+    }),
+  delete: adminProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => safeDelete(institutes, input.id)),
 });

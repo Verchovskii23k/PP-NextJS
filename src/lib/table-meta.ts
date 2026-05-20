@@ -18,13 +18,21 @@ export interface TableMeta {
   fields: FieldMeta[];
   routerKey: string;
   dbTableName: string;
+  category: "reference" | "people" | "generated";
+  hidden?: boolean; 
 }
+export const TABLE_CATEGORIES: Record<string, string> = {
+  reference: "Справочники",
+  people: "Люди",
+  generated: "Генерации перед расписанием",
+};
 
 export const tablesMeta: Record<string, TableMeta> = {
   institutes: {
     nameRu: "Институты",
     routerKey: "institutes",
     dbTableName: "institutes",
+    category: "reference",
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "universityCode", displayName: "Код университета", isFK: false, required: true },
@@ -37,6 +45,7 @@ export const tablesMeta: Record<string, TableMeta> = {
     nameRu: "Корпуса",
     routerKey: "buildings",
     dbTableName: "buildings",
+    category: "reference",
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "number", displayName: "Номер", isFK: false, required: true },
@@ -47,6 +56,7 @@ export const tablesMeta: Record<string, TableMeta> = {
     nameRu: "Кафедры",
     routerKey: "departments",
     dbTableName: "departments",
+    category: "reference",
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "name", displayName: "Название", isFK: false, required: true },
@@ -61,6 +71,7 @@ export const tablesMeta: Record<string, TableMeta> = {
     nameRu: "Специальности",
     routerKey: "specialties",
     dbTableName: "specialties",
+    category: "reference",
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "code", displayName: "Код", isFK: false, required: true },
@@ -73,6 +84,7 @@ export const tablesMeta: Record<string, TableMeta> = {
     nameRu: "Профили",
     routerKey: "profiles",
     dbTableName: "profiles",
+    category: "reference",
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "name", displayName: "Название", isFK: false, required: true },
@@ -86,6 +98,7 @@ export const tablesMeta: Record<string, TableMeta> = {
     nameRu: "Дисциплины",
     routerKey: "disciplines",
     dbTableName: "disciplines",
+    category: "reference",
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "name", displayName: "Название", isFK: false, required: true },
@@ -98,14 +111,15 @@ export const tablesMeta: Record<string, TableMeta> = {
     nameRu: "Типы юнитов",
     routerKey: "unitTypes",
     dbTableName: "unit_types",
+    category: "reference",
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "name", displayName: "Название", isFK: false, required: true },
       { dbName: "maxSize", displayName: "Макс. размер", isFK: false, required: true },
-      { dbName: "priorityLecture", displayName: "Приоритет лекций", isFK: false, required: true },
-      { dbName: "priorityWorkshop", displayName: "Приоритет практик", isFK: false, required: true },
-      { dbName: "priorityGuidedStudy", displayName: "Приоритет КСР", isFK: false, required: true },
-      { dbName: "priorityLab", displayName: "Приоритет лаб.", isFK: false, required: true },
+      { dbName: "priorityLecture", displayName: "Приоритет лекций", isFK: false, required: true, inputType: "radioGroup" },
+      { dbName: "priorityWorkshop", displayName: "Приоритет практик", isFK: false, required: true, inputType: "radioGroup" },
+      { dbName: "priorityGuidedStudy", displayName: "Приоритет КСР", isFK: false, required: true, inputType: "radioGroup" },
+      { dbName: "priorityLab", displayName: "Приоритет лаб.", isFK: false, required: true, inputType: "radioGroup" },
       { dbName: "isActive", displayName: "Активен", isFK: false, required: true, inputType: "toggle" }
     ],
   },
@@ -113,6 +127,7 @@ export const tablesMeta: Record<string, TableMeta> = {
     nameRu: "Типы занятий",
     routerKey: "lessonTypes",
     dbTableName: "lesson_types",
+    category: "reference",
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "name", displayName: "Системное имя", isFK: false, required: true },
@@ -124,6 +139,7 @@ export const tablesMeta: Record<string, TableMeta> = {
     nameRu: "Аудитории",
     routerKey: "classrooms",
     dbTableName: "classrooms",
+    category: "reference",
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "buildingId", displayName: "Корпус", isFK: true, references: { table: "buildings", displayField: "number" }, required: true },
@@ -142,6 +158,7 @@ export const tablesMeta: Record<string, TableMeta> = {
     nameRu: "Должности",
     routerKey: "positions",
     dbTableName: "positions",
+    category: "reference",
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "name", displayName: "Название", isFK: false, required: true },
@@ -153,6 +170,7 @@ export const tablesMeta: Record<string, TableMeta> = {
     nameRu: "Типы занятости",
     routerKey: "employmentTypes",
     dbTableName: "employment_types",
+    category: "reference",
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "name", displayName: "Название", isFK: false, required: true },
@@ -164,6 +182,7 @@ export const tablesMeta: Record<string, TableMeta> = {
         nameRu: "Сотрудники",
         routerKey: "employees",
         dbTableName: "employees",
+        category: "people",
         fields: [
           { dbName: "id", displayName: "ID", isFK: false },
           { dbName: "surname", displayName: "Фамилия", isFK: false, required: true },
@@ -176,6 +195,7 @@ export const tablesMeta: Record<string, TableMeta> = {
         nameRu: "Студенты",
         routerKey: "students",
         dbTableName: "students",
+        category: "people",
         fields: [
           { dbName: "id", displayName: "ID", isFK: false },
           { dbName: "surname", displayName: "Фамилия", isFK: false, required: true },
@@ -192,6 +212,7 @@ export const tablesMeta: Record<string, TableMeta> = {
     nameRu: "Учебные группы",
     routerKey: "studyGroups",
     dbTableName: "study_groups",
+    category: "generated",
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "code", displayName: "Код группы", isFK: false, required: true },
@@ -205,6 +226,7 @@ export const tablesMeta: Record<string, TableMeta> = {
     nameRu: "Юниты",
     routerKey: "units",
     dbTableName: "units",
+    category: "generated",
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "code", displayName: "Код юнита", isFK: false, required: true },
@@ -215,6 +237,7 @@ export const tablesMeta: Record<string, TableMeta> = {
     nameRu: "Занятия",
     routerKey: "lessons",
     dbTableName: "lessons",
+    category: "generated",
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "curriculumId", displayName: "Учебный план", isFK: true, references: { table: "curriculum", displayField: "display" }, required: true },
@@ -229,6 +252,7 @@ export const tablesMeta: Record<string, TableMeta> = {
     nameRu: "Учебные планы",
     routerKey: "curriculum",
     dbTableName: "curriculum",
+    category: "reference",
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "course", displayName: "Курс", isFK: false, required: true },
@@ -247,6 +271,7 @@ lessonClassrooms: {
   nameRu: "Аудитории занятий",
   routerKey: "lessonClassrooms",
   dbTableName: "lesson_classrooms",
+  category: "generated",
   fields: [
     { dbName: "id", displayName: "ID", isFK: false },
     { dbName: "lessonId", displayName: "Занятие", isFK: true, references: { table: "lessons", displayField: "display" }, required: true},
@@ -257,6 +282,7 @@ lessonClassrooms: {
     nameRu: "Корни юнитов",
     routerKey: "unitRoots",
     dbTableName: "unit_roots",
+    category: "generated",
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "unitCode", displayName: "Код юнита", isFK: false, required: true },
@@ -267,6 +293,7 @@ lessonClassrooms: {
     nameRu: "Учебные планы по профилям",
     routerKey: "curriculumProfiles",
     dbTableName: "curriculum_profiles",
+    category: "reference",
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "curriculumId", displayName: "Учебный план", isFK: true, references: { table: "curriculum", displayField: "display" }, required: true },
@@ -278,6 +305,7 @@ lessonClassrooms: {
     nameRu: "Типы нагрузки",
     routerKey: "academicLoadTypes",
     dbTableName: "academic_load_types",
+    category: "reference",
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "name", displayName: "Название", isFK: false, required: true },
@@ -289,6 +317,7 @@ lessonClassrooms: {
     nameRu: "Типы контроля",
     routerKey: "controlTypes",
     dbTableName: "control_types",
+    category: "reference",
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "name", displayName: "Название", isFK: false, required: true },
@@ -300,6 +329,7 @@ lessonClassrooms: {
     nameRu: "Соответствие часов",
     routerKey: "hourTypeMapping",
     dbTableName: "hour_type_mapping",
+    category: "reference",
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "planHourColumn", displayName: "План часов", isFK: false, required: true },
@@ -312,6 +342,7 @@ lessonClassrooms: {
     nameRu: "Сотрудники кафедр",
     routerKey: "employeesDepartments",
     dbTableName: "employees_departments",
+    category: "reference",
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "employeeId", displayName: "Сотрудник", isFK: true, references: { table: "employees", displayField: "display" }, required: true },
@@ -325,6 +356,7 @@ lessonClassrooms: {
     nameRu: "Преподаватели дисциплин",
     routerKey: "disciplineTeachers",
     dbTableName: "discipline_teachers",
+    category: "reference",
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "lessonTypeId", displayName: "Тип занятия", isFK: true, references: { table: "lessonTypes", displayField: "display" }, required: true },
@@ -337,6 +369,7 @@ lessonClassrooms: {
     nameRu: "Дни недели",
     routerKey: "daysOfWeek",
     dbTableName: "days_of_week",
+    category: "reference",
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "name", displayName: "День", isFK: false, required: true },
@@ -347,6 +380,7 @@ lessonClassrooms: {
     nameRu: "Пары",
     routerKey: "pairs",
     dbTableName: "pairs",
+    category: "reference",
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "number", displayName: "Номер пары", isFK: false, required: true },
@@ -357,6 +391,7 @@ lessonClassrooms: {
     nameRu: "Недели",
     routerKey: "weeks",
     dbTableName: "weeks",
+    category: "reference",
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "type", displayName: "Тип", isFK: false, required: true },
@@ -367,6 +402,7 @@ lessonClassrooms: {
     nameRu: "Уровни образования",
     routerKey: "educationLevels",
     dbTableName: "education_levels",
+    category: "reference",
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "name", displayName: "Название", isFK: false, required: true },
@@ -378,6 +414,7 @@ lessonClassrooms: {
     nameRu: "Формы обучения",
     routerKey: "educationForms",
     dbTableName: "education_forms",
+    category: "reference",
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "name", displayName: "Название", isFK: false, required: true },
@@ -389,6 +426,7 @@ lessonClassrooms: {
     nameRu: "Образование",
     routerKey: "education",
     dbTableName: "education",
+    category: "reference",
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "levelId", displayName: "Уровень", isFK: true, references: { table: "educationLevels", displayField: "name" }, required: true },
@@ -397,9 +435,38 @@ lessonClassrooms: {
       { dbName: "isActive", displayName: "Активен", isFK: false, required: true, inputType: "toggle" },
     ],
   },
+    // Скрываем служебные таблицы
+  schedule: {
+    nameRu: "Расписание",
+    routerKey: "schedule",
+    dbTableName: "schedule",
+    category: "generated",
+    hidden: true,
+    fields: [],
+  },
+  scheduleDisplay: {
+    nameRu: "Отображение расписания",
+    routerKey: "scheduleDisplay",
+    dbTableName: "schedule_display",
+    category: "generated",
+    hidden: true,
+    fields: [],
+  },
+  scheduleVersions: {
+    nameRu: "Версии расписания",
+    routerKey: "scheduleVersions",
+    dbTableName: "schedule_versions",
+    category: "generated",
+    hidden: true,
+    fields: [],
+  },
 };
 
-export const tableNames = Object.entries(tablesMeta).map(([key, value]) => ({
-  key,
-  label: value.nameRu,
-}));
+export const tableNames = Object.entries(tablesMeta)
+  .filter(([, meta]) => !meta.hidden)
+  .map(([key, value]) => ({
+    key,
+    label: value.nameRu,
+  }));
+
+

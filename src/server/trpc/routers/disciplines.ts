@@ -1,20 +1,16 @@
 import { z } from "zod";
 import { router, adminProcedure } from "../trpc";
 import { disciplines, curriculum, disciplineTeachers } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { safeDelete } from "@/lib/safeDelete";
+import { TRPCError } from "@trpc/server";
+
 export const disciplinesRouter = router({
   list: adminProcedure
-    .input(
-      z.object({
-        departmentId: z.number().optional(),
-      }).optional()
-    )
+    .input(z.object({ departmentId: z.number().optional() }).optional())
     .query(async ({ ctx, input }) => {
       const query = ctx.db.select().from(disciplines);
-      if (input?.departmentId) {
-        query.where(eq(disciplines.departmentId, input.departmentId));
-      }
+      if (input?.departmentId) query.where(eq(disciplines.departmentId, input.departmentId));
       return query;
     }),
   get: adminProcedure
@@ -26,11 +22,19 @@ export const disciplinesRouter = router({
   create: adminProcedure
     .input(z.object({
       name: z.string().min(1),
-      abbreviation: z.string().min(1),   // было optional
+      abbreviation: z.string().min(1),
       departmentId: z.coerce.number().int(),
       isActive: z.boolean().default(true),
     }))
-    .mutation(async ({ ctx, input }) => ctx.db.insert(disciplines).values(input).returning()),
+    .mutation(async ({ ctx, input }) => {
+      const [duplicate] = await ctx.db
+        .select({ id: disciplines.id })
+        .from(disciplines)
+        .where(eq(disciplines.name, input.name))
+        .limit(1);
+      if (duplicate) throw new TRPCError({ code: 'CONFLICT', message: 'Дисциплина с таким названием уже существует' });
+      return ctx.db.insert(disciplines).values(input).returning();
+    }),
   update: adminProcedure
     .input(z.object({
       id: z.number(),
@@ -41,18 +45,21 @@ export const disciplinesRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       const { id, isActive, ...data } = input;
-
+      if (data.name) {
+        const [duplicate] = await ctx.db
+          .select({ id: disciplines.id })
+          .from(disciplines)
+          .where(and(eq(disciplines.name, data.name), sql`${disciplines.id} != ${id}`))
+          .limit(1);
+        if (duplicate) throw new TRPCError({ code: 'CONFLICT', message: 'Дисциплина с таким названием уже существует' });
+      }
       if (isActive === false) {
         await ctx.db.update(curriculum).set({ isActive: false }).where(eq(curriculum.disciplineId, id));
         await ctx.db.update(disciplineTeachers).set({ isActive: false }).where(eq(disciplineTeachers.disciplineId, id));
       }
-      return ctx.db
-        .update(disciplines)
-        .set({ ...data, isActive })
-        .where(eq(disciplines.id, id))
-        .returning();
+      return ctx.db.update(disciplines).set({ ...data, isActive }).where(eq(disciplines.id, id)).returning();
     }),
-delete: adminProcedure
+  delete: adminProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => safeDelete(disciplines, input.id)),
 });

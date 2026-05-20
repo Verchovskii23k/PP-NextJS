@@ -6,18 +6,15 @@ import {
   employees, students, profiles, disciplineTeachers,
   curriculum, curriculumProfiles, classrooms,
   employeesDepartments, weeks, daysOfWeek, pairs, settings,
-  roles, scheduleDisplay, schedule, lessonClassrooms, lessons,
+  users, accounts,
+  scheduleDisplay, schedule, lessonClassrooms, lessons,
   unitRoots, studyGroups, units,
-  sessions,
-  controlTypes,
-  employmentTypes,
-  academicLoadTypes,
-  educationForms,
-  education,
-  educationLevels,
-  positions, scheduleVersions
+  controlTypes, employmentTypes, academicLoadTypes,
+  educationForms, education, educationLevels,
+  positions, scheduleVersions,
 } from "@/db/schema";
-import { sql, eq } from "drizzle-orm";
+import { sql } from "drizzle-orm";
+import bcrypt from "bcryptjs";
 
 export async function clearDatabase() {
   const tables = [
@@ -31,7 +28,8 @@ export async function clearDatabase() {
     profiles, specialties, disciplines,
     departments, institutes, buildings, employees,
     positions, employmentTypes, academicLoadTypes, controlTypes,
-    settings, scheduleVersions, securityCenter, sessions, roles  // ← добавили
+    settings, scheduleVersions,
+    accounts, users,   // порядок важен из-за внешних ключей
   ];
   for (const t of tables) {
     await db.delete(t);
@@ -51,33 +49,26 @@ export async function clearDatabase() {
 export async function seedTestData() {
   await clearDatabase();
 
-  // === 1. Роли ===
-  await db.insert(roles).values([
-    { name: "admin", description: "Администратор" },
-    { name: "teacher", description: "Преподаватель" },
-    { name: "student", description: "Студент" },
-  ]);
-
-  // === 2. Институты ===
+  // === 1. Институты ===
   const [inst] = await db.insert(institutes).values([
     { name: "Институт тестов", universityCode: 999 },
   ]).returning();
   const instId = inst.id;
 
-  // === 3. Корпус ===
+  // === 2. Корпус ===
   const [bld] = await db.insert(buildings).values([
     { number: 1 },
   ]).returning();
   const bldId = bld.id;
 
-  // === 4. Типы юнитов ===
+  // === 3. Типы юнитов ===
   await db.insert(unitTypes).values([
     { name: "ПОТОК", maxSize: 128, priorityLecture: 1, priorityWorkshop: 3, priorityGuidedStudy: 3, priorityLab: 3 },
     { name: "ГРУППА", maxSize: 32, priorityLecture: 2, priorityWorkshop: 1, priorityGuidedStudy: 1, priorityLab: 2 },
     { name: "ПОДГРУППА", maxSize: 16, priorityLecture: 3, priorityWorkshop: 3, priorityGuidedStudy: 3, priorityLab: 1 },
   ]);
 
-  // === 5. Типы занятий ===
+  // === 4. Типы занятий ===
   const ltData = await db.insert(lessonTypes).values([
     { name: "lecture", abbreviation: "ЛК" },
     { name: "workshop", abbreviation: "ПР" },
@@ -86,7 +77,7 @@ export async function seedTestData() {
   ]).returning();
   const ltMap = new Map(ltData.map(t => [t.name, t.id]));
 
-  // === 6. Соответствие часов и приоритетов ===
+  // === 5. Соответствие часов и приоритетов ===
   await db.insert(hourTypeMapping).values([
     { planHourColumn: "hours_lecture", priorityColumn: "priorityLecture", lessonTypeId: ltMap.get("lecture")! },
     { planHourColumn: "hours_workshop", priorityColumn: "priorityWorkshop", lessonTypeId: ltMap.get("workshop")! },
@@ -94,7 +85,7 @@ export async function seedTestData() {
     { planHourColumn: "hours_lab", priorityColumn: "priorityLab", lessonTypeId: ltMap.get("lab")! },
   ]);
 
-  // === 7. Кафедры ===
+  // === 6. Кафедры ===
   const deptData = await db.insert(departments).values([
     { name: "Кафедра А", abbreviation: "КА", instituteId: instId, departmentCode: 101 },
     { name: "Кафедра Б", abbreviation: "КБ", instituteId: instId, departmentCode: 102 },
@@ -102,7 +93,7 @@ export async function seedTestData() {
   const deptA = deptData[0];
   const deptB = deptData[1];
 
-  // === 8. Специальности ===
+  // === 7. Специальности ===
   const specData = await db.insert(specialties).values([
     { code: "01.03.01", name: "Специальность А", departmentId: deptA.id },
     { code: "01.03.02", name: "Специальность Б", departmentId: deptB.id },
@@ -110,7 +101,7 @@ export async function seedTestData() {
   const specA = specData[0];
   const specB = specData[1];
 
-  // === 9. Профили ===
+  // === 8. Профили ===
   const profData = await db.insert(profiles).values([
     { name: "Профиль А", specialtyId: specA.id, letterCode: "а" },
     { name: "Профиль Б", specialtyId: specB.id, letterCode: "б" },
@@ -118,7 +109,7 @@ export async function seedTestData() {
   const profA = profData[0];
   const profB = profData[1];
 
-  // === 10. Дисциплины ===
+  // === 9. Дисциплины ===
   const discData = await db.insert(disciplines).values([
     { name: "Дисциплина 1", abbreviation: "Д1", departmentId: deptA.id },
     { name: "Дисциплина 2", abbreviation: "Д2", departmentId: deptB.id },
@@ -126,7 +117,7 @@ export async function seedTestData() {
   const disc1 = discData[0];
   const disc2 = discData[1];
 
-  // === 11. Преподаватели ===
+  // === 10. Преподаватели ===
   const empData = await db.insert(employees).values([
     { surname: "Преподаватель", name: "Один", patronymic: "Первый", isActive: true },
     { surname: "Преподаватель", name: "Два", patronymic: "Второй", isActive: true },
@@ -134,13 +125,13 @@ export async function seedTestData() {
   const emp1 = empData[0];
   const emp2 = empData[1];
 
-  // === 12. Привязка преподавателей к кафедрам ===
+  // === 11. Привязка преподавателей к кафедрам ===
   const empDeptData = await db.insert(employeesDepartments).values([
     { employeeId: emp1.id, departmentId: deptA.id },
     { employeeId: emp2.id, departmentId: deptB.id },
   ]).returning();
 
-  // === 13. Дисциплины-преподаватели ===
+  // === 12. Дисциплины-преподаватели ===
   await db.insert(disciplineTeachers).values([
     { lessonTypeId: ltMap.get("lecture")!, disciplineId: disc1.id, teacherDepartmentId: empDeptData[0].id },
     { lessonTypeId: ltMap.get("guidedStudy")!, disciplineId: disc1.id, teacherDepartmentId: empDeptData[0].id },
@@ -150,7 +141,7 @@ export async function seedTestData() {
     { lessonTypeId: ltMap.get("lab")!, disciplineId: disc2.id, teacherDepartmentId: empDeptData[1].id },
   ]);
 
-  // === 14. Учебный план ===
+  // === 13. Учебный план ===
   const curriculumData = await db.insert(curriculum).values([
     {
       course: 3, semester: 1, disciplineId: disc1.id,
@@ -171,7 +162,7 @@ export async function seedTestData() {
     ]);
   }
 
-  // === 15. Аудитории ===
+  // === 14. Аудитории ===
   await db.insert(classrooms).values([
     { buildingId: bldId, roomNumber: "322", capacity: 16, priorityLecture: 3, priorityWorkshop: 2, priorityGuidedStudy: 2, priorityLab: 1 },
     { buildingId: bldId, roomNumber: "325", capacity: 16, priorityLecture: 3, priorityWorkshop: 2, priorityGuidedStudy: 2, priorityLab: 1 },
@@ -184,7 +175,7 @@ export async function seedTestData() {
     { buildingId: bldId, roomNumber: "210", capacity: 150, priorityLecture: 2, priorityWorkshop: 2, priorityGuidedStudy: 3 },
   ]);
 
-  // === 16. Студенты ===
+  // === 15. Студенты ===
   const studentProfiles = [
     { surname: "Студентов", name: "Анна", admissionYear: 2023, profileId: profA.id, course: 3 },
     { surname: "Студентов", name: "Борис", admissionYear: 2023, profileId: profA.id, course: 3 },
@@ -208,7 +199,7 @@ export async function seedTestData() {
     });
   }
 
-  // === 17. Дни недели, пары, недели ===
+  // === 16. Дни недели, пары, недели ===
   await db.insert(daysOfWeek).values(
     ["ПН","ВТ","СР","ЧТ","ПТ","СБ"].map(name => ({ name }))
   );
@@ -220,7 +211,7 @@ export async function seedTestData() {
     { type: "even" },
   ]);
 
-  // === 18. Настройки ===
+  // === 17. Настройки ===
   await db.insert(settings).values([
     { key: "total_weeks", value: "16" },
     { key: "current_semester", value: "1" },
@@ -236,28 +227,29 @@ export async function seedTestData() {
     employees: { E1: emp1.id, E2: emp2.id },
     lessonTypes: Object.fromEntries(ltMap),
   };
-  
 }
-// Вставьте в конец файла после всех импортов
-import { hashPassword } from "@/server/auth/password";
-import { securityCenter } from "@/db/schema";
 
+// Новая функция для создания тестового пользователя
 export async function seedAuthUser(email: string | null = null) {
-  const [adminRole] = await db.select().from(roles).where(eq(roles.name, "admin")).limit(1);
   const password = "123456";
-  const hash = await hashPassword(password);
-  const [emp] = await db.insert(employees).values({
+  const hashed = await bcrypt.hash(password, 10);
+  const userEmail = email || `test-${Date.now()}@test.local`;
+
+  // Создаём пользователя в users
+  const [user] = await db.insert(users).values({
+    email: userEmail,
+    hashedPassword: hashed,
+    role: 'admin',
+  }).returning({ id: users.id });
+
+  // Создаём сотрудника-админа, привязанного к users
+  await db.insert(employees).values({
     surname: "Тестовый",
     name: "Админ",
-    email: email,           // ← теперь управляем из теста
     isAdmin: true,
     isActive: true,
-  }).returning();
-  const [sec] = await db.insert(securityCenter).values({
-    login: email ? `admin-${Date.now()}` : "admin-nomail",   // уникальный логин
-    passwordHash: hash,
-    roleId: adminRole.id,
-  }).returning();
-  await db.update(employees).set({ authenticationId: sec.id }).where(eq(employees.id, emp.id));
-  return { login: sec.login, password, userId: sec.id };
+    userId: user.id,
+  }).returning({ id: employees.id });
+
+  return { email: userEmail, password, userId: user.id };
 }

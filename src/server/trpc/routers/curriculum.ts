@@ -1,8 +1,9 @@
 import { z } from "zod";
 import { router, adminProcedure } from "../trpc";
 import { curriculum, disciplines, curriculumProfiles } from "@/db/schema";
-import { eq, asc, sql } from "drizzle-orm";
+import { eq, asc, sql, and } from "drizzle-orm";
 import { safeDelete } from "@/lib/safeDelete";
+import { TRPCError } from "@trpc/server";
 
 export const curriculumRouter = router({
   list: adminProcedure.query(async ({ ctx }) => {
@@ -62,7 +63,19 @@ export const curriculumRouter = router({
       controlTypeId: z.coerce.number().int().nullable().optional(),
       isActive: z.boolean().default(true),
     }))
-    .mutation(async ({ ctx, input }) => ctx.db.insert(curriculum).values(input).returning()),
+    .mutation(async ({ ctx, input }) => {
+      const [duplicate] = await ctx.db
+        .select({ id: curriculum.id })
+        .from(curriculum)
+        .where(and(
+          eq(curriculum.disciplineId, input.disciplineId),
+          eq(curriculum.course, input.course),
+          eq(curriculum.semester, input.semester)
+        ))
+        .limit(1);
+      if (duplicate) throw new TRPCError({ code: 'CONFLICT', message: 'Учебный план с такой дисциплиной, курсом и семестром уже существует' });
+      return ctx.db.insert(curriculum).values(input).returning();
+    }),
   update: adminProcedure
     .input(z.object({
       id: z.number(),
@@ -79,18 +92,25 @@ export const curriculumRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       const { id, isActive, ...data } = input;
-
+      if (data.disciplineId && data.course && data.semester) {
+        const [duplicate] = await ctx.db
+          .select({ id: curriculum.id })
+          .from(curriculum)
+          .where(and(
+            eq(curriculum.disciplineId, data.disciplineId),
+            eq(curriculum.course, data.course),
+            eq(curriculum.semester, data.semester),
+            sql`${curriculum.id} != ${id}`
+          ))
+          .limit(1);
+        if (duplicate) throw new TRPCError({ code: 'CONFLICT', message: 'Учебный план с такой дисциплиной, курсом и семестром уже существует' });
+      }
       if (isActive === false) {
         await ctx.db.update(curriculumProfiles).set({ isActive: false }).where(eq(curriculumProfiles.curriculumId, id));
       }
-
-      return ctx.db
-        .update(curriculum)
-        .set({ ...data, isActive })
-        .where(eq(curriculum.id, id))
-        .returning();
+      return ctx.db.update(curriculum).set({ ...data, isActive }).where(eq(curriculum.id, id)).returning();
     }),
   delete: adminProcedure
-      .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => safeDelete(curriculum, input.id)),
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => safeDelete(curriculum, input.id)),
 });

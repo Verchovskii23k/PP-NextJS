@@ -1,42 +1,106 @@
+// src/server/trpc/routers/__tests__/weeks.test.ts
 import { beforeAll, describe, expect, it } from 'vitest';
-import { seedTestData } from '@/test/fixtures/fixtures';
 import { createTestCaller } from '@/test/trpc';
+import { clearTable } from '@/test/helpers';
+import { weeks } from '@/db/schema';
+import { TRPCError } from '@trpc/server';
 
 let caller: Awaited<ReturnType<typeof createTestCaller>>;
 
 beforeAll(async () => {
-  await seedTestData();
+  await clearTable(weeks);
   caller = await createTestCaller({ id: 1, role: 'admin' });
 });
 
 describe('weeks CRUD', () => {
-  let id: number;
+  let weekId: number;
+  let secondWeekId: number;
 
-  it('create', async () => {
+  it('should create a week', async () => {
     const [row] = await caller.weeks.create({ type: 'custom' });
     expect(row).toHaveProperty('id');
-    id = row.id;
+    weekId = row.id;
   });
 
-  it('list', async () => {
+  it('should reject duplicate type', async () => {
+    await expect(
+      caller.weeks.create({ type: 'custom' })
+    ).rejects.toThrow(TRPCError);
+    try {
+      await caller.weeks.create({ type: 'custom' });
+    } catch (e) {
+      expect(e).toBeInstanceOf(TRPCError);
+      if (e instanceof TRPCError) {
+        expect(e.code).toBe('CONFLICT');
+        expect(e.message).toBe('Неделя с таким типом уже существует');
+      }
+    }
+  });
+
+  it('should reject empty type', async () => {
+    await expect(
+      caller.weeks.create({ type: '' })
+    ).rejects.toThrow();
+  });
+
+  it('should list weeks', async () => {
     const list = await caller.weeks.list();
-    expect(list.some(r => r.id === id)).toBe(true);
+    expect(list.some(w => w.id === weekId)).toBe(true);
   });
 
-  it('get', async () => {
-    const row = await caller.weeks.get({ id });
+  it('should get existing week', async () => {
+    const row = await caller.weeks.get({ id: weekId });
     expect(row?.type).toBe('custom');
   });
 
-  it('update', async () => {
-    await caller.weeks.update({ id, type: 'updated' });
-    const row = await caller.weeks.get({ id });
+  it('should return null for non-existent id', async () => {
+    const row = await caller.weeks.get({ id: 9999 });
+    expect(row).toBeNull();
+  });
+
+  it('should update type', async () => {
+    await caller.weeks.update({ id: weekId, type: 'updated' });
+    const row = await caller.weeks.get({ id: weekId });
     expect(row?.type).toBe('updated');
   });
 
-  it('delete', async () => {
-    await caller.weeks.delete({ id });
-    const row = await caller.weeks.get({ id });
+  it('should reject update to existing type', async () => {
+    const [row2] = await caller.weeks.create({ type: 'second' });
+    secondWeekId = row2.id;
+
+    await expect(
+      caller.weeks.update({ id: secondWeekId, type: 'updated' })
+    ).rejects.toThrow(TRPCError);
+    try {
+      await caller.weeks.update({ id: secondWeekId, type: 'updated' });
+    } catch (e) {
+      if (e instanceof TRPCError) {
+        expect(e.code).toBe('CONFLICT');
+      }
+    }
+  });
+
+  it('should reject update with empty type', async () => {
+    await expect(
+      caller.weeks.update({ id: weekId, type: '' })
+    ).rejects.toThrow();
+  });
+
+  it('should not fail on non-existent id update', async () => {
+    await expect(
+      caller.weeks.update({ id: 9999, type: 'ghost' })
+    ).resolves.toBeDefined();
+  });
+
+  it('should delete existing week', async () => {
+    await caller.weeks.delete({ id: secondWeekId });
+    const row = await caller.weeks.get({ id: secondWeekId });
     expect(row).toBeNull();
+  });
+
+  it('should not fail on non-existent id delete', async () => {
+    await expect(
+      caller.weeks.delete({ id: 9999 })
+    ).resolves.toBeDefined();
   });
 });

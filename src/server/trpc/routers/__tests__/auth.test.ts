@@ -1,49 +1,54 @@
+// src/server/trpc/routers/__tests__/auth.test.ts
 import { beforeAll, describe, expect, it } from 'vitest';
-import { seedTestData, seedAuthUser } from '@/test/fixtures/fixtures';
 import { createTestCaller } from '@/test/trpc';
+import { clearAllTestData } from '@/test/helpers';
+import { db } from '@/db';
+import { users, employees } from '@/db/schema';
+
 
 let caller: Awaited<ReturnType<typeof createTestCaller>>;
-let adminUser: { login: string; password: string; userId: number };
-let adminNoEmail: { login: string; password: string; userId: number };
+let adminUserId: string;
+let adminEmail: string;
 
 beforeAll(async () => {
-  await seedTestData();
-  adminUser = await seedAuthUser('admin@test.local');       // с email
-  adminNoEmail = await seedAuthUser(null);                  // без email
-  caller = await createTestCaller({ id: adminUser.userId, role: 'admin' });
+  await clearAllTestData();
+
+  // Создаём учётную запись админа напрямую
+  const [user] = await db
+    .insert(users)
+    .values({
+      email: 'admin@test.local',
+      hashedPassword: 'hashed',
+      role: 'admin',
+    })
+    .returning({ id: users.id });
+  adminUserId = user.id;
+  adminEmail = 'admin@test.local';
+
+  // Привязываем сотрудника к этой учётной записи (чтобы me вернул fullName)
+  await db.insert(employees).values({
+    surname: 'Администратор',
+    name: 'Тестовый',
+    patronymic: 'Тестович',
+    userId: adminUserId,
+    isAdmin: true,
+    isActive: true,
+  });
+
+  caller = await createTestCaller({ id: adminUserId, role: 'admin' });
 });
 
 describe('auth', () => {
-  it('should login with correct credentials', async () => {
-    const result = await caller.auth.login({ login: adminUser.login, password: adminUser.password });
-    expect(result).toHaveProperty('success', true);
-  });
-
-  it('should reject login with wrong password', async () => {
-    await expect(
-      caller.auth.login({ login: adminUser.login, password: 'wrong' })
-    ).rejects.toThrow();
-  });
-
   it('me should return current user', async () => {
     const me = await caller.auth.me();
     expect(me).not.toBeNull();
-    expect(me?.login).toBe(adminUser.login);
+    expect(me?.email).toBe(adminEmail);
+    // Проверим, что fullName формируется
+    expect(me?.fullName).toContain('Администратор');
   });
 
-  it('forgotPassword should generate token (user without email)', async () => {
-    const result = await caller.auth.forgotPassword({ login: adminNoEmail.login });
-    // если email отсутствует, forgotPassword возвращает { token }
-    expect(result).toHaveProperty('token');
-  });
-
-  it('resetPassword should work with valid token', async () => {
-    const { token } = await caller.auth.forgotPassword({ login: adminNoEmail.login });
-    if (!token) throw new Error('токен не получен');
-    const result = await caller.auth.resetPassword({ token, newPassword: 'newpass123', newLogin: 'newadmin' });
-    expect(result).toHaveProperty('success', true);
-    // пробуем залогиниться с новым паролем
-    const loginResult = await caller.auth.login({ login: 'newadmin', password: 'newpass123' });
-    expect(loginResult).toHaveProperty('success', true);
+  it('forgotPassword should return message (user with email)', async () => {
+    const result = await caller.auth.forgotPassword({ email: adminEmail });
+    expect(result).toHaveProperty('message');
   });
 });

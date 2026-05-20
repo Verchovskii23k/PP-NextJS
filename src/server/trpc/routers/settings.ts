@@ -1,3 +1,4 @@
+// src/server/trpc/routers/settings.ts
 import { z } from "zod";
 import { router, adminProcedure } from "../trpc";
 import { settings } from "@/db/schema";
@@ -5,7 +6,7 @@ import { eq } from "drizzle-orm";
 
 export const settingsRouter = router({
   get: adminProcedure
-    .input(z.object({ key: z.string() }))
+    .input(z.object({ key: z.string().min(1) })) // ключ не может быть пустым
     .query(async ({ ctx, input }) => {
       const [row] = await ctx.db
         .select({ value: settings.value })
@@ -17,8 +18,8 @@ export const settingsRouter = router({
 
   update: adminProcedure
     .input(z.object({
-      key: z.string(),
-      value: z.string(),
+      key: z.string().min(1),   // ключ обязателен и не пустой
+      value: z.string().min(1), // значение не пустое
     }))
     .mutation(async ({ ctx, input }) => {
       await ctx.db

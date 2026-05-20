@@ -1,13 +1,13 @@
-// src/server/trpc/routers/classrooms.ts
 import { z } from "zod";
 import { router, adminProcedure } from "../trpc";
 import {
   classrooms, buildings, departments,
   lessons, units, unitRoots, studyGroups, unitTypes, disciplines,
 } from "@/db/schema";
-import { eq, sql, and, gte, isNull, or, SQL } from "drizzle-orm";
+import { eq, sql, and, gte, isNull, or, SQL, min } from "drizzle-orm";
 import { safeDelete } from "@/lib/safeDelete";
 import { recalculateUsageMetrics } from "@/lib/usageMetrics";
+import { TRPCError } from "@trpc/server";
 
 export const classroomsRouter = router({
   list: adminProcedure
@@ -119,18 +119,24 @@ export const classroomsRouter = router({
 
   create: adminProcedure
     .input(z.object({
-      buildingId: z.coerce.number().int(),
+      buildingId: z.coerce.number().int().min(1),
       roomNumber: z.string().min(1),
-      capacity: z.coerce.number().int(),
-      departmentId: z.coerce.number().int().optional(),
+      capacity: z.coerce.number().int().min(1),
+      departmentId: z.coerce.number().int(),
       priorityLecture: z.number().int().min(1).max(3).default(3),
       priorityWorkshop: z.number().int().min(1).max(3).default(3),
       priorityGuidedStudy: z.number().int().min(1).max(3).default(3),
-      priorityLab: z.number().int().min(1).max(3).default(3),
+      priorityLab: z.number().int().min(1).max(3),
       usageMetric: z.coerce.number().optional(),
       isActive: z.boolean().default(true),
     }))
     .mutation(async ({ ctx, input }) => {
+      const [duplicate] = await ctx.db
+        .select({ id: classrooms.id })
+        .from(classrooms)
+        .where(and(eq(classrooms.buildingId, input.buildingId), eq(classrooms.roomNumber, input.roomNumber)))
+        .limit(1);
+      if (duplicate) throw new TRPCError({ code: 'CONFLICT', message: 'Аудитория с таким номером в этом корпусе уже существует' });
       const result = await ctx.db.insert(classrooms).values(input).returning();
       await recalculateUsageMetrics();
       return result;
@@ -139,19 +145,56 @@ export const classroomsRouter = router({
   update: adminProcedure
     .input(z.object({
       id: z.number(),
-      buildingId: z.number().int().optional(),
-      roomNumber: z.string().min(1).optional(),
-      capacity: z.number().int().optional(),
+      buildingId: z.number().int().min(1),
+      roomNumber: z.string().min(1),
+      capacity: z.number().int().min(1),
       departmentId: z.number().int().nullable().optional(),
-      priorityLecture: z.number().int().min(1).max(3).optional(),
-      priorityWorkshop: z.number().int().min(1).max(3).optional(),
-      priorityGuidedStudy: z.number().int().min(1).max(3).optional(),
-      priorityLab: z.number().int().min(1).max(3).optional(),
+      priorityLecture: z.number().int().min(1).max(3),
+      priorityWorkshop: z.number().int().min(1).max(3),
+      priorityGuidedStudy: z.number().int().min(1).max(3),
+      priorityLab: z.number().int().min(1).max(3),
       usageMetric: z.number().optional(),
       isActive: z.boolean().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;
+      if (data.roomNumber || data.buildingId) {
+        // Получаем текущие значения, если какие-то не переданы
+        const current = await ctx.db
+          .select({
+            buildingId: classrooms.buildingId,
+            roomNumber: classrooms.roomNumber,
+          })
+          .from(classrooms)
+          .where(eq(classrooms.id, id))
+          .limit(1);
+
+        if (current.length === 0) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'Аудитория не найдена' });
+        }
+
+        const newBuildingId = data.buildingId ?? current[0].buildingId;
+        const newRoomNumber = data.roomNumber ?? current[0].roomNumber;
+
+        const [duplicate] = await ctx.db
+          .select({ id: classrooms.id })
+          .from(classrooms)
+          .where(
+            and(
+              eq(classrooms.buildingId, newBuildingId),
+              eq(classrooms.roomNumber, newRoomNumber),
+              sql`${classrooms.id} != ${id}`
+            )
+          )
+          .limit(1);
+
+        if (duplicate) {
+          throw new TRPCError({
+            code: 'CONFLICT',
+            message: 'Аудитория с таким номером в этом корпусе уже существует',
+          });
+        }
+      }
       return ctx.db.update(classrooms).set(data).where(eq(classrooms.id, id)).returning();
     }),
 

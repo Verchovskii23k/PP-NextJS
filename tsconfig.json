@@ -44,7 +44,5 @@
 "exclude": [
   "node_modules",
   ".next",
-  "src/server/trpc/routers/__tests__",
-"src/server/trpc/routers/e2eTestHelpers.ts"
 ]
 }

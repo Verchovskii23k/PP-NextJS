@@ -1,8 +1,10 @@
 import { z } from "zod";
 import { router, adminProcedure } from "../trpc";
 import { employmentTypes } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { safeDelete } from "@/lib/safeDelete";
+import { TRPCError } from "@trpc/server";
+
 export const employmentTypesRouter = router({
   list: adminProcedure.query(async ({ ctx }) => ctx.db.select().from(employmentTypes)),
   get: adminProcedure
@@ -13,14 +15,30 @@ export const employmentTypesRouter = router({
     }),
   create: adminProcedure
     .input(z.object({ name: z.string().min(1), abbreviation: z.string().optional(), isActive: z.boolean().default(true) }))
-    .mutation(async ({ ctx, input }) => ctx.db.insert(employmentTypes).values(input).returning()),
+    .mutation(async ({ ctx, input }) => {
+      const [existing] = await ctx.db
+        .select({ id: employmentTypes.id })
+        .from(employmentTypes)
+        .where(eq(employmentTypes.name, input.name))
+        .limit(1);
+      if (existing) throw new TRPCError({ code: 'CONFLICT', message: 'Тип занятости с таким названием уже существует' });
+      return ctx.db.insert(employmentTypes).values(input).returning();
+    }),
   update: adminProcedure
     .input(z.object({ id: z.number(), name: z.string().min(1).optional(), abbreviation: z.string().optional(), isActive: z.boolean().optional() }))
     .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;
+      if (data.name) {
+        const [existing] = await ctx.db
+          .select({ id: employmentTypes.id })
+          .from(employmentTypes)
+          .where(and(eq(employmentTypes.name, data.name), sql`${employmentTypes.id} != ${id}`))
+          .limit(1);
+        if (existing) throw new TRPCError({ code: 'CONFLICT', message: 'Тип занятости с таким названием уже существует' });
+      }
       return ctx.db.update(employmentTypes).set(data).where(eq(employmentTypes.id, id)).returning();
     }),
-delete: adminProcedure
+  delete: adminProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => safeDelete(employmentTypes, input.id)),
 });

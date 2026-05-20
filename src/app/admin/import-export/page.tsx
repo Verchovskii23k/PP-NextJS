@@ -1,10 +1,13 @@
 "use client";
 import { trpc } from "@/trpc/client";
 import { useState } from "react";
+import { toast } from "sonner";
 
 export default function ImportExportPage() {
-  const [message, setMessage] = useState("");
-  const [importResult, setImportResult] = useState<Record<string, { inserted: number; updated: number; skipped: number; errors: string[] }> | null>(null);
+  const [importResult, setImportResult] = useState<Record<
+    string,
+    { inserted: number; updated: number; skipped: number; errors: string[] }
+  > | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
 
@@ -12,17 +15,39 @@ export default function ImportExportPage() {
     enabled: false, // ручной вызов
   });
 
-    const importMutation = trpc.globalImportExport.importAll.useMutation({
+  const importMutation = trpc.globalImportExport.importAll.useMutation({
     onSuccess: (data) => {
-        setImportResult(data);
-        setMessage("Импорт завершён");
-        setIsImporting(false);
+      setImportResult(data);
+
+      // Собираем сводку
+      let totalInserted = 0;
+      let totalUpdated = 0;
+      let totalErrors = 0;
+      const errorTables: string[] = [];
+
+      for (const [table, stats] of Object.entries(data)) {
+        totalInserted += stats.inserted;
+        totalUpdated += stats.updated;
+        if (stats.errors.length > 0) {
+          totalErrors += stats.errors.length;
+          errorTables.push(table);
+        }
+      }
+
+      if (totalErrors === 0) {
+        toast.success(`Импорт завершён. Вставлено: ${totalInserted}, обновлено: ${totalUpdated}.`);
+      } else {
+        toast.error(
+          `Импорт завершён с ошибками. Вставлено: ${totalInserted}, обновлено: ${totalUpdated}. Ошибок: ${totalErrors} (таблицы: ${errorTables.join(", ")}).`
+        );
+      }
+      setIsImporting(false);
     },
     onError: (error) => {
-        setMessage(`Ошибка импорта: ${error.message}`);
-        setIsImporting(false);
+      toast.error(`Ошибка импорта: ${error.message}`);
+      setIsImporting(false);
     },
-    });
+  });
 
   const handleExport = async () => {
     setIsExporting(true);
@@ -39,38 +64,36 @@ export default function ImportExportPage() {
         link.click();
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
-        setMessage("Экспорт выполнен");
+        toast.success("Экспорт выполнен – файл backup.json скачан");
       }
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : "Неизвестная ошибка";
-      setMessage(`Ошибка экспорта: ${message}`);
+      toast.error(`Ошибка экспорта: ${message}`);
     }
     setIsExporting(false);
   };
 
-    const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setIsImporting(true);
-    setMessage("Импорт начат...");
     setImportResult(null);
 
     const reader = new FileReader();
     reader.onload = async (event) => {
-        try {
+      try {
         const raw = event.target?.result as string;
         const data = JSON.parse(raw);
-        // Передаём сам объект, без обёртки
         await importMutation.mutateAsync(data);
-        } catch (e: unknown) {
+      } catch (e: unknown) {
         const message = e instanceof Error ? e.message : "Неизвестная ошибка";
-        setMessage(`Ошибка экспорта: ${message}`);
+        toast.error(`Ошибка импорта: ${message}`);
         setIsImporting(false);
-        }
+      }
     };
     reader.readAsText(file);
-    };
+  };
 
   return (
     <div className="mx-auto h-full max-w-4xl overflow-y-auto bg-background p-6 text-foreground">
@@ -95,7 +118,8 @@ export default function ImportExportPage() {
           <h2 className="mb-2 text-lg font-semibold">Импорт справочников</h2>
           <p className="mb-3 text-sm text-muted-foreground">
             Загрузите JSON-файл, экспортированный из этой системы. <br />
-            <strong>Внимание:</strong> дубликаты в таблицах сотрудников и студентов будут созданы заново. Остальные записи обновятся при совпадении уникальных полей.
+            <strong>Внимание:</strong> дубликаты в таблицах сотрудников и студентов будут созданы заново.
+            Остальные записи обновятся при совпадении уникальных полей.
           </p>
           <input
             type="file"
@@ -113,19 +137,14 @@ export default function ImportExportPage() {
           {isImporting && <p className="mt-2 text-sm text-blue-600">Импорт выполняется...</p>}
         </section>
 
-        {message && (
-          <div className="rounded border border-green-400 bg-green-100 p-3 text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-400">
-            {message}
-          </div>
-        )}
-
         {importResult && (
           <div className="bg-card rounded border border-border p-4">
             <h3 className="mb-2 font-semibold">Результаты импорта</h3>
             <div className="space-y-2 text-sm">
-              {Object.entries(importResult as Record<string, { inserted: number; updated: number; skipped: number; errors: string[] }>).map(([table, stats]) => (
+              {Object.entries(importResult).map(([table, stats]) => (
                 <div key={table} className="border-t border-border pt-2">
-                  <strong>{table}</strong>: вставлено {stats.inserted}, обновлено {stats.updated}, пропущено {stats.skipped}
+                  <strong>{table}</strong>: вставлено {stats.inserted}, обновлено {stats.updated},
+                  пропущено {stats.skipped}
                   {stats.errors.length > 0 && (
                     <details className="mt-1">
                       <summary className="cursor-pointer text-red-500">
