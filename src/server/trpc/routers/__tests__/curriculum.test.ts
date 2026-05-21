@@ -19,7 +19,6 @@ beforeAll(async () => {
 
 describe('curriculum CRUD', () => {
   let curriculumId: number;
-  let secondId: number;
 
   it('should create a curriculum entry', async () => {
     const [row] = await caller.curriculum.create({
@@ -60,7 +59,7 @@ describe('curriculum CRUD', () => {
 
   it('should reject missing disciplineId', async () => {
     await expect(
-      (caller.curriculum.create as any)({ course: 2, semester: 1 })
+      (caller.curriculum.create as unknown as (data: Record<string, unknown>) => Promise<unknown>)({ course: 2, semester: 1 })
     ).rejects.toThrow();
   });
 
@@ -93,13 +92,12 @@ describe('curriculum CRUD', () => {
     const disc2Id = await createTestDiscipline(
       (await db.select({ id: departments.id }).from(departments).limit(1))[0].id
     );
-    const [plan2] = await caller.curriculum.create({
+    await caller.curriculum.create({
       course: 2,
       semester: 1,
       disciplineId: disc2Id,
       hoursLecture: 20,
     });
-    secondId = plan2.id;
 
     // Пытаемся обновить первый план на комбинацию второго
     await expect(

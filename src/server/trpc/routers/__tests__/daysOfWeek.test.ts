@@ -14,7 +14,6 @@ beforeAll(async () => {
 
 describe('daysOfWeek CRUD', () => {
   let id: number;
-  let secondId: number;
 
   it('should create a day', async () => {
     const [row] = await caller.daysOfWeek.create({ name: 'ВС' });
@@ -65,8 +64,7 @@ describe('daysOfWeek CRUD', () => {
   });
 
   it('should reject update to existing name', async () => {
-    const [row2] = await caller.daysOfWeek.create({ name: 'ПН' });
-    secondId = row2.id;
+    await caller.daysOfWeek.create({ name: 'ПН' });
 
     await expect(
       caller.daysOfWeek.update({ id, name: 'ПН' })

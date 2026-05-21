@@ -14,7 +14,6 @@ beforeAll(async () => {
 
 describe('controlTypes CRUD', () => {
   let ctId: number;
-  let secondId: number;
 
   it('should create a control type', async () => {
     const [ct] = await caller.controlTypes.create({
@@ -69,11 +68,10 @@ describe('controlTypes CRUD', () => {
 
   it('should reject update to existing name', async () => {
     // создаём второй тип
-    const [ct2] = await caller.controlTypes.create({
+    await caller.controlTypes.create({
       name: 'Экзамен',
       abbreviation: 'ЭКЗ',
     });
-    secondId = ct2.id;
 
     // пытаемся обновить первый на имя второго
     await expect(

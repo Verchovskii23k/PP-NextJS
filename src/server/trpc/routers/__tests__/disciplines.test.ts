@@ -10,7 +10,6 @@ import {
 } from '@/test/helpers';
 import { db } from '@/db';
 import {
-  disciplines,
   curriculum,
   disciplineTeachers,
   lessonTypes,

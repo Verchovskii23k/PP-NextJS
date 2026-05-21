@@ -2,18 +2,13 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { createTestCaller } from '@/test/trpc';
 import {
-  clearTable,
   createTestInstitute,
   createTestDepartment,
+  clearAllTestData,
 } from '@/test/helpers';
-import {
-  classrooms,
-  buildings,
-  departments,
-  institutes,
-} from '@/db/schema';
 import { TRPCError } from '@trpc/server';
 import { db } from '@/db';
+import { buildings } from '@/db/schema';
 
 let caller: Awaited<ReturnType<typeof createTestCaller>>;
 let buildingId: number;
@@ -21,10 +16,11 @@ let deptId: number;
 
 beforeAll(async () => {
   // Очищаем нужные таблицы
-  await clearTable(classrooms);
-  await clearTable(buildings);
-  await clearTable(departments);
-  await clearTable(institutes);
+  await clearAllTestData();
+  // await clearTable(classrooms);
+  // await clearTable(buildings);
+  // await clearTable(departments);
+  // await clearTable(institutes);
 
   // Создаём институт и кафедру для departmentId
   const instId = await createTestInstitute();
@@ -109,7 +105,7 @@ describe('classrooms CRUD', () => {
   it('should reject missing buildingId', async () => {
     const { buildingId, ...rest } = mandatoryFields;
     await expect(
-      (caller.classrooms.create as any)({ ...rest, departmentId: deptId })
+      (caller.classrooms.create as unknown as (data: Record<string, unknown>) => Promise<unknown>)({ ...rest, departmentId: deptId })
     ).rejects.toThrow();
   });
 

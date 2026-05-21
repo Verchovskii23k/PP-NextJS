@@ -14,7 +14,6 @@ beforeAll(async () => {
 
 describe('academicLoadTypes CRUD', () => {
   let id: number;
-  let secondId: number;
 
   it('create a new type', async () => {
     const [row] = await caller.academicLoadTypes.create({
@@ -70,11 +69,10 @@ describe('academicLoadTypes CRUD', () => {
 
   it('reject update to existing name', async () => {
     // Создаём вторую запись
-    const [row2] = await caller.academicLoadTypes.create({
+    await caller.academicLoadTypes.create({
       name: 'Another',
       abbreviation: 'A',
     });
-    secondId = row2.id;
 
     // Пытаемся обновить первую запись на имя второй
     await expect(

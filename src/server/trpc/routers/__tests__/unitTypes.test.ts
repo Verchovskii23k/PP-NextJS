@@ -96,14 +96,14 @@ describe('unitTypes CRUD', () => {
   it('should reject missing required fields', async () => {
     // Пропущены все приоритеты
     await expect(
-      (caller.unitTypes.create as any)({
+      (caller.unitTypes.create as unknown as (data: Record<string, unknown>) => Promise<unknown>)({
         name: 'Без приоритетов',
         maxSize: 10,
       })
     ).rejects.toThrow();
     // Пропущен maxSize
     await expect(
-      (caller.unitTypes.create as any)({
+      (caller.unitTypes.create as unknown as (data: Record<string, unknown>) => Promise<unknown>)({
         name: 'Без размера',
         priorityLecture: 1,
         priorityWorkshop: 2,
@@ -163,7 +163,7 @@ describe('unitTypes CRUD', () => {
   it('should reject update with missing mandatory fields', async () => {
     // Пытаемся обновить только maxSize, но без имени и приоритетов
     await expect(
-      (caller.unitTypes.update as any)({ id: typeId, maxSize: 100 })
+      (caller.unitTypes.update as unknown as (data: Record<string, unknown>) => Promise<unknown>)({ id: typeId, maxSize: 100 })
     ).rejects.toThrow();
   });
 

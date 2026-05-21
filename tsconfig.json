@@ -8,6 +8,8 @@
       "esnext"
     ],
     "allowJs": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
     "exactOptionalPropertyTypes": true,
     "skipLibCheck": true,
     "strict": true,

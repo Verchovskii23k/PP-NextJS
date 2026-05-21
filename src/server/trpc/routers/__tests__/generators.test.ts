@@ -5,6 +5,7 @@ import { createTestCaller } from '@/test/trpc';
 let caller: Awaited<ReturnType<typeof createTestCaller>>;
 
 beforeAll(async () => {
+  await clearDatabase();
   await seedTestData();
   caller = await createTestCaller({ id: 1, role: 'admin' });
 });

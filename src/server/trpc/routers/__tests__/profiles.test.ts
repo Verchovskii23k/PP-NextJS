@@ -7,14 +7,10 @@ import {
   createTestDepartment,
   createTestSpecialty,
   createTestEducation,
-  createTestProfile,
-  createTestStudent,
-  createTestStudyGroup,
 } from '@/test/helpers';
 import { db } from '@/db';
 import { TRPCError } from '@trpc/server';
-import { students, studyGroups } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { students } from '@/db/schema';
 
 let caller: Awaited<ReturnType<typeof createTestCaller>>;
 let specialtyId: number;

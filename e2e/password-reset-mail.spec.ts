@@ -36,7 +36,6 @@ test.describe('Password reset via Mailpit', () => {
   let adminLogin: string;
 
   test.beforeAll(async ({ request }) => {
-    // Очищаем старые письма в Mailpit
     await clearMailpit();
 
     const resp = await request.post('/api/trpc/e2eTestHelpers.resetAndSeed', {
@@ -51,15 +50,14 @@ test.describe('Password reset via Mailpit', () => {
     await page.goto('/login');
     await page.click('a:has-text("Забыли пароль?")');
     await page.waitForURL('/forgot-password');
-    await page.waitForLoadState('networkidle');
 
-    await page.locator('label:text("Логин") + input').waitFor({ timeout: 10000 });
-    await page.fill('label:text("Логин") + input', adminLogin);
-    await page.fill('input[type="email"]', 'admin@test.com');
-    await page.click('button:has-text("Получить инструкцию")');
+    const emailInput = page.locator('input[type="email"]');
+    await emailInput.waitFor({ timeout: 10000 });
+    await emailInput.fill('admin@test.com');
+    await page.click('button:has-text("Восстановить пароль")');
 
-    // Ждём зелёное сообщение
-    await page.waitForSelector('.border-green-400', { timeout: 15000 });
+    // Ожидаем появления зелёного сообщения об успехе
+    await page.waitForSelector('.text-green-600', { timeout: 15000 });
 
     const token = await getLastEmailToken();
     if (!token) throw new Error('Token not found in Mailpit');
@@ -72,18 +70,12 @@ test.describe('Password reset via Mailpit', () => {
     await page.fill('input[type="password"]', newPassword);
     await page.click('button:has-text("Сохранить")');
 
-    // Ждём перехода на /login или появления ошибки
-    try {
-      await page.waitForURL('/login', { timeout: 10000 });
-    } catch {
-      const errorText = await page.textContent('.text-red-500');
-      throw new Error(`Reset password failed: ${errorText || 'Unknown error'}`);
-    }
-
+    // Успешный сброс редиректит на /login
+    await page.waitForURL('/login', { timeout: 10000 });
     await expect(page).toHaveURL('/login');
 
     // Логин с новым паролем
-    await page.fill('input[placeholder="Логин"]', adminLogin);
+    await page.fill('input[placeholder="Email"]', adminLogin);
     await page.fill('input[placeholder="Пароль"]', newPassword);
     await page.click('button:has-text("Войти")');
     await page.waitForURL(/\/admin/);

@@ -12,15 +12,13 @@ import {
 } from '@/test/helpers';
 import { db } from '@/db';
 import {
-  employees,
-  employeesDepartments,
   disciplineTeachers,
+  employees,
   lessonTypes,
-  departments,
-  institutes,
 } from '@/db/schema';
-import { eq } from 'drizzle-orm';
 import { TRPCError } from '@trpc/server';
+
+
 
 let caller: Awaited<ReturnType<typeof createTestCaller>>;
 let deptId: number;
@@ -48,8 +46,6 @@ beforeAll(async () => {
 describe('employees CRUD', () => {
   let empId: number;          // обычный сотрудник
   let empWithUserId: number; // сотрудник, привязанный к adminUserId (для теста "нельзя удалить себя")
-  let empTeacherId: number;  // сотрудник-преподаватель (для теста конфликта при удалении)
-  let empForFilterId: number;
 
   it('should create an employee', async () => {
     const [row] = await caller.employees.create({
@@ -159,7 +155,7 @@ describe('employees CRUD', () => {
     const empDeptId = await createTestEmployeeDepartment(empId2, deptId);
     const discId = await createTestDiscipline(deptId);
 
-    const [dt] = await db
+    await db
       .insert(disciplineTeachers)
       .values({
         lessonTypeId,

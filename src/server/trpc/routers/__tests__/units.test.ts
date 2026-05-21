@@ -5,7 +5,6 @@ import {
   clearAllTestData,
   createTestUnitType,
 } from '@/test/helpers';
-import { TRPCError } from '@trpc/server';
 
 let caller: Awaited<ReturnType<typeof createTestCaller>>;
 let unitTypeId: number;

@@ -1,7 +1,7 @@
 // src/test/helpers.ts
 import { db } from '@/db';
 import { sql } from 'drizzle-orm';
-import { PgTable } from 'drizzle-orm/pg-core';
+import { PgTable, getTableConfig } from 'drizzle-orm/pg-core';
 import {
   institutes, departments, disciplines, curriculum,
   buildings, classrooms, controlTypes, academicLoadTypes,
@@ -16,17 +16,15 @@ import {
 
 export async function clearTable(table: PgTable) {
   await db.delete(table);
-  const tableName = (table as any).tableName;
-  if (tableName) {
-    await db.execute(sql`
-      SELECT setval(pg_get_serial_sequence(${tableName}, 'id'), 1, false)
-      WHERE EXISTS (
-        SELECT 1 FROM information_schema.columns 
-        WHERE table_name = ${tableName} AND column_name = 'id' 
-          AND column_default LIKE 'nextval%'
-      )
-    `);
-  }
+  const tableName = getTableConfig(table).name;
+  await db.execute(sql`
+    SELECT setval(pg_get_serial_sequence(${tableName}, 'id'), 1, false)
+    WHERE EXISTS (
+      SELECT 1 FROM information_schema.columns 
+      WHERE table_name = ${tableName} AND column_name = 'id' 
+        AND column_default LIKE 'nextval%'
+    )
+  `);
 }
 
 // Очистка нескольких таблиц в правильном порядке (учитывая внешние ключи)

@@ -10,11 +10,10 @@ import {
   createTestProfile,
   createTestEmployee,
   createTestEmployeeDepartment,
-  createTestStudyGroup,
 } from '@/test/helpers';
 import { db } from '@/db';
-import { institutes, departments, employeesDepartments, studyGroups } from '@/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { institutes, departments } from '@/db/schema';
+import { eq } from 'drizzle-orm';
 import { TRPCError } from '@trpc/server';
 
 let caller: Awaited<ReturnType<typeof createTestCaller>>;
@@ -137,7 +136,7 @@ describe('studyGroups CRUD', () => {
   it('should reject update with missing mandatory fields', async () => {
     // Пытаемся обновить только studentCount, но без кода и профиля – Zod ошибка
     await expect(
-      (caller.studyGroups.update as any)({ id: groupId, studentCount: 5 })
+      (caller.studyGroups.update as unknown as (data: Record<string, unknown>) => Promise<unknown>)({ id: groupId, studentCount: 5 })
     ).rejects.toThrow();
   });
 

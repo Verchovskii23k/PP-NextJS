@@ -66,7 +66,7 @@ get: adminProcedure
       lessonTypeId: z.coerce.number().int(),
       disciplineId: z.coerce.number().int(),
       teacherId: z.coerce.number().int().nullable().optional(),
-      countPerSemester: z.coerce.number().int(),
+      countPerSemester: z.coerce.number().int().positive("Количество должно быть положительным"),
       isActive: z.boolean().default(true)
     }))
     .mutation(async ({ ctx, input }) => {
@@ -80,7 +80,7 @@ get: adminProcedure
       lessonTypeId: z.number().int().optional(),
       disciplineId: z.number().int().optional(),
       teacherId: z.number().int().nullable().optional(),
-      countPerSemester: z.number().int().optional(),
+      countPerSemester: z.coerce.number().int().positive("Количество должно быть положительным"),
       isActive: z.boolean().optional()
     }))
     .mutation(async ({ ctx, input }) => {

@@ -4,13 +4,11 @@ import { createTestCaller } from '@/test/trpc';
 import { 
   clearAllTestData, 
   createTestInstitute, 
-  createTestDepartment,
   createTestEmployee,
   createTestStudyGroup,
   createTestEducation,
   createTestSpecialty,
   createTestProfile,
-  createTestEmployeeDepartment,
 } from '@/test/helpers';
 import { TRPCError } from '@trpc/server';
 

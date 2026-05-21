@@ -78,7 +78,7 @@ describe('hourTypeMapping CRUD', () => {
 
   it('should reject missing lessonTypeId', async () => {
     await expect(
-      (caller.hourTypeMapping.create as any)({
+      (caller.hourTypeMapping.create as unknown as (data: Record<string, unknown>) => Promise<unknown>)({
         planHourColumn: 'hours_x',
         priorityColumn: 'p',
       })

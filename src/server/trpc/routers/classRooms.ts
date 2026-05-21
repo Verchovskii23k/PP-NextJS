@@ -4,7 +4,7 @@ import {
   classrooms, buildings, departments,
   lessons, units, unitRoots, studyGroups, unitTypes, disciplines,
 } from "@/db/schema";
-import { eq, sql, and, gte, isNull, or, SQL, min } from "drizzle-orm";
+import { eq, sql, and, gte, isNull, or, SQL } from "drizzle-orm";
 import { safeDelete } from "@/lib/safeDelete";
 import { recalculateUsageMetrics } from "@/lib/usageMetrics";
 import { TRPCError } from "@trpc/server";
@@ -121,7 +121,7 @@ export const classroomsRouter = router({
     .input(z.object({
       buildingId: z.coerce.number().int().min(1),
       roomNumber: z.string().min(1),
-      capacity: z.coerce.number().int().min(1),
+      capacity: z.coerce.number().int().min(1, "Вместимость должна быть больше нуля"),
       departmentId: z.coerce.number().int(),
       priorityLecture: z.number().int().min(1).max(3).default(3),
       priorityWorkshop: z.number().int().min(1).max(3).default(3),
@@ -136,6 +136,12 @@ export const classroomsRouter = router({
         .from(classrooms)
         .where(and(eq(classrooms.buildingId, input.buildingId), eq(classrooms.roomNumber, input.roomNumber)))
         .limit(1);
+        if (input.capacity <= 0) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'Вместимость должна быть больше нуля',
+          });
+        }
       if (duplicate) throw new TRPCError({ code: 'CONFLICT', message: 'Аудитория с таким номером в этом корпусе уже существует' });
       const result = await ctx.db.insert(classrooms).values(input).returning();
       await recalculateUsageMetrics();
@@ -147,7 +153,7 @@ export const classroomsRouter = router({
       id: z.number(),
       buildingId: z.number().int().min(1),
       roomNumber: z.string().min(1),
-      capacity: z.number().int().min(1),
+      capacity: z.coerce.number().int().min(1, "Вместимость должна быть больше нуля"),
       departmentId: z.number().int().nullable().optional(),
       priorityLecture: z.number().int().min(1).max(3),
       priorityWorkshop: z.number().int().min(1).max(3),
@@ -168,7 +174,12 @@ export const classroomsRouter = router({
           .from(classrooms)
           .where(eq(classrooms.id, id))
           .limit(1);
-
+        if (input.capacity <= 0) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'Вместимость должна быть больше нуля',
+          });
+        }
         if (current.length === 0) {
           throw new TRPCError({ code: 'NOT_FOUND', message: 'Аудитория не найдена' });
         }

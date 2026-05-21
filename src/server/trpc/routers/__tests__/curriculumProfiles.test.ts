@@ -15,7 +15,7 @@ import { TRPCError } from '@trpc/server';
 let caller: Awaited<ReturnType<typeof createTestCaller>>;
 let curriculumId: number;
 let profileId: number;
-let profileId2: number;
+
 
 let deptId: number; 
 
@@ -28,7 +28,7 @@ beforeAll(async () => {
   const eduId = await createTestEducation();
   const specId = await createTestSpecialty(deptId);
   profileId = await createTestProfile(specId, eduId);
-  profileId2 = await createTestProfile(specId, eduId, { name: 'Второй профиль', letterCode: 't2' });
+
 
   caller = await createTestCaller({ id: 1, role: 'admin' });
   const [curr] = await caller.curriculum.create({
@@ -70,10 +70,10 @@ describe('curriculumProfiles CRUD', () => {
 
   it('should reject missing fields', async () => {
     await expect(
-      (caller.curriculumProfiles.create as any)({ curriculumId })
+      (caller.curriculumProfiles.create as unknown as (data: Record<string, unknown>) => Promise<unknown>)({ curriculumId })
     ).rejects.toThrow();
     await expect(
-      (caller.curriculumProfiles.create as any)({ profileId })
+      (caller.curriculumProfiles.create as unknown as (data: Record<string, unknown>) => Promise<unknown>)({ profileId })
     ).rejects.toThrow();
   });
 

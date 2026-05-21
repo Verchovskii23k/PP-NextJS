@@ -13,9 +13,6 @@ import {
   createTestUnit,
 } from '@/test/helpers';
 import { TRPCError } from '@trpc/server';
-import { db } from '@/db';
-import { unitRoots } from '@/db/schema';
-import { eq } from 'drizzle-orm';
 
 let caller: Awaited<ReturnType<typeof createTestCaller>>;
 let unitCode: string;

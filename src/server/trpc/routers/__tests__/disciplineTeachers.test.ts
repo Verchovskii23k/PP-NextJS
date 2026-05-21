@@ -21,7 +21,6 @@ let deptBId: number;
 let empADeptId: number; // связь сотрудник A -> кафедра A
 let empBDeptId: number; // связь сотрудник B -> кафедра B
 let discAId: number;   // дисциплина на кафедре A
-let discBId: number;   // дисциплина на кафедре B
 let ltLecture: number;
 let ltWorkshop: number;
 
@@ -43,7 +42,7 @@ beforeAll(async () => {
 
   // Дисциплины
   discAId = await createTestDiscipline(deptAId, { name: 'Дисциплина А', abbreviation: 'ДА' });
-  discBId = await createTestDiscipline(deptBId, { name: 'Дисциплина Б', abbreviation: 'ДБ' });
+
 
   // Типы занятий
   const [lecture] = await db.insert(lessonTypes).values({ name: 'lecture', abbreviation: 'ЛК' }).returning({ id: lessonTypes.id });
@@ -117,7 +116,7 @@ describe('disciplineTeachers CRUD', () => {
 
   it('should reject missing required fields', async () => {
     await expect(
-      (caller.disciplineTeachers.create as any)({ lessonTypeId: ltLecture, disciplineId: discAId })
+      (caller.disciplineTeachers.create as unknown as (data: Record<string, unknown>) => Promise<unknown>)({ lessonTypeId: ltLecture, disciplineId: discAId })
     ).rejects.toThrow();
   });
 

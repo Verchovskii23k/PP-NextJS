@@ -11,7 +11,7 @@ import {
   createTestProfile,
 } from '@/test/helpers';
 import { db } from '@/db';
-import { institutes, departments, studyGroups } from '@/db/schema';
+import { departments } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { TRPCError } from '@trpc/server';
 
@@ -25,7 +25,6 @@ beforeAll(async () => {
 describe('institutes CRUD', () => {
   let instituteId: number;
   let secondInstituteId: number;
-  let empId: number;
   let deptId: number;
 
   it('should create an institute', async () => {

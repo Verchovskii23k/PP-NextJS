@@ -22,7 +22,16 @@ export default function GenerationsPage() {
 
   const handleSaveThreshold = () => {
     if (!subgroupType || threshold === undefined) return;
-    updateThreshold.mutate({ id: subgroupType.id, maxSize: threshold });
+    updateThreshold.mutate({
+      id: subgroupType.id,
+      name: subgroupType.name,
+      maxSize: threshold,
+      priorityLecture: subgroupType.priorityLecture,
+      priorityWorkshop: subgroupType.priorityWorkshop,
+      priorityGuidedStudy: subgroupType.priorityGuidedStudy,
+      priorityLab: subgroupType.priorityLab,
+      isActive: subgroupType.isActive,
+    });
   };
 
   const { data: totalWeeksSetting, isLoading: weeksLoading } =

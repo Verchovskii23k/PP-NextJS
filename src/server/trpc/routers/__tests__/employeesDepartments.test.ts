@@ -6,7 +6,6 @@ import {
   createTestInstitute,
   createTestDepartment,
   createTestEmployee,
-  createTestEmployeeDepartment,
   createTestEmploymentType,
   createTestPosition,
 } from '@/test/helpers';
@@ -72,10 +71,10 @@ describe('employeesDepartments CRUD', () => {
 
   it('should reject missing required fields', async () => {
     await expect(
-      (caller.employeesDepartments.create as any)({ employeeId: empAId })
+      (caller.employeesDepartments.create as unknown as (data: Record<string, unknown>) => Promise<unknown>)({ employeeId: empAId })
     ).rejects.toThrow();
     await expect(
-      (caller.employeesDepartments.create as any)({ departmentId: deptAId })
+      (caller.employeesDepartments.create as unknown as (data: Record<string, unknown>) => Promise<unknown>)({ departmentId: deptAId })
     ).rejects.toThrow();
   });
 

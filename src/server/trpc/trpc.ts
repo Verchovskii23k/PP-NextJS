@@ -2,21 +2,42 @@ import { initTRPC, TRPCError } from '@trpc/server';
 import type { Context } from './context';
 import { users } from '@/db/schema';
 import { eq } from 'drizzle-orm';
+import { ZodError } from 'zod';
 
-// Рекурсивно извлекает первое осмысленное TRPCError-сообщение из цепочки ошибок
+interface TrpcErrorLike {
+  code: string;
+  message: string;
+}
+
 function extractBusinessError(error: unknown): { message: string; code: string } | null {
-  let current = error;
+  // ZodError
+  if (error instanceof ZodError) {
+    const firstIssue = error.issues[0];
+    if (firstIssue) {
+      return { message: firstIssue.message, code: 'BAD_REQUEST' };
+    }
+  }
+
+  // TRPCError с JSON-строкой (на случай, если Zod пришёл вложенным)
+  if (error instanceof TRPCError && error.message.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(error.message);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return { message: parsed[parsed.length - 1].message, code: 'BAD_REQUEST' };
+      }
+    } catch {}
+  }
+
+  // Проверяем цепочку причин
+  let current: unknown = error;
   while (current) {
     if (
       typeof current === 'object' &&
       current !== null &&
       'code' in current &&
-      'message' in current &&
-      typeof (current as Record<string, unknown>).code === 'string' &&
-      typeof (current as Record<string, unknown>).message === 'string'
+      'message' in current
     ) {
-      const code = (current as Record<string, unknown>).code as string;
-      const message = (current as Record<string, unknown>).message as string;
+      const { code, message } = current as TrpcErrorLike;
       if (
         code !== 'INTERNAL_SERVER_ERROR' &&
         message !== 'Возникла непредвиденная ошибка. Попробуйте позже или обратитесь в службу поддержки'
@@ -42,15 +63,13 @@ const t = initTRPC.context<Context>().create({
         message: business.message,
         data: {
           ...shape.data,
-          code: business.code, // можно передавать на клиент для доп. проверок
+          code: business.code,
         },
       };
     }
-    // Общий fallback
     return {
       ...shape,
-      message:
-        'Возникла непредвиденная ошибка. Попробуйте позже или обратитесь в службу поддержки',
+      message: 'Возникла непредвиденная ошибка. Попробуйте позже или обратитесь в службу поддержки',
     };
   },
 });

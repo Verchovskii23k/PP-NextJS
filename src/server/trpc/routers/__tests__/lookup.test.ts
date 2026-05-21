@@ -10,7 +10,7 @@ let caller: Awaited<ReturnType<typeof createTestCaller>>;
 beforeAll(async () => {
   await clearAllTestData();
   // Создаём тестовое здание, чтобы был валидный id
-  const [b] = await db.insert(buildings).values({ number: 1 }).returning({ id: buildings.id });
+  await db.insert(buildings).values({ number: 1 }).returning({ id: buildings.id });
   caller = await createTestCaller({ id: 1, role: 'admin' });
 });
 
@@ -36,7 +36,7 @@ describe('lookup', () => {
 
   it('should reject missing table name', async () => {
     await expect(
-      (caller.lookup.getRow as any)({ id: 1 })
+      (caller.lookup.getRow as unknown as (data: Record<string, unknown>) => Promise<unknown>)({ id: 1 })
     ).rejects.toThrow();
   });
 });

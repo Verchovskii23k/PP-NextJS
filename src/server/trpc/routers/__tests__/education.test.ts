@@ -57,10 +57,10 @@ describe('education CRUD', () => {
 
   it('should reject missing required fields', async () => {
     await expect(
-      (caller.education.create as any)({ levelId })
+      (caller.education.create as unknown as (data: Record<string, unknown>) => Promise<unknown>)({ levelId })
     ).rejects.toThrow();
     await expect(
-      (caller.education.create as any)({ formId })
+      (caller.education.create as unknown as (data: Record<string, unknown>) => Promise<unknown>)({ formId })
     ).rejects.toThrow();
   });
 

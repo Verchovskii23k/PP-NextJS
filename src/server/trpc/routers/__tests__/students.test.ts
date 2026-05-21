@@ -70,7 +70,7 @@ describe('students CRUD', () => {
 
   it('should reject missing profileId', async () => {
     await expect(
-      (caller.students.create as any)({
+      (caller.students.create as unknown as (data: Record<string, unknown>) => Promise<unknown>)({
         surname: 'Ф',
         name: 'И',
         admissionYear: 2023,

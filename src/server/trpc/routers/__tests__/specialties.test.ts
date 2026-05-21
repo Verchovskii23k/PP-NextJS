@@ -6,7 +6,6 @@ import {
   createTestInstitute,
   createTestDepartment,
   createTestEducation,
-  createTestProfile,
 } from '@/test/helpers';
 import { db } from '@/db';
 import { profiles } from '@/db/schema';

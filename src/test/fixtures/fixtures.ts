@@ -21,15 +21,20 @@ export async function clearDatabase() {
     scheduleDisplay, schedule, lessonClassrooms, lessons,
     curriculumProfiles, curriculum, disciplineTeachers,
     employeesDepartments, classrooms,
-    hourTypeMapping, lessonTypes, unitRoots, units, unitTypes,
+    hourTypeMapping, lessonTypes,
+    unitRoots, units, unitTypes,
     daysOfWeek, pairs, weeks,
     students, studyGroups,
-    education, educationForms, educationLevels,
-    profiles, specialties, disciplines,
-    departments, institutes, buildings, employees,
+    profiles,
+    education,
+    specialties,
+    disciplines,
+    departments,
+    institutes, buildings, employees,
+    educationLevels, educationForms,
     positions, employmentTypes, academicLoadTypes, controlTypes,
     settings, scheduleVersions,
-    accounts, users,   // порядок важен из-за внешних ключей
+    accounts, users,
   ];
   for (const t of tables) {
     await db.delete(t);
