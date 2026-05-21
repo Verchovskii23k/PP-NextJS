@@ -217,34 +217,6 @@ export const authRouter = router({
           password: hashed,
         });
       }
-
-      // // Если изменился email, обновим его в employees/students (если есть связь)
-      // if (input.newEmail && input.newEmail !== user.email) {
-      //   // Пробуем обновить у сотрудника
-      //   const [emp] = await ctx.db
-      //     .select({ id: employees.id })
-      //     .from(employees)
-      //     .where(eq(employees.userId, user.id))
-      //     .limit(1);
-      //   if (emp) {
-      //     await ctx.db.update(employees)
-      //       .set({ email: newEmail })
-      //       .where(eq(employees.id, emp.id));
-      //   } else {
-      //     // Пробуем обновить у студента
-      //     const [stu] = await ctx.db
-      //       .select({ id: students.id })
-      //       .from(students)
-      //       .where(eq(students.userId, user.id))
-      //       .limit(1);
-      //     if (stu) {
-      //       await ctx.db.update(students)
-      //         .set({ email: newEmail })
-      //         .where(eq(students.id, stu.id));
-      //     }
-      //   }
-      // }
-
       // Удаляем использованный токен
       await ctx.db.delete(verificationTokens).where(eq(verificationTokens.token, input.token));
 

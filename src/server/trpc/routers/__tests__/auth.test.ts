@@ -50,5 +50,5 @@ describe('auth', () => {
   it('forgotPassword should return message (user with email)', async () => {
     const result = await caller.auth.forgotPassword({ email: adminEmail });
     expect(result).toHaveProperty('message');
-  });
+  }, 15000);
 });

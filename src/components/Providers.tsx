@@ -15,11 +15,12 @@ function HeaderContent() {
   const isLoginPage = pathname.startsWith("/login");
   const isSetupPage = pathname.startsWith("/setup");
   const isPublicPage = isLoginPage || isSetupPage;
+  const isHomePage = pathname === "/";
 
   const { data: user } = trpc.auth.me.useQuery();
   const handleLogout = async () => {
     await authClient.signOut();
-    window.location.href = "/login";
+    window.location.href = "/";
   };
 
   const homePath =
@@ -40,12 +41,12 @@ function HeaderContent() {
     }
   };
 
-  return (
+return (
     <header className="border-b border-border bg-muted">
       <div className="mx-auto flex h-12 max-w-7xl items-center justify-between px-4">
-        {/* Левая группа: домик + ФИО/роль */}
+        {/* Левая группа */}
         <div className="flex items-center gap-4">
-          {!isPublicPage && (
+          {!isPublicPage && !isHomePage && (   // ← добавил условие на isHomePage
             <Link
               href={homePath}
               className="flex items-center gap-1.5 text-foreground transition-colors hover:text-primary"
@@ -55,8 +56,8 @@ function HeaderContent() {
               <span className="hidden text-sm font-medium sm:inline">Главная</span>
             </Link>
           )}
-          {isPublicPage && <div />}
-          
+          {(isPublicPage || isHomePage) && <div />}   {/* ← пустой блок, чтобы не ломалась вёрстка */}
+
           {!isPublicPage && user && (
             <div>
               <div className="text-sm font-medium leading-tight text-foreground">
@@ -69,7 +70,7 @@ function HeaderContent() {
           )}
         </div>
 
-        {/* Правая группа: тема + выход */}
+        {/* Правая группа (без изменений) */}
         <div className="flex items-center gap-4">
           <ThemeToggle />
           {!isPublicPage && user && (

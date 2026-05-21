@@ -1,7 +1,7 @@
 // src/server/trpc/routers/__tests__/userManagement.test.ts
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { db } from '@/db';
-import { users, employees, students, accounts, verificationTokens, profiles } from '@/db/schema';
+import { users, students, accounts, verificationTokens, profiles } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { createTestCaller } from '@/test/trpc';
 import { clearAllTestData, createTestUser, createTestEmployee, createTestProfile, createTestSpecialty, createTestDepartment, createTestInstitute, createTestEducation } from '@/test/helpers';
@@ -204,8 +204,6 @@ describe('userManagement', () => {
 
       // Создаём код через роутер
       await caller.userManagement.sendResetCode({ userId: teacherId });
-      const tokens = await db.select().from(verificationTokens).where(eq(verificationTokens.identifier, teacherId));
-      const correctCode = tokens[0].token;
 
       // Пытаемся подтвердить с неверным кодом
       await expect(caller.userManagement.confirmResetCode({

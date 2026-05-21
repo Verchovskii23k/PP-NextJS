@@ -25,7 +25,7 @@ export default function CredentialsPage() {
 
   const clearAllMut = trpc.adminManagement.clearAllCredentials.useMutation({
     onSuccess: () => {
-      window.location.href = '/setup';
+      window.location.href = '/';
     },
     onError: (e) => setError(e.message),
   });
