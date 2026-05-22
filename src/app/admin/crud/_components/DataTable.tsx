@@ -132,6 +132,35 @@ interface DataTableProps {
   tableName: string;
 }
 
+// Безопасное получение CRUD роутера из trpc
+function getCrudRouter(key: string): CrudRouter | undefined {
+  const trpcObj = trpc as Record<string, unknown>;
+  if (key in trpcObj) {
+    const router = trpcObj[key];
+    if (typeof router === 'object' && router !== null && 'list' in router) {
+      return router as unknown as CrudRouter;
+    }
+  }
+  return undefined;
+}
+
+// Безопасная инвалидация списка через утилиты tRPC
+function invalidateList(utils: ReturnType<typeof trpc.useUtils>, routerKey: string | undefined) {
+  if (!routerKey || !(routerKey in utils)) return;
+  const router = (utils as unknown as Record<string, unknown>)[routerKey];
+  if (typeof router === 'object' && router !== null && 'list' in router) {
+    const list = router.list as { invalidate?: () => void };
+    list.invalidate?.();
+  }
+}
+
+const EMPTY_QUERY = {
+  data: [] as BaseRow[],
+  isLoading: false,
+  isError: false,
+  error: null as { message: string } | null,
+};
+
 export function DataTable({ tableName }: DataTableProps) {
   // ---------- все хуки на верхнем уровне ----------
   const [sorting, setSorting] = React.useState<SortingState>([{ id: 'id', desc: false }]);
@@ -148,25 +177,16 @@ export function DataTable({ tableName }: DataTableProps) {
   const meta = tablesMeta[tableName];
   const metaExists = meta !== undefined;
 
-  const routerKey = meta?.routerKey as keyof typeof trpc;
-  const router = metaExists
-    ? (trpc as unknown as Record<string, CrudRouter>)[meta!.routerKey] as CrudRouter | undefined
-    : undefined;
+  const routerKey = meta?.routerKey;
+  const router = metaExists ? getCrudRouter(meta!.routerKey) : undefined;
 
-  const { data: rawData, isLoading, isError, error } = router?.list?.useQuery?.() ?? {
-    data: [] as BaseRow[],
-    isLoading: false,
-    isError: false,
-    error: { message: "" } as { message: string },
-  };
+  const { data: rawData, isLoading, isError, error } = router?.list?.useQuery?.() ?? EMPTY_QUERY;
 
   const rows: BaseRow[] = React.useMemo(() => rawData ?? [], [rawData]);
   const utils = trpc.useUtils();
 
   const deleteMutation = router?.delete?.useMutation?.({
-    onSuccess: () => {
-      (utils as unknown as Record<string, { list?: { invalidate?: () => void } }>)[routerKey]?.list?.invalidate?.()
-    },
+    onSuccess: () => invalidateList(utils, routerKey),
   });
 
   const deleteManyMutation = trpc.batchDelete.deleteMany.useMutation();
@@ -232,7 +252,7 @@ export function DataTable({ tableName }: DataTableProps) {
       }
       toast(message);
       setSelectedIds(new Set());
-      (utils as unknown as Record<string, { list?: { invalidate?: () => void } }>)[routerKey]?.list?.invalidate?.()
+      invalidateList(utils, routerKey);
     } catch (e: unknown) {
       toast.error("Ошибка: " + (e instanceof Error ? e.message : "Неизвестная ошибка"));
     }
@@ -264,14 +284,18 @@ export function DataTable({ tableName }: DataTableProps) {
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
-        const content = e.target?.result as string;
-        const json = JSON.parse(content);
+        const result = e.target?.result;
+        if (typeof result !== 'string') {
+          toast.error('Ошибка чтения файла: неверный формат');
+          return;
+        }
+        const json = JSON.parse(result);
         if (!Array.isArray(json)) throw new Error("Файл должен содержать массив объектов");
-        const result = await importMutation.mutateAsync({ tableName, data: json });
+        const imported = await importMutation.mutateAsync({ tableName, data: json });
         toast.success(
-          `Импорт завершён:\nВсего: ${result.total}\nВставлено: ${result.inserted}\nОбновлено: ${result.updated}\nПропущено (совпадают): ${result.skipped}\nОшибок: ${result.errors.length}\n${result.errors.slice(0, 5).join("\n")}`
+          `Импорт завершён:\nВсего: ${imported.total}\nВставлено: ${imported.inserted}\nОбновлено: ${imported.updated}\nПропущено (совпадают): ${imported.skipped}\nОшибок: ${imported.errors.length}\n${imported.errors.slice(0, 5).join("\n")}`
         );
-        (utils as unknown as Record<string, { list?: { invalidate?: () => void } }>)[routerKey]?.list?.invalidate?.()
+        invalidateList(utils, routerKey);
       } catch (e: unknown) {
         toast.error("Ошибка импорта: " + (e instanceof Error ? e.message : "Неизвестная ошибка"));
       } finally {
@@ -327,7 +351,7 @@ export function DataTable({ tableName }: DataTableProps) {
               field={field}
               allValues={rows.map(row => row[field.dbName])}
               currentFilter={
-                columnFilters.find(f => f.id === field.dbName)?.value as unknown[]
+                (columnFilters.find(f => f.id === field.dbName)?.value as unknown[] | undefined) ?? []
               }
               onFilterChange={(values) => {
                 setColumnFilters(prev => {
@@ -343,10 +367,11 @@ export function DataTable({ tableName }: DataTableProps) {
         cell: ({ getValue }) => {
           const value = getValue();
           if (field.isFK && field.references) {
+            const numValue = typeof value === 'number' ? value : 0; // fallback to 0 if not number
             return (
               <ForeignKeyCell
                 table={field.references.table}
-                id={value as number}
+                id={numValue}
                 displayField={field.references.displayField}
                 dbTableName={field.references.dbTableName || tablesMeta[field.references.table]?.dbTableName}
               />
@@ -393,10 +418,10 @@ export function DataTable({ tableName }: DataTableProps) {
               if (!ok) return;
               try {
                 await deleteMutation.mutateAsync({ id: row.original.id });
-                (utils as unknown as Record<string, { list?: { invalidate?: () => void } }>)[routerKey]?.list?.invalidate?.()
+                invalidateList(utils, routerKey);
               } catch (e: unknown) {
                 toast.error(e instanceof Error ? e.message : "Ошибка");
-                (utils as unknown as Record<string, { list?: { invalidate?: () => void } }>)[routerKey]?.list?.invalidate?.()
+                invalidateList(utils, routerKey);
               }
             }}
           >
@@ -513,7 +538,7 @@ export function DataTable({ tableName }: DataTableProps) {
                     {header.isPlaceholder ? null : (
                       <div className="flex items-center gap-1">
                         {flexRender(header.column.columnDef.header, header.getContext())}
-                        {{ asc: " 🔼", desc: " 🔽" }[header.column.getIsSorted() as string] ?? null}
+                        {header.column.getIsSorted() && { asc: " 🔼", desc: " 🔽" }[header.column.getIsSorted() as string]}
                       </div>
                     )}
                   </th>
@@ -521,54 +546,54 @@ export function DataTable({ tableName }: DataTableProps) {
               </tr>
             ))}
           </thead>
-            <tbody className="min-h-[300px] divide-y divide-border bg-background">
-              {table.getRowModel().rows.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={columns.length}
-                    className="px-4 py-4 text-center align-middle text-sm text-muted-foreground"
+          <tbody className="min-h-[300px] divide-y divide-border bg-background">
+            {table.getRowModel().rows.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={columns.length}
+                  className="px-4 py-4 text-center align-middle text-sm text-muted-foreground"
+                >
+                  <div className="flex h-full min-h-[250px] items-center justify-center">
+                    Нет данных
+                  </div>
+                </td>
+              </tr>
+            ) : (
+              table.getRowModel().rows.map((row, rowIndex) => {
+                const isSelected = selectedIds.has(row.original.id);
+                return (
+                  <tr
+                    key={row.id}
+                    className={`hover:bg-muted/50 ${
+                      row.original.isActive === false ? "bg-red-50 dark:bg-red-900/20" : ""
+                    } ${isSelected ? "bg-gray-100 dark:bg-gray-800" : ""}`}
                   >
-                    <div className="flex h-full min-h-[250px] items-center justify-center">
-                      Нет данных
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                table.getRowModel().rows.map((row, rowIndex) => {
-                  const isSelected = selectedIds.has(row.original.id);
-                  return (
-                    <tr
-                      key={row.id}
-                      className={`hover:bg-muted/50 ${
-                        row.original.isActive === false ? "bg-red-50 dark:bg-red-900/20" : ""
-                      } ${isSelected ? "bg-gray-100 dark:bg-gray-800" : ""}`}
-                    >
-                      {row.getVisibleCells().map(cell => {
-                        // Подменяем содержимое ячейки "№" на актуальный порядковый номер
-                        if (cell.column.id === "index") {
-                          return (
-                            <td
-                              key={cell.id}
-                              className="whitespace-nowrap px-4 py-2 text-xs text-muted-foreground"
-                            >
-                              {rowIndex + 1}
-                            </td>
-                          );
-                        }
+                    {row.getVisibleCells().map(cell => {
+                      // Подменяем содержимое ячейки "№" на актуальный порядковый номер
+                      if (cell.column.id === "index") {
                         return (
                           <td
                             key={cell.id}
-                            className="whitespace-nowrap px-4 py-2 text-sm text-foreground"
+                            className="whitespace-nowrap px-4 py-2 text-xs text-muted-foreground"
                           >
-                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                            {rowIndex + 1}
                           </td>
                         );
-                      })}
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
+                      }
+                      return (
+                        <td
+                          key={cell.id}
+                          className="whitespace-nowrap px-4 py-2 text-sm text-foreground"
+                        >
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
         </table>
       </div>
 
@@ -603,7 +628,7 @@ export function DataTable({ tableName }: DataTableProps) {
           onClose={() => {
             setShowForm(false);
             setEditId(null);
-            (utils as unknown as Record<string, { list?: { invalidate?: () => void } }>)[routerKey]?.list?.invalidate?.()
+            invalidateList(utils, routerKey);
           }}
         />
       )}

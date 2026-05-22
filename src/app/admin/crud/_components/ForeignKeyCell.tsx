@@ -39,7 +39,7 @@ interface ForeignKeyCellProps {
 }
 
 // Тип для роутера, который содержит только get
-interface ReadonlyRouter {
+interface GetRouter {
   get: {
     useQuery: (input: { id: number }, opts?: unknown) => {
       data?: Record<string, unknown> | null;
@@ -47,6 +47,23 @@ interface ReadonlyRouter {
     };
   };
 }
+
+// Безопасное получение роутера с методом get
+function getGetRouter(key: string): GetRouter | undefined {
+  const trpcObj = trpc as Record<string, unknown>;
+  if (key in trpcObj) {
+    const router = trpcObj[key];
+    if (typeof router === 'object' && router !== null && 'get' in router) {
+      return router as unknown as GetRouter;
+    }
+  }
+  return undefined;
+}
+
+const EMPTY_GET_QUERY = {
+  data: null as Record<string, unknown> | null,
+  isLoading: false,
+};
 
 export function ForeignKeyCell({ table, id, displayField }: ForeignKeyCellProps) {
   if (id === undefined || id === null) return <>—</>;
@@ -58,15 +75,20 @@ export function ForeignKeyCell({ table, id, displayField }: ForeignKeyCellProps)
     return <span>{id}</span>;
   }
 
-  const router = (trpc as unknown as Record<string, ReadonlyRouter>)[routerKey] as ReadonlyRouter | undefined;
-  const { data, isLoading } = router?.get?.useQuery?.({ id }, { enabled: !!id }) ?? { data: null, isLoading: false };
+  const router = getGetRouter(routerKey);
+  const { data, isLoading } = router?.get?.useQuery?.({ id }, { enabled: !!id }) ?? EMPTY_GET_QUERY;
 
   if (isLoading) return <span className="text-muted-foreground">...</span>;
-  if (!data) return <span className="text-red-500 dark:text-red-400">???</span>;
 
-  const displayValue = data[displayField] !== undefined && data[displayField] !== null
-    ? String(data[displayField])
-    : String(data.id ?? id);
+  // Проверяем, что data – это объект, и получаем читаемое значение
+  let displayValue: string;
+  if (data && typeof data === 'object' && !Array.isArray(data)) {
+    const val = data[displayField];
+    displayValue = val !== undefined && val !== null ? String(val) : String(data.id ?? id);
+  } else {
+    // Если данные не загружены или имеют неверный формат, показываем ошибку
+    return <span className="text-red-500 dark:text-red-400">???</span>;
+  }
 
   return (
     <EntityTooltip tableName={table} id={id}>

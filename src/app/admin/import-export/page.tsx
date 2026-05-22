@@ -83,8 +83,13 @@ export default function ImportExportPage() {
     const reader = new FileReader();
     reader.onload = async (event) => {
       try {
-        const raw = event.target?.result as string;
-        const data = JSON.parse(raw);
+        const result = event.target?.result;
+        if (typeof result !== 'string') {
+          toast.error('Ошибка чтения файла: неверный формат');
+          setIsImporting(false);
+          return;
+        }
+        const data = JSON.parse(result);
         await importMutation.mutateAsync(data);
       } catch (e: unknown) {
         const message = e instanceof Error ? e.message : "Неизвестная ошибка";

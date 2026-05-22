@@ -102,8 +102,8 @@ export const batchDeleteRouter = router({
           `;
           const result = await db.execute(query);
 
-          if ((result as unknown as Array<unknown>).length > 0) {
-            // Вместо dbTableName используем русское название
+          // Проверяем, что результат — массив и он не пуст
+          if (Array.isArray(result) && result.length > 0) {
             const ruName = nameByDbTable[child.dbTableName] || child.dbTableName;
             blockingTables.push(ruName);
           }
@@ -118,37 +118,43 @@ export const batchDeleteRouter = router({
       }
 
       // 2. Выполняем удаление
-      const deleteResult = {
-        deleted: 0,
-        errors: [] as { id: number; message: string }[],
-      };
+      const errors: { id: number; message: string }[] = [];
+      let deleted = 0;
 
       for (const id of ids) {
         try {
           // Самозапрет для сотрудников и студентов
           if (tableName === "employees" || tableName === "students") {
-            const [row] = (await db.execute(
+            const rows = await db.execute(
               sql`SELECT user_id FROM ${sql.identifier(dbTableName)} WHERE id = ${id}`
-            )) as unknown as { user_id: string | null }[];
-            if (row?.user_id && ctx.user?.id === row.user_id) {
-              deleteResult.errors.push({ id, message: "Нельзя удалить самого себя" });
-              continue;
+            );
+
+            // Безопасно извлекаем user_id, если запись найдена
+            if (Array.isArray(rows) && rows.length > 0) {
+              const row = rows[0];
+              if (typeof row === 'object' && row !== null && 'user_id' in row) {
+                const userId = (row as Record<string, unknown>).user_id;
+                if (typeof userId === 'string' && ctx.user?.id === userId) {
+                  errors.push({ id, message: "Нельзя удалить самого себя" });
+                  continue;
+                }
+              }
             }
           }
 
           await db.execute(
             sql`DELETE FROM ${sql.identifier(dbTableName)} WHERE id = ${id}`
           );
-          deleteResult.deleted++;
+          deleted++;
         } catch (e: unknown) {
-          const err = e as { code?: string; message?: string };
+          const message = e instanceof Error ? e.message : "Неизвестная ошибка";
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
-            message: `Ошибка при удалении id=${id}: ${err.message}`,
+            message: `Ошибка при удалении id=${id}: ${message}`,
           });
         }
       }
 
-      return deleteResult;
+      return { deleted, errors };
     }),
 });

@@ -62,7 +62,6 @@ const EXCLUDED_TABLES = new Set([
   "session",             // better-auth
   "verification_token",  // better-auth
   "settings",            // настройки (не переносим)
-  // "security_center" удалена, "roles" удалена
 ]);
 
 // Порядок таблиц для импорта (родители → потомки)
@@ -144,15 +143,24 @@ function camelToSnake(str: string) {
   return str.replace(/[A-Z]/g, (l) => `_${l.toLowerCase()}`);
 }
 
+// Type guard для проверки, что значение является объектом
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+// Type guard для проверки, что значение является массивом
+function isArray(value: unknown): value is unknown[] {
+  return Array.isArray(value);
+}
+
 function transformKeysToCamel(obj: unknown): unknown {
   if (Array.isArray(obj)) return obj.map(transformKeysToCamel);
-  if (obj !== null && typeof obj === "object") {
-    return Object.fromEntries(
-      Object.entries(obj as Record<string, unknown>).map(([key, val]) => [
-        snakeToCamel(key),
-        transformKeysToCamel(val),
-      ])
-    );
+  if (isRecord(obj)) {
+    const result: Record<string, unknown> = {};
+    for (const [key, val] of Object.entries(obj)) {
+      result[snakeToCamel(key)] = transformKeysToCamel(val);
+    }
+    return result;
   }
   return obj;
 }
@@ -228,9 +236,13 @@ export const globalImportExportRouter = router({
         const rows = await db.execute(
           sql`SELECT * FROM ${sql.identifier(tableName)}`
         );
-        result[tableName] = (rows as unknown[]).map((row) =>
-          transformKeysToCamel(row)
-        );
+        // Безопасно преобразуем: если rows – массив, применяем transformKeysToCamel
+        if (isArray(rows)) {
+          result[tableName] = rows.map((row) => transformKeysToCamel(row));
+        } else {
+          console.error(`Export error: unexpected result for table ${tableName}`, rows);
+          result[tableName] = [];
+        }
       } catch (e) {
         console.error(`Export error for table ${tableName}:`, e);
         result[tableName] = [];
@@ -261,17 +273,22 @@ export const globalImportExportRouter = router({
         const allowedFields = tablesMeta[tableName]?.fields?.map(f => f.dbName) ?? [];
 
         for (const _row of rows) {
-          const row = _row as Record<string, unknown>;
+          // Проверяем, что _row – объект
+          if (!isRecord(_row)) {
+            stats[tableName].errors.push(`Пропущена строка: не объект`);
+            continue;
+          }
+          const row = _row;
+
           try {
-            // 1. Собираем только разрешённые поля (фильтрация по table-meta)
+            // 1. Собираем только разрешённые поля
             const dbRow: Record<string, unknown> = {};
             for (const [key, val] of Object.entries(row)) {
-                if (key === "id") continue;
-                // Проверяем по camelCase‑ключу (как в table‑meta)
-                if (allowedFields.includes(key)) {
-                    const snakeKey = camelToSnake(key);
-                    dbRow[snakeKey] = val === undefined ? null : val;
-                }
+              if (key === "id") continue;
+              if (allowedFields.includes(key)) {
+                const snakeKey = camelToSnake(key);
+                dbRow[snakeKey] = val === undefined ? null : val;
+              }
             }
 
             if (Object.keys(dbRow).length === 0) {
@@ -281,7 +298,7 @@ export const globalImportExportRouter = router({
 
             remapForeignKeys(tableName, dbRow);
 
-            // 2. Сотрудники и студенты – всегда вставляем новую запись
+            // 2. Сотрудники и студенты – всегда INSERT
             if (tableName === "employees" || tableName === "students") {
               const columns = Object.keys(dbRow);
               const values = Object.values(dbRow);
@@ -293,15 +310,18 @@ export const globalImportExportRouter = router({
               continue;
             }
 
-            // 3. Остальные таблицы: ищем по уникальному ключу
+            // 3. Остальные таблицы: поиск по уникальному ключу
             let existing: Record<string, unknown> | null = null;
             if (uniqueKeys.length > 0 && uniqueKeys.every(k => dbRow[k] !== undefined && dbRow[k] !== null)) {
               const conditions = uniqueKeys.map(k => sql`${sql.identifier(k)} = ${dbRow[k]}`);
               const whereClause = conditions.length > 1 ? sql.join(conditions, sql` AND `) : conditions[0];
-              const existingRows = (await db.execute(
+              const existingRows = await db.execute(
                 sql`SELECT * FROM ${sql.identifier(dbTableName)} WHERE ${whereClause} LIMIT 1`
-              )) as unknown[];
-              if (existingRows.length > 0) existing = existingRows[0] as Record<string, unknown>;
+              );
+              // Проверяем, что вернулся массив и есть хотя бы одна запись-объект
+              if (isArray(existingRows) && existingRows.length > 0 && isRecord(existingRows[0])) {
+                existing = existingRows[0];
+              }
             }
 
             if (!existing) {
@@ -313,16 +333,26 @@ export const globalImportExportRouter = router({
                     VALUES (${sql.join(values.map(v => sql`${v}`), sql`, `)})
                     RETURNING id`
               );
-              const newId = (inserted as unknown as { id: number }[])[0].id;
-              idMaps[tableName].set(Number(row.id), newId);
+              // Получаем новый ID
+              if (isArray(inserted) && inserted.length > 0 && isRecord(inserted[0]) && 'id' in inserted[0]) {
+                const newId = Number(inserted[0].id);
+                if (!isNaN(newId)) {
+                  idMaps[tableName].set(Number(row.id), newId);
+                }
+              }
               stats[tableName].inserted++;
             } else {
-              // Обновляем или пропускаем
-              const existingId = existing.id as number;
-              idMaps[tableName].set(Number(row.id), existingId);
+              // Обновление или пропуск
+              const existingId = Number(existing.id);
+              if (!isNaN(existingId)) {
+                idMaps[tableName].set(Number(row.id), existingId);
+              }
               let changed = false;
               for (const [k, v] of Object.entries(dbRow)) {
-                if (String(existing[k]) !== String(v)) { changed = true; break; }
+                if (String(existing[k]) !== String(v)) {
+                  changed = true;
+                  break;
+                }
               }
               if (!changed) {
                 stats[tableName].skipped++;

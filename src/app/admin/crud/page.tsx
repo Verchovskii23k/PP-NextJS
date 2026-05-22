@@ -152,13 +152,17 @@ function CategorySection({
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
-    if (over && active.id !== over.id) {
-      setOrder((items) => {
-        const oldIndex = items.indexOf(active.id as string);
-        const newIndex = items.indexOf(over.id as string);
-        return arrayMove(items, oldIndex, newIndex);
-      });
-    }
+    if (!over || active.id === over.id) return;
+
+    const activeId = typeof active.id === 'string' ? active.id : String(active.id);
+    const overId = typeof over.id === 'string' ? over.id : String(over.id);
+
+    setOrder((items) => {
+      const oldIndex = items.indexOf(activeId);
+      const newIndex = items.indexOf(overId);
+      if (oldIndex === -1 || newIndex === -1) return items;
+      return arrayMove(items, oldIndex, newIndex);
+    });
   };
 
   const items = order
@@ -167,7 +171,7 @@ function CategorySection({
       if (!meta) return null;
       return { key, label: meta.label, icon: TABLE_ICONS[key] ?? "📄" };
     })
-    .filter(Boolean) as { key: string; label: string; icon: string }[];
+    .filter((item): item is { key: string; label: string; icon: string } => item !== null);
 
   if (items.length === 0) return null;
 

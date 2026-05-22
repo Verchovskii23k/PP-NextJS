@@ -13,6 +13,9 @@ const WEIGHT_KEYS = {
   unitMisuse: "opt_weight_unit_misuse",
 };
 
+// Тип для ключей WEIGHT_KEYS
+type WeightField = keyof typeof WEIGHT_KEYS;
+
 export default function OptimizationSettingsPage() {
   const utils = trpc.useUtils();
 
@@ -74,8 +77,13 @@ export default function OptimizationSettingsPage() {
   });
 
   const handleSave = (field: string, value: number) => {
-    const key = (WEIGHT_KEYS as Record<string, string>)[field];
-    updateMut.mutate({ key, value: String(value) });
+    // Проверяем, что field действительно ключ из WEIGHT_KEYS
+    if (field in WEIGHT_KEYS) {
+      const key = WEIGHT_KEYS[field as WeightField];
+      updateMut.mutate({ key, value: String(value) });
+    } else {
+      toast.error(`Неизвестное поле: ${field}`);
+    }
   };
 
   if (isLoading)

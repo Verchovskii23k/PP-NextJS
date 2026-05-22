@@ -113,13 +113,37 @@ interface RecordFormProps {
   onClose: () => void;
 }
 
+// Безопасное получение CRUD-роутера из trpc
+function getFormCrudRouter(key: string): CrudRouter | undefined {
+  const trpcObj = trpc as Record<string, unknown>;
+  if (key in trpcObj) {
+    const router = trpcObj[key];
+    if (typeof router === 'object' && router !== null && 'list' in router) {
+      // здесь мы не проверяем 'get', 'create', 'update', но для формы это не критично
+      return router as unknown as CrudRouter;
+    }
+  }
+  return undefined;
+}
+
+// Безопасное получение числового значения из formValues
+function getNumberOrUndefined(value: unknown): number | undefined {
+  return typeof value === 'number' ? value : undefined;
+}
+
+// Безопасное приведение к Record<string, unknown>
+function ensureRecord(value: unknown): Record<string, unknown> | null {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  return null;
+}
+
 export function RecordForm({ tableName, editId, onClose }: RecordFormProps) {
   const meta = tablesMeta[tableName];
 
   // ---------- все хуки до условного возврата ----------
-  const router = meta
-    ? (trpc as unknown as Record<string, CrudRouter>)[meta.routerKey] as CrudRouter | undefined
-    : undefined;
+  const router = meta ? getFormCrudRouter(meta.routerKey) : undefined;
 
   const { data: existingData } = router?.get?.useQuery?.(
     { id: editId! },
@@ -133,13 +157,13 @@ export function RecordForm({ tableName, editId, onClose }: RecordFormProps) {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   // Хуки для фильтрации в disciplineTeachers
-  const selectedDisciplineId = (tableName === "disciplineTeachers" ? formValues.disciplineId : undefined) as number | undefined;
+  const selectedDisciplineId = tableName === "disciplineTeachers" ? getNumberOrUndefined(formValues.disciplineId) : undefined;
   const { data: selectedDiscipline } = trpc.disciplines.get.useQuery(
     { id: selectedDisciplineId! },
     { enabled: tableName === "disciplineTeachers" && !!selectedDisciplineId }
   );
 
-  const selectedTeacherDeptId = (tableName === "disciplineTeachers" ? formValues.teacherDepartmentId : undefined) as number | undefined;
+  const selectedTeacherDeptId = tableName === "disciplineTeachers" ? getNumberOrUndefined(formValues.teacherDepartmentId) : undefined;
   const { data: selectedEmpDept } = trpc.employeesDepartments.get.useQuery(
     { id: selectedTeacherDeptId! },
     { enabled: tableName === "disciplineTeachers" && !!selectedTeacherDeptId }
@@ -149,7 +173,9 @@ export function RecordForm({ tableName, editId, onClose }: RecordFormProps) {
   useEffect(() => {
     if (!meta) return;
     if (editId && existingData) {
-      setFormValues({ ...existingData } as Record<string, unknown>);
+      const data = ensureRecord(existingData);
+      if (data) setFormValues(data);
+      else setFormValues({});
     } else if (!editId) {
       const initial: Record<string, unknown> = {};
       meta.fields.forEach((f) => {
@@ -213,16 +239,18 @@ export function RecordForm({ tableName, editId, onClose }: RecordFormProps) {
     setErrors({});
     try {
       if (editId) {
-        await updateMutation?.mutateAsync({ id: editId, ...cleanedValues } as { id: number } & Record<string, unknown>);
+        if (!updateMutation) throw new Error("Мутация обновления недоступна");
+        await updateMutation.mutateAsync({ id: editId, ...cleanedValues });
       } else {
-        await createMutation?.mutateAsync(cleanedValues);
+        if (!createMutation) throw new Error("Мутация создания недоступна");
+        await createMutation.mutateAsync(cleanedValues);
       }
       onClose();
-      } catch (err: unknown) {
-        console.log('tRPC error:', err); 
-        const message = err instanceof TRPCClientError ? err.message : (err instanceof Error ? err.message : "Неизвестная ошибка");
-        toast.error(message);
-      }
+    } catch (err: unknown) {
+      console.log('tRPC error:', err);
+      const message = err instanceof TRPCClientError ? err.message : (err instanceof Error ? err.message : "Неизвестная ошибка");
+      toast.error(message);
+    }
   };
 
   const renderField = (field: FieldMeta) => {
@@ -239,39 +267,39 @@ export function RecordForm({ tableName, editId, onClose }: RecordFormProps) {
       let input: Record<string, unknown> | undefined;
 
       if (field.dbName === "classroomId" && tableName === "lessonClassrooms") {
-        input = formValues.lessonId ? { lessonId: formValues.lessonId as number } : undefined;
+        const lessonId = getNumberOrUndefined(formValues.lessonId);
+        input = lessonId ? { lessonId } : undefined;
       } else if (field.dbName === "directorId") {
-        input = formValues.universityCode ? { instituteId: formValues.universityCode as number } : undefined;
+        const universityCode = getNumberOrUndefined(formValues.universityCode);
+        input = universityCode ? { instituteId: universityCode } : undefined;
       } else if (field.dbName === "headId") {
-        input = editId ? { departmentId: editId as number } : undefined;
+        input = editId ? { departmentId: editId } : undefined;
       } else if (field.dbName === "curatorId") {
         const profileId = editId
-          ? (existingData as Record<string, unknown> | null)?.profileId
-          : formValues.profileId;
-        input = profileId ? { profileId: profileId as number } : undefined;
+          ? (ensureRecord(existingData)?.profileId as number | undefined)
+          : getNumberOrUndefined(formValues.profileId);
+        input = profileId ? { profileId } : undefined;
       }
 
       // ========== БЛОК: фильтрация для disciplineTeachers ==========
       if (tableName === "disciplineTeachers") {
         if (field.dbName === "teacherDepartmentId") {
-          // При выборе дисциплины – фильтруем преподавателей по её кафедре
-          if (selectedDiscipline?.departmentId) {
-            input = { departmentId: selectedDiscipline.departmentId as number };
+          const deptId = selectedDiscipline?.departmentId;
+          if (typeof deptId === 'number') {
+            input = { departmentId: deptId };
           }
         } else if (field.dbName === "disciplineId") {
-          // При выборе преподавателя – фильтруем дисциплины по его кафедре
-          if (selectedEmpDept?.departmentId) {
-            input = { departmentId: selectedEmpDept.departmentId as number };
+          const deptId = selectedEmpDept?.departmentId;
+          if (typeof deptId === 'number') {
+            input = { departmentId: deptId };
           }
         }
       }
       // ========== КОНЕЦ БЛОКА ==========
 
-      const refRouter = refRouterKey
-        ? (trpc as unknown as Record<string, { list: { useQuery: (input?: unknown) => { data?: Record<string, unknown>[]; isLoading?: boolean } } }>)[refRouterKey]
-        : undefined;
-      const { data: options = [] as Record<string, unknown>[], isLoading: optionsLoading = false } =
-        refRouter?.list?.useQuery?.(input) ?? {};
+      const refRouter = refRouterKey ? getFormCrudRouter(refRouterKey) : undefined;
+      const { data: options = [], isLoading: optionsLoading = false } =
+        (refRouter as unknown as { list: { useQuery: (input?: unknown) => { data?: Record<string, unknown>[]; isLoading?: boolean } } } | undefined)?.list?.useQuery?.(input) ?? {};
 
       return (
         <div key={field.dbName} className="mb-3">
@@ -280,15 +308,18 @@ export function RecordForm({ tableName, editId, onClose }: RecordFormProps) {
             {field.required && <span className="ml-1 text-red-500">*</span>}
           </label>
           <select
-            value={(value as string | number | undefined) ?? ""}
-            onChange={(e) => handleChange(field.dbName, e.target.value === "" ? null : Number(e.target.value))}
+            value={typeof value === 'number' ? value : ''}
+            onChange={(e) => {
+              const raw = e.target.value;
+              handleChange(field.dbName, raw === "" ? null : Number(raw));
+            }}
             className={`w-full rounded border bg-background px-3 py-1.5 text-foreground ${hasError ? "border-red-500" : "border-border"}`}
             disabled={optionsLoading}
           >
             <option value="">-- Не выбрано --</option>
-            {options.map((opt) => (
-              <option key={opt.id as number} value={opt.id as number}>
-                {opt[field.references!.displayField] as string ?? String(opt.id)}
+            {Array.isArray(options) && options.map((opt) => (
+              <option key={String(opt.id)} value={Number(opt.id)}>
+                {opt[field.references!.displayField] != null ? String(opt[field.references!.displayField]) : String(opt.id)}
               </option>
             ))}
           </select>
@@ -297,7 +328,7 @@ export function RecordForm({ tableName, editId, onClose }: RecordFormProps) {
       );
     }
     if (field.inputType === "radioGroup") {
-      const selectedValue = (value as number) || 3; // по умолчанию 3 (Низкий)
+      const selectedValue = typeof value === 'number' ? value : 3;
       const options = [
         { value: 3, label: "Низкий" },
         { value: 2, label: "Средний" },
@@ -360,7 +391,7 @@ export function RecordForm({ tableName, editId, onClose }: RecordFormProps) {
         </label>
         <input
           type={isNumericField(field) ? "number" : "text"}
-          value={(value as string | number) ?? ""}
+          value={value != null ? String(value) : ''}
           onChange={(e) => {
             if (isNumericField(field)) {
               const raw = e.target.value;
