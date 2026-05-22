@@ -1,3 +1,15 @@
+/**
+ * Генерирует случайный пароль из 8 символов:
+ * - минимум 2 заглавные буквы,
+ * - минимум 2 строчные буквы,
+ * - минимум 2 цифры,
+ * - 2 любых символа из алфавита (буквы + цифры).
+ *
+ * Символы перемешиваются. Если в пароле встречается запрещённая
+ * последовательность (например, «123», «abc»), генерация повторяется.
+ *
+ * @returns Строка из 8 символов без явных словарных последовательностей.
+ */
 export function generateRandomPassword(): string {
   const upper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
   const lower = 'abcdefghijklmnopqrstuvwxyz';
@@ -22,12 +34,22 @@ export function generateRandomPassword(): string {
 import bcrypt from 'bcryptjs';
 
 /** Транслитерация русских символов для генерации email */
+/**
+ * Транслитерирует русскую строку в латиницу для использования в email.
+ *
+ * Заменяет кириллические символы по словарю, цифры и латинские буквы
+ * оставляет как есть, пробелы/дефисы/подчёркивания заменяет на `_`.
+ * Длина результата ограничена 10 символами (без финального подчёркивания).
+ *
+ * @param name - исходная строка (фамилия или имя).
+ * @returns Транслитерированная строка длиной до 10 символов.
+ */
 export function transliterate(name: string): string {
   const map: Record<string, string> = {
     'а':'a','б':'b','в':'v','г':'g','д':'d','е':'e','ё':'e','ж':'zh',
     'з':'z','и':'i','й':'y','к':'k','л':'l','м':'m','н':'n','о':'o',
     'п':'p','р':'r','с':'s','т':'t','у':'u','ф':'f','х':'h','ц':'c',
-    'ч':'ch','ш':'sh','щ':'sch','ы':'y','э':'e','ю':'yu','я':'ya'
+    'ч':'ch','ш':'sh','щ':'sch','ъ':'','ы':'y','ь':'','э':'e','ю':'yu','я':'ya'
   };
   const lower = name.toLowerCase();
   let result = '';
@@ -42,14 +64,33 @@ export function transliterate(name: string): string {
 }
 
 /** Генерация email из фамилии и имени */
+/**
+ * Формирует внутренний email на основе фамилии и имени.
+ *
+ * Шаблон: `{транслит фамилии}.{первая буква имени}{двузначное число}@internal.uni`
+ * Например: `ivanov.i42@internal.uni`.
+ *
+ * @param surname - фамилия (русская).
+ * @param name - имя (русское).
+ * @returns Строка email.
+ */
 export function makeEmail(surname: string, name: string): string {
   const base = transliterate(surname).toLowerCase();
-  const initial = name.charAt(0).toLowerCase();
-  const randomSuffix = Math.floor(10 + Math.random() * 90); // двухзначное число
+  const initialRaw = name.charAt(0);
+  const initial = transliterate(initialRaw).toLowerCase() || 'x'; // fallback, если вдруг не транслитерировалось
+  const randomSuffix = Math.floor(10 + Math.random() * 90);
   return `${base}.${initial}${randomSuffix}@internal.uni`;
 }
 
 /** Хеширование пароля */
+/**
+ * Хеширует пароль с помощью bcrypt (соль 10 раундов).
+ *
+ * Используется при создании учётных записей администраторов и пользователей.
+ *
+ * @param password - открытый пароль.
+ * @returns Хеш пароля.
+ */
 export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 10);
 }

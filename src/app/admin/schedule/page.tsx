@@ -41,8 +41,8 @@ type WeekInfo = { id: number; type: string };
 
 // Цвета для разных недель
 const WEEK_COLORS = [
-  { bg: "bg-indigo-200 dark:bg-indigo-800", border: "border-indigo-400 dark:border-indigo-600" },
   { bg: "bg-teal-200 dark:bg-teal-800", border: "border-teal-400 dark:border-teal-600" },
+  { bg: "bg-indigo-200 dark:bg-indigo-800", border: "border-indigo-400 dark:border-indigo-600" },
   { bg: "bg-purple-200 dark:bg-purple-800", border: "border-purple-400 dark:border-purple-600" },
   { bg: "bg-amber-200 dark:bg-amber-800", border: "border-amber-400 dark:border-amber-600" },
   { bg: "bg-pink-200 dark:bg-pink-800", border: "border-pink-400 dark:border-pink-600" },
@@ -189,6 +189,12 @@ export default function AdminSchedulePage() {
   const [showAnnealingDialog, setShowAnnealingDialog] = useState(false);
   const [tempInput, setTempInput] = useState(1000);
   const [rateInput, setRateInput] = useState(0.95);
+  const [resetFlagsDialog, setResetFlagsDialog] = useState(false);
+  const [resetFlagsSelection, setResetFlagsSelection] = useState({
+    positionFlag: false,
+    classroomFlag: false,
+    mergeNumber: false,
+  });
   const tempQuery = trpc.settings.get.useQuery(
     { key: "opt_initial_temperature" },
     { enabled: showAnnealingDialog }
@@ -314,7 +320,52 @@ export default function AdminSchedulePage() {
   });
   const optimizeScheduleMut = trpc.scheduleDisplay.optimizeSchedule.useMutation({
     onSuccess: (data) => {
-      toast(`Оптимизация завершена. Итераций: ${data.iterations}, улучшение: с ${data.initialScore} до ${data.finalScore}`);
+      // Основное сообщение
+      let msg = `Оптимизация завершена за ${data.iterations} итер. Штраф: ${data.initialScore} → ${data.finalScore}.`;
+      
+      if (data.acceptedMoves === 0) {
+        msg += ' Изменений не внесено.';
+        if (data.positionBlockedCount > 0) {
+          msg += ` ${data.positionBlockedCount} занятий зафиксированы.`;
+        }
+        toast.info(msg);
+        refreshData();
+        return;
+      }
+
+      msg += ` Перемещено занятий: ${data.singleMoved} из ${data.totalSingleEntries}.`;
+      if (data.totalMergeGroups > 0) {
+        msg += ` Групп слияния: ${data.mergeGroupMoved} из ${data.totalMergeGroups} перемещено.`;
+      }
+      toast.success(msg);
+
+      // Предупреждения о проблемах
+      const warnings: string[] = [];
+      if (data.mergeGroupFailedNoClassroom > 0) {
+        warnings.push(`Не удалось подобрать аудиторию для групп слияния (${data.mergeGroupFailedNoClassroom} попыток).`);
+      }
+      if (data.mergeGroupFailedNoSlot > 0) {
+        warnings.push(`Не удалось разместить группу слияния (${data.mergeGroupFailedNoSlot} раз).`);
+      }
+      if (data.positionBlockedCount > 0 && data.totalSingleEntries > 0) {
+        const pct = Math.round((data.positionBlockedCount / (data.totalSingleEntries + data.totalMergeGroups * 5)) * 100); // грубая оценка
+        if (pct > 50) {
+          warnings.push(`Много зафиксированных занятий (${data.positionBlockedCount}), это снижает эффективность оптимизации.`);
+        }
+      }
+      if (warnings.length > 0) {
+        toast.warning(warnings.join(' '), { duration: 6000 });
+      }
+
+      refreshData();
+    },
+    onError: (e) => { toast.error(e.message); },
+  });
+  const resetFlagsMut = trpc.scheduleDisplay.resetFlags.useMutation({
+    onSuccess: () => {
+      toast.success("Выбранные флаги сброшены");
+      setResetFlagsDialog(false);
+      setResetFlagsSelection({ positionFlag: false, classroomFlag: false, mergeNumber: false });
       refreshData();
     },
     onError: (e) => { toast.error(e.message); },
@@ -959,6 +1010,72 @@ export default function AdminSchedulePage() {
           >
             ⚙️
           </button>
+        )}
+        {editMode && isActiveVersion && (
+          <>
+            <button
+              onClick={() => setResetFlagsDialog(true)}
+              className="rounded bg-yellow-600 px-3 py-1 text-sm text-white hover:bg-yellow-700"
+            >
+              Сбросить флаги…
+            </button>
+
+            {resetFlagsDialog && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
+                <div className="w-80 rounded border border-border bg-background p-6 shadow-lg">
+                  <h2 className="mb-4 font-bold text-foreground">Сброс флагов</h2>
+                  <p className="mb-3 text-sm text-muted-foreground">
+                    Выберите, какие флаги сбросить у всех занятий активного расписания:
+                  </p>
+                  <label className="mb-4 flex items-center gap-2 text-foreground">
+                  <input
+                      type="checkbox"
+                      checked={resetFlagsSelection.mergeNumber}
+                      onChange={(e) =>
+                        setResetFlagsSelection({ ...resetFlagsSelection, mergeNumber: e.target.checked })
+                      }
+                    />
+                    Сбросить номер слияния
+                  </label>
+                  <label className="mb-2 flex items-center gap-2 text-foreground">
+                    <input
+                      type="checkbox"
+                      checked={resetFlagsSelection.positionFlag}
+                      onChange={(e) =>
+                        setResetFlagsSelection({ ...resetFlagsSelection, positionFlag: e.target.checked })
+                      }
+                    />
+                    Сбросить закрепление позиции
+                  </label>
+                  <label className="mb-2 flex items-center gap-2 text-foreground">
+                    <input
+                      type="checkbox"
+                      checked={resetFlagsSelection.classroomFlag}
+                      onChange={(e) =>
+                        setResetFlagsSelection({ ...resetFlagsSelection, classroomFlag: e.target.checked })
+                      }
+                    />
+                    Сбросить закрепление аудитории
+                  </label>
+                  <div className="flex justify-end gap-2">
+                    <button
+                      onClick={() => setResetFlagsDialog(false)}
+                      className="rounded border border-border px-4 py-2 text-foreground hover:bg-muted"
+                    >
+                      Отмена
+                    </button>
+                    <button
+                      onClick={() => resetFlagsMut.mutate(resetFlagsSelection)}
+                      disabled={resetFlagsMut.isPending}
+                      className="hover:bg-primary/90 rounded bg-primary px-4 py-2 text-white"
+                    >
+                      {resetFlagsMut.isPending ? "Сброс..." : "Сбросить"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
         )}
         {viewMode === "units" && (
           <button

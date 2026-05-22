@@ -1,3 +1,27 @@
+/**
+ * Конфигурация аутентификации better-auth.
+ *
+ * ## Основные компоненты
+ * - **Drizzle-адаптер** – связывает better-auth с нашей схемой БД (`users`, `sessions`,
+ *   `accounts`, `verificationTokens`).
+ * - **Плагин `nextCookies`** – обеспечивает работу с куками в Next.js App Router.
+ * - **Email/Password** – включена аутентификация по почте и паролю с хешированием
+ *   через bcrypt (соль 10 раундов).
+ * - **Сессии** – живут 7 дней, обновляются при активности не реже чем раз в сутки.
+ * - **Колбэк сессии** – дополняет объект сессии полем `role`, которое извлекается
+ *   из таблицы `users` по `user.id`. По умолчанию роль `'student'`.
+ *
+ * ## Пример использования в API-роуте
+ * ```ts
+ * import { auth } from '@/lib/auth/config';
+ * export { auth as GET, auth as POST } from '@/lib/auth/config';
+ * ```
+ *
+ * @remarks
+ * - Переменные окружения (например, `BETTER_AUTH_SECRET`) должны быть заданы в `.env`.
+ * - Роль пользователя (`admin`, `teacher`, `student`) используется для авторизации
+ *   в tRPC (`adminProcedure`).
+ */
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { nextCookies } from 'better-auth/next-js';
@@ -18,7 +42,7 @@ export const auth = betterAuth({
   }),
   plugins: [nextCookies()],
   emailAndPassword: {
-    enabled: true, // ОБЯЗАТЕЛЬНО для работы signIn.email
+    enabled: true,
     password: {
       hash: async (password: string) => {
         return await bcrypt.hash(password, 10);

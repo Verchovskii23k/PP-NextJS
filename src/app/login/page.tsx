@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { authClient } from '@/lib/auth/client';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -10,25 +10,21 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
   const router = useRouter();
-  const session = authClient.useSession();
-
-  // Редирект в админку, если сессия уже активна
-  useEffect(() => {
-    if (session.data) {
-      router.push('/admin');
-    }
-  }, [session.data, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setLoading(true);
     const res = await authClient.signIn.email({ email, password });
     if (res?.error) {
       setError('Неверный email или пароль');
-    } else {
-      router.push('/admin');
+      setLoading(false);
+      return;
     }
+    // Просто уходим на главную – она сама разберётся по роли
+    router.push('/');
   };
 
   return (
@@ -64,8 +60,9 @@ export default function LoginPage() {
         <button
           className="w-full rounded bg-primary px-4 py-2 text-white"
           type="submit"
+          disabled={loading}
         >
-          Войти
+          {loading ? 'Вход...' : 'Войти'}
         </button>
         <p className="mt-4 text-center text-sm">
           <Link href="/forgot-password" className="hover:underline">

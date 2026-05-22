@@ -162,220 +162,204 @@ E2E‑тесты покрывают сценарии авторизации, в�
 |npm run test:db:push	|   Накат схемы на тестовую БД                           |
 |npm run test	        |   Запуск всех unit‑тестов Vitest (исключая e2e/)       |
 |npm run test:e2e:auth	|   Запуск E2E теста авторизации (с графикой)            |
-|npm run test:e2e:reset |	Запуск E2E теста восстановления пароля (без почты)   |
 |npm run test:e2e:mail	|   Запуск E2E теста восстановления через почту (Mailpit)|
 |npm run test:e2e	    |   Запуск всех E2E‑тестов (без графического интерфейса) |
 |npm run seed	        |   Наполнение БД тестовыми данными                      |
 
 ### 11. Структура проекта
 ```
-mailpit/                           # служебная папка почтового сервера Mailpit
-├── LICENSE
-├── README.md
-└── mailpit.exe
-
-e2e/                               # end‑to‑end тесты (Playwright)
-├── auth-setup.spec.ts
-├── password-reset.spec.ts
-└── password-reset-mail.spec.ts
-
-public/                            # статические ресурсы
-src/
-├── app/                           # Next.js App Router
-│   ├── globals.css                # глобальные стили Tailwind
-│   ├── layout.tsx                 # корневой макет (провайдеры, метаданные)
-│   ├── not-found.tsx              # страница 404
-│   ├── page.tsx                   # главная страница (редирект на /login или /setup)
-│   ├── admin/                     # панель администратора
-│   │   ├── layout.tsx             # общий макет админки (боковое меню)
-│   │   ├── page.tsx               # главная страница админки (сетка разделов)
-│   │   ├── account/               # аккаунт текущего администратора
-│   │   │   └── page.tsx
-│   │   ├── administrators/        # управление другими администраторами
-│   │   │   └── page.tsx
-│   │   ├── credentials/           # генерация логинов/паролей сотрудников и студентов
-│   │   │   └── page.tsx
-│   │   ├── crud/                  # динамический CRUD всех справочников
-│   │   │   ├── page.tsx           # основная страница CRUD (список таблиц, DnD)
-│   │   │   └── _components/       # компоненты CRUD-интерфейса
-│   │   │       ├── ColumnFilterPopover.tsx  # фильтр по столбцу
-│   │   │       ├── DataTable.tsx           # таблица с сортировкой, поиском, пагинацией
-│   │   │       ├── ForeignKeyCell.tsx      # отображение внешних ключей
-│   │   │       └── RecordForm.tsx          # форма создания/редактирования записи
-│   │   ├── generations/           # запуск генераторов расписания
-│   │   │   └── page.tsx
-│   │   ├── import-export/         # глобальный импорт/экспорт данных
-│   │   │   └── page.tsx
-│   │   ├── manual/                # инструкция пользователя
-│   │   │   └── page.tsx
-│   │   ├── optimization-settings/ # настройки штрафов оптимизатора
-│   │   │   └── page.tsx
-│   │   ├── schedule/              # работа с готовым расписанием (просмотр, drag‑and‑drop, оптимизация)
-│   │   │   └── page.tsx
-│   │   └── users/                 # просмотр пользователей (студенты, преподаватели)
-│   │       └── page.tsx
-│   ├── api/trpc/[trpc]/route.ts   # обработчик tRPC-запросов
-│   ├── forgot-password/           # страница «Забыли пароль?»
-│   │   └── page.tsx
-│   ├── login/                     # страница входа
-│   │   └── page.tsx
-│   ├── reset-password/            # страница сброса пароля
-│   │   ├── page.tsx               # обёртка с Suspense
-│   │   └── ResetPasswordForm.tsx  # клиентская форма сброса
-│   └── setup/                     # первичная регистрация администратора
-│       └── page.tsx
+e2e/                                                                     # end‑to‑end тесты (Playwright)
+├── auth-setup.spec.ts                                                   # Настройка аутентификации перед тестами
+└── password-reset-mail.spec.ts                                          # Тест проверки email‑сообщения при сбросе пароля
+mailpit/                                                                 # служебная папка почтового сервера Mailpit
+├── LICENSE                                                              # Лицензионное соглашение Mailpit
+├── README.md                                                            # Документация по использованию Mailpit
+└── mailpit.exe                                                          # Исполняемый файл Mailpit для Windows
+public/
+└── favicon.ico                                                          # статические ресурсы
+src
+├── app/                                                                 # Роутинг Next.js (App Router)
+│   ├── globals.css                                                      # Глобальные стили Tailwind CSS
+│   ├── layout.tsx                                                       # Корневой layout: подключает Providers, ConfirmProvider, задаёт метаданные
+│   ├── not-found.tsx                                                    # Кастомная страница 404 "Страница не найдена"
+│   ├── page.tsx                                                         # Главная страница: для авторизованных — кнопка по роли, иначе вход/регистрация
+│   ├── admin/                                                           # Панель администратора
+│   │   ├── layout.tsx                                                   # Проверка роли admin через trpc.auth.me, иначе Forbidden
+│   │   ├── page.tsx                                                     # Дашборд администратора: сетка карточек разделов
+│   │   ├── account/                                                     # Личный кабинет администратора (настройки профиля)
+│   │   │   └── page.tsx                                                 # Изменение email, пароля
+│   │   ├── administrators/                                              # Управление списком администраторов
+│   │   │   └── page.tsx                                                 # Назначение/снятие роли admin
+│   │   ├── credentials/                                                 # Генерация учётных записей преподавателей/студентов
+│   │   │   └── page.tsx                                                 # Форма для массового создания/обновления логинов и паролей
+│   │   ├── crud/                                                        # Универсальный CRUD для всех справочников
+│   │   │   ├── page.tsx                                                 # Выбор таблицы и рендеринг DataTable
+│   │   │   └── _components/
+│   │   │       ├── DataTable.tsx                                        # Таблица данных на основе table-meta (сортировка, фильтры, пагинация, массовое удаление, импорт/экспорт)
+│   │   │       ├── RecordForm.tsx                                       # Модальная форма создания/редактирования записи (поля по метаданным)
+│   │   │       ├── ForeignKeyCell.tsx                                   # Отображение значения внешнего ключа через запрос к связанной таблице
+│   │   │       └── ColumnFilterPopover.tsx                              # Всплывающий фильтр-исключение для столбца
+│   │   ├── generations/                                                 # Генерация данных
+│   │   │   └── page.tsx                                                 # Кнопки запуска генераторов (групп, юнитов, занятий, расписания) с параметрами
+│   │   ├── import-export/                                               # Глобальный импорт/экспорт БД
+│   │   │   └── page.tsx                                                 # Экспорт всех таблиц в JSON, импорт из JSON с валидацией
+│   │   ├── manual/                                                      # Инструкция
+│   │   │   └── page.tsx                                                 # Текстовая инструкция пользователя
+│   │   ├── optimization-settings/                                       # Настройки оптимизатора расписания
+│   │   │   └── page.tsx                                                 # Редактирование весов штрафов и параметров имитации отжига
+│   │   ├── schedule/                                                    # Расписание
+│   │   │   └── page.tsx                                                 # Просмотр, drag-and-drop редактирование, оптимизация, версионирование
+│   │   └── users/                                                       # Управление пользователями (студенты/преподаватели)
+│   │       └── page.tsx                                                 # Сброс паролей, изменение ролей
+│   ├── api/                                                             # API-роуты
+│   │   ├── auth/[...all]/route.ts                                       # Better-auth обработчик (вход, регистрация, сессии)
+│   │   └── trpc/[trpc]/route.ts                                         # tRPC-сервер (все процедуры)
+│   ├── forgot-password/                                                 # Восстановление пароля
+│   │   └── page.tsx                                                     # Форма отправки email для сброса
+│   ├── login/                                                           # Вход в систему
+│   │   └── page.tsx                                                     # Форма входа (email + пароль)
+│   ├── reset-password/                                                  # Сброс пароля по токену
+│   │   ├── page.tsx                                                     # Проверка токена и форма нового пароля
+│   │   └── ResetPasswordForm.tsx                                        # Компонент формы сброса
+│   ├── setup/                                                           # Первоначальная настройка
+│   │   ├── layout.tsx                                                   # Публичный layout (без проверки ролей)
+│   │   └── page.tsx                                                     # Форма создания первого администратора
+│   ├── student/                                                         # Кабинет студента (заглушка)
+│   │   ├── layout.tsx                                                   # Проверка роли student, иначе Forbidden
+│   │   └── page.tsx                                                     # Заглушка "Раздел студента в разработке"
+│   └── teacher/                                                         # Кабинет преподавателя (заглушка)
+│       ├── layout.tsx                                                   # Проверка роли teacher, иначе Forbidden
+│       └── page.tsx                                                     # Заглушка "Раздел преподавателя в разработке"
 │
-├── components/                    # переиспользуемые React-компоненты
-│   ├── EntityTooltip.tsx          # тултип с информацией о сущности
-│   ├── Forbidden.tsx              # страница 403
-│   ├── Providers.tsx              # провайдеры (темы, tRPC, тосты, сессия)
-│   ├── ThemeToggle.tsx            # переключатель тёмной/светлой темы
-│   └── ui/                        # UI-кит (диалоги, скелетоны)
-│       ├── ConfirmDialog.tsx      # кастомное окно подтверждения
-│       ├── InputDialog.tsx        # окно ввода текста
-│       └── skeleton.tsx           # компоненты-скелетоны для загрузки
+├── components/                                                          # Переиспользуемые UI-компоненты
+│   ├── EntityTooltip.tsx                                                # Всплывающая карточка с полной информацией о связанной сущности
+│   ├── Forbidden.tsx                                                    # Компонент ошибки 403 "Доступ запрещён" с кнопкой "Вернуться на главную"
+│   ├── Providers.tsx                                                    # Корневой провайдер: ThemeProvider, TRPCProvider, шапка (HeaderContent), Toaster
+│   ├── ThemeToggle.tsx                                                  # Кнопка переключения светлой/тёмной темы
+│   ├── unauthorized.tsx                                                 # Компонент ошибки 401 "Вы не авторизованы" с кнопкой "Войти"
+│   └── ui/                                                              # Примитивные UI-компоненты
+│       ├── ConfirmDialog.tsx                                            # Модальное окно подтверждения (удалить, сбросить и т.д.)
+│       ├── InputDialog.tsx                                              # Диалог ввода строки (название версии)
+│       ├── InputDialogReset.tsx                                         # Диалог ввода кода сброса пароля
+│       ├── page_skeleton.tsx                                            # Скелетон для страниц (заглушка во время загрузки)
+│       └── skeleton.tsx                                                 # Базовый скелетон (прямоугольник) и скелетон таблицы
 │
-├── contexts/                      # React-контексты
-│   └── ConfirmContext.tsx         # контекст для ConfirmDialog
+├── contexts/                                                            # React-контексты
+│   └── ConfirmContext.tsx                                               # Провайдер для ConfirmDialog, предоставляет метод confirm()
 │
-├── db/                            # уровень базы данных (Drizzle ORM)
-│   ├── index.ts                   # инициализация клиента БД
-│   ├── schema.ts                  # описание таблиц и связей
-│   └── seed.ts                    # заполнение тестовыми данными
+├── db/                                                                  # База данных (Drizzle ORM)
+│   ├── index.ts                                                         # Подключение к PostgreSQL через drizzle-orm/postgres-js
+│   ├── schema.ts                                                        # Описание всех таблиц (users, institutes, …, schedule)
+│   └── seed.ts                                                          # Начальное наполнение (опционально, для разработки)
 │
-├── hooks/                         # пользовательские хуки
-│   └── useConfirm.ts             # хук для вызова ConfirmDialog
+├── hooks/                                                               # Пользовательские хуки
+│   └── useConfirm.ts                                                    # Хук, возвращающий функцию confirm() для вызова ConfirmDialog
 │
-├── lib/                           # библиотеки и утилиты
-│   ├── clearGeneratedData.ts      # очистка сгенерированных данных
-│   ├── safeDelete.ts              # безопасное удаление (проверка внешних ключей)
-│   ├── table-meta.ts              # метаданные таблиц для динамического CRUD
-│   ├── usageMetrics.ts            # пересчёт метрики использования аудиторий
-│   └── trpc/client.ts             # tRPC-клиент для серверных вызовов
+├── lib/                                                                 # Бизнес-логика и вспомогательные модули
+│   ├── clearGeneratedData.ts                                            # Очистка активных динамических данных (schedule, lessons, …)
+│   ├── password.ts                                                      # Генерация паролей, транслитерация, создание email
+│   ├── safeDelete.ts                                                    # Удаление записи с предварительной проверкой дочерних таблиц
+│   ├── table-meta.ts                                                    # Единый реестр метаданных всех таблиц (поля, связи, названия)
+│   ├── usageMetrics.ts                                                  # Пересчёт метрики использования аудиторий (по lessonClassrooms)
+│   ├── auth/
+│   │   ├── client.ts                                                    # Клиент better-auth для React (useSession, signIn и т.д.)
+│   │   └── config.ts                                                    # Серверная конфигурация better-auth (адаптер, колбэки, стратегии)
+│   └── trpc/
+│       └── client.ts                                                    # Создание tRPC-клиента для серверных вызовов (если используется на сервере)
 │
-├── server/                        # серверная логика
-│   ├── email.ts                   # почтовый клиент (Nodemailer)
-│   ├── api/routers/lookup.ts      # служебный роутер (списки, enum)
-│   ├── auth/                      # аутентификация
-│   │   ├── password.ts            # хеширование/проверка паролей
-│   │   └── session.ts             # управление сессиями (создание, удаление)
-│   └── trpc/                      # tRPC-сервер
-│       ├── context.ts             # контекст запроса (БД, сессия)
-│       ├── index.ts               # точка входа серверной части tRPC
-│       ├── router.ts              # корневой роутер
-│       ├── trpc.ts                # инициализация tRPC, процедуры, middleware
-│       └── routers/               # подроутеры для всех сущностей
-│           ├── academicLoadTypes.ts
-│           ├── adminManagement.ts
-│           ├── auth.ts
-│           ├── batchDelete.ts
-│           ├── buildings.ts
-│           ├── classRooms.ts
-│           ├── controlTypes.ts
-│           ├── crudImportExport.ts
-│           ├── curriculum.ts
-│           ├── curriculumProfiles.ts
-│           ├── daysOfWeek.ts
-│           ├── departments.ts
-│           ├── disciplines.ts
-│           ├── disciplineTeachers.ts
-│           ├── e2eTestHelpers.ts   # хелперы для e2e тестов (сброс/заполнение БД)
-│           ├── education.ts
-│           ├── educationForms.ts
-│           ├── educationLevels.ts
-│           ├── employees.ts
-│           ├── employeesDepartments.ts
-│           ├── employmentTypes.ts
-│           ├── globalImportExport.ts
-│           ├── hourTypeMapping.ts
-│           ├── institutes.ts
-│           ├── lessonClassrooms.ts
-│           ├── lessons.ts
-│           ├── lessonTypes.ts
-│           ├── lookup.ts
-│           ├── pairs.ts
-│           ├── positions.ts
-│           ├── profiles.ts
-│           ├── schedule.ts
-│           ├── scheduleDisplay.ts
-│           ├── scheduleOptimizer.ts
-│           ├── scheduleVersions.ts
-│           ├── settings.ts
-│           ├── specialties.ts
-│           ├── students.ts
-│           ├── studyGroups.ts
-│           ├── unitRoots.ts
-│           ├── units.ts
-│           ├── unitTypes.ts
-│           ├── userManagement.ts
-│           ├── weeks.ts
-│           ├── generations/       # генераторы этапов расписания
-│           │   ├── assignClassrooms.ts   # назначение аудиторий
-│           │   ├── generateCredentials.ts # генерация логинов/паролей
-│           │   ├── generateGroups.ts     # генерация учебных групп
-│           │   ├── generateLessons.ts    # генерация занятий
-│           │   ├── generateSchedule.ts   # генерация расписания
-│           │   ├── generateUnits.ts      # генерация юнитов
-│           │   └── index.ts
-│           └── __tests__/         # unit‑тесты роутеров и генераторов
-│               ├── academicLoadTypes.test.ts
-│               ├── auth.test.ts
-│               ├── buildings.test.ts
-│               ├── classRooms.test.ts
-│               ├── controlTypes.test.ts
-│               ├── curriculum.test.ts
-│               ├── curriculumProfiles.test.ts
-│               ├── daysOfWeek.test.ts
-│               ├── departments.test.ts
-│               ├── disciplines.test.ts
-│               ├── disciplineTeachers.test.ts
-│               ├── education.test.ts
-│               ├── educationForms.test.ts
-│               ├── educationLevels.test.ts
-│               ├── employees.test.ts
-│               ├── employeesDepartments.test.ts
-│               ├── employmentTypes.test.ts
-│               ├── generators-logic.test.ts   # тесты бизнес-правил генераторов
-│               ├── generators.test.ts        # тесты порядка вызова генераторов
-│               ├── hourTypeMapping.test.ts
-│               ├── lookup.test.ts
-│               ├── pairs.test.ts
-│               ├── positions.test.ts
-│               ├── profiles.test.ts
-│               ├── settings.test.ts
-│               ├── specialties.test.ts
-│               ├── students.test.ts
-│               ├── studyGroups.test.ts
-│               ├── userManagement.test.ts
-│               └── weeks.test.ts
+├── server/                                                              # Серверная логика
+│   ├── email.ts                                                         # Отправка писем через nodemailer (восстановление пароля, учётные данные)
+│   └── trpc/                                                            # tRPC-сервер
+│       ├── context.ts                                                   # Создание контекста запроса (сессия, БД, req)
+│       ├── index.ts                                                     # Реэкспорт: процедуры, тип Context
+│       ├── router.ts                                                    # Корневой роутер (объединение всех подроутеров)
+│       ├── trpc.ts                                                      # Инициализация tRPC, publicProcedure, protectedProcedure, adminProcedure, errorFormatter
+│       └── routers/                                                     # Роутеры предметной области
+│           ├── academicLoadTypes.ts                                     # CRUD "Типы нагрузки"
+│           ├── adminManagement.ts                                       # Повышение/понижение администраторов
+│           ├── auth.ts                                                  # Аутентификация: setup, me, смена пароля/email, сброс
+│           ├── batchDelete.ts                                           # Массовое удаление с проверкой зависимостей
+│           ├── buildings.ts                                             # CRUD "Корпуса"
+│           ├── classRooms.ts                                            # CRUD "Аудитории"
+│           ├── controlTypes.ts                                          # CRUD "Типы контроля"
+│           ├── crudImportExport.ts                                      # Импорт/экспорт одной таблицы (JSON)
+│           ├── curriculum.ts                                            # CRUD "Учебные планы"
+│           ├── curriculumProfiles.ts                                    # CRUD "Профили учебных планов"
+│           ├── daysOfWeek.ts                                            # CRUD "Дни недели"
+│           ├── departments.ts                                           # CRUD "Кафедры"
+│           ├── disciplines.ts                                           # CRUD "Дисциплины"
+│           ├── disciplineTeachers.ts                                    # CRUD "Преподаватели дисциплин"
+│           ├── e2eTestHelpers.ts                                        # Сброс БД и создание тестового админа для E2E-тестов
+│           ├── education.ts                                             # CRUD "Образование"
+│           ├── educationForms.ts                                        # CRUD "Формы обучения"
+│           ├── educationLevels.ts                                       # CRUD "Уровни образования"
+│           ├── employees.ts                                             # CRUD "Сотрудники"
+│           ├── employeesDepartments.ts                                  # CRUD "Сотрудники кафедр"
+│           ├── employmentTypes.ts                                       # CRUD "Типы занятости"
+│           ├── globalImportExport.ts                                    # Глобальный импорт/экспорт всей БД (JSON)
+│           ├── hourTypeMapping.ts                                       # CRUD "Соответствие типов часов"
+│           ├── institutes.ts                                            # CRUD "Институты"
+│           ├── lessonClassrooms.ts                                      # CRUD "Аудитории занятий"
+│           ├── lessons.ts                                               # CRUD "Занятия"
+│           ├── lessonTypes.ts                                           # CRUD "Типы занятий"
+│           ├── lookup.ts                                                # Получение одной строки таблицы по ID (для EntityTooltip)
+│           ├── pairs.ts                                                 # CRUD "Пары"
+│           ├── positions.ts                                             # CRUD "Должности"
+│           ├── profiles.ts                                              # CRUD "Профили"
+│           ├── schedule.ts                                              # Публичное API расписания (фильтры, список занятий)
+│           ├── scheduleDisplay.ts                                       # Работа с отображаемым расписанием (drag-and-drop, буфер, флаги)
+│           ├── scheduleOptimizer.ts                                     # Оптимизация расписания методом имитации отжига
+│           ├── scheduleVersions.ts                                      # Управление версиями расписания (сохранение, восстановление, удаление)
+│           ├── settings.ts                                              # Управление настройками (ключ-значение)
+│           ├── specialties.ts                                           # CRUD "Специальности"
+│           ├── students.ts                                              # CRUD "Студенты"
+│           ├── studyGroups.ts                                           # CRUD "Учебные группы"
+│           ├── unitRoots.ts                                             # CRUD "Корни юнитов"
+│           ├── units.ts                                                 # CRUD "Юниты"
+│           ├── unitTypes.ts                                             # CRUD "Типы юнитов"
+│           ├── userManagement.ts                                        # Управление пользователями (сброс паролей, роли)
+│           ├── weeks.ts                                                 # CRUD "Недели"
+│           └── generations/                                             # Генераторы данных
+│               ├── index.ts                                             # Объединение всех генераторов в один роутер
+│               ├── assignClassrooms.ts                                  # Назначение аудиторий занятиям
+│               ├── generateCredentials.ts                               # Генерация учётных записей преподавателей/студентов
+│               ├── generateGroups.ts                                    # Генерация учебных групп
+│               ├── generateLessons.ts                                   # Генерация занятий
+│               ├── generateSchedule.ts                                  # Генерация расписания (жадный алгоритм)
+│               └── generateUnits.ts                                     # Генерация юнитов (потоки, группы, подгруппы)
 │
-├── test/                          # инфраструктура тестирования
-│   ├── setup.ts                   # глобальные моки
-│   ├── trpc.ts                    # создание тестового tRPC-клиента
+├── test/                                                                # Тестовая инфраструктура
+│   ├── helpers.ts                                                       # Хелперы: очистка таблиц, создание тестовых сущностей
+│   ├── setup.ts                                                         # Глобальная настройка тестов (env, мок next/headers)
+│   ├── trpc.ts                                                          # Создание тестового tRPC-клиента с моковой сессией
 │   └── fixtures/
-│       └── fixtures.ts            # наполнение тестовой БД (сиды)
+│       └── fixtures.ts                                                  # Полные фикстуры: очистка БД и заполнение тестовыми данными
 │
-├── trpc/                          # клиентская часть tRPC
-│   ├── client.ts                  # tRPC-клиент для браузера
-│   └── provider.tsx               # обёртка с React Query и обработкой ошибок
+├── trpc/                                                                # tRPC-клиент для фронтенда
+│   ├── client.ts                                                        # Создание React-клиента (createTRPCReact)
+│   └── provider.tsx                                                     # Провайдер tRPC + React Query (QueryClient, httpBatchLink)
 │
-└── types/
-    └── css.d.ts                   # декларация типов для CSS-модулей
+└── types/                                                               # Дополнительные декларации типов
+    ├── better-auth.d.ts                                                 # Расширение типов для better-auth
+    └── css.d.ts                                                         # Декларация для CSS-модулей (если используются)
 
 Корневые файлы:
-├── .gitignore
-├── drizzle.config.ts
-├── eslint.config.js
-├── eslint.config.mjs
-├── LICENSE
-├── next.config.ts
-├── package-lock.json
-├── package.json
-├── postcss.config.mjs
-├── README.md
-├── tailwind.config.ts
-├── tsconfig.json
-└── vitest.config.mts
+├── .env                                                                 # Переменные окружения (нужно создать вручную)
+├── .env.example                                                         # Шаблон переменных окружения для разработчиков
+├── .env.test                                                            # Переменные окружения для тестовой среды (нужно создать вручную)
+├── .gitignore                                                           # Список файлов/папок, игнорируемых Git
+├── drizzle.config.ts                                                    # Конфигурация Drizzle ORM (подключение к БД, схема)
+├── eslint.config.js                                                     # Конфиг ESLint (для линтинга JavaScript/TypeScript)
+├── eslint.config.mjs                                                    # Альтернативный конфиг ESLint в формате ES-модуля
+├── LICENSE                                                              # Лицензионное соглашение проекта
+├── next.config.ts                                                       # Конфигурация Next.js (App Router, webpack, и т.д.)
+├── package-lock.json                                                    # Фиксация точных версий зависимостей (npm)
+├── package.json                                                         # Список зависимостей и скриптов проекта
+├── postcss.config.mjs                                                   # Конфигурация PostCSS (для Tailwind CSS)
+├── README.md                                                            # Документация проекта (описание, установка, запуск)
+├── tailwind.config.ts                                                   # Конфигурация Tailwind CSS (темы, плагины)
+├── tsconfig.json                                                        # Настройки компилятора TypeScript
+└── vitest.config.mts                                                    # Конфигурация Vitest (unit-тесты, окружение)
 ```
 
 ### 11. 🔑 Аутентификация и безопасность

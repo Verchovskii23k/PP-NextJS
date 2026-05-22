@@ -30,7 +30,6 @@ export const institutesRouter = router({
       directorId: z.number().int().optional(),
     })))
     .mutation(async ({ ctx, input }) => {
-      // 1. Проверка занятости сотрудника (уже была)
       if (input.directorId) {
         const [isHead] = await ctx.db
           .select({ id: departments.id })

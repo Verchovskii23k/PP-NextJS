@@ -3,6 +3,7 @@ import { trpc } from "@/trpc/client";
 import { useState } from "react";
 import { toast } from "sonner";
 import { InputDialogReset } from "@/components/ui/InputDialogReset";
+import { PageSkeleton } from "@/components/ui/page_skeleton";
 
 export default function UsersPage() {
   const [filterRole, setFilterRole] = useState<"teacher" | "student" | undefined>(undefined);
@@ -11,6 +12,8 @@ export default function UsersPage() {
   const { data, isLoading, error } = trpc.userManagement.getUsers.useQuery({
     role: filterRole,
   });
+  
+
 
   const updateRoleMut = trpc.userManagement.updateRole.useMutation({
     onSuccess: () => {
@@ -45,7 +48,7 @@ export default function UsersPage() {
   const handleRoleChange = (userId: string, newRole: "teacher" | "student") => {
     updateRoleMut.mutate({ userId, newRole });
   };
-
+  if (isLoading) return <PageSkeleton />;
   return (
     <div className="mx-auto h-full max-w-5xl overflow-y-auto bg-background p-6 text-foreground">
       <h1 className="mb-6 text-2xl font-bold">Управление пользователями</h1>

@@ -23,14 +23,16 @@ export default function OptimizationSettingsPage() {
   const qDiversity = trpc.settings.get.useQuery({ key: WEIGHT_KEYS.typeDiversity });
   const qSingle = trpc.settings.get.useQuery({ key: WEIGHT_KEYS.singleLessonDay });
   const qUnit = trpc.settings.get.useQuery({ key: WEIGHT_KEYS.unitMisuse });
-
+  
   const isLoading =
     qTeacher.isLoading ||
     qGroup.isLoading ||
     qBalance.isLoading ||
     qDiversity.isLoading ||
     qSingle.isLoading ||
-    qUnit.isLoading;
+    qUnit.isLoading 
+    
+
 
   const initialWeights = {
     teacherWindow: Number(qTeacher.data) || 1,
@@ -42,7 +44,7 @@ export default function OptimizationSettingsPage() {
   };
 
   const [weights, setWeights] = useState(initialWeights);
-
+  
   // Синхронизируем состояние при загрузке данных
   useEffect(() => {
     if (!isLoading) {

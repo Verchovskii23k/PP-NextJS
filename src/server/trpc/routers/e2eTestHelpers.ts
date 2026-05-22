@@ -1,3 +1,40 @@
+/**
+ * Роутер-помощник для E2E-тестов (Playwright / Vitest).
+ *
+ * Предоставляет две публичные мутации для полной перезагрузки базы данных
+ * и создания тестового администратора. Эти процедуры вызываются в начале
+ * тестовых сценариев, чтобы гарантировать чистое и предсказуемое состояние.
+ *
+ * **В production-окружении данный роутер должен быть отключён или защищён
+ * дополнительной переменной окружения** (например, `ENABLE_TEST_ROUTES`),
+ * так как он позволяет пересоздавать администратора без авторизации.
+ *
+ * ## Мутации
+ * - `resetAndSeed` – очищает все таблицы и заполняет их тестовыми
+ *   справочными данными (институты, кафедры, дисциплины, преподаватели,
+ *   студенты, аудитории и т.д.). Опционально создаёт администратора
+ *   с указанным email и паролем (по умолчанию `admin123`).
+ * - `seedAdmin` – добавляет нового администратора с заданным email
+ *   и паролем (по умолчанию `admin123`) к уже существующим данным.
+ *
+ * ## Параметры
+ * - `resetAndSeed`:
+ *   - `adminEmail?: string` – email для создаваемого администратора.
+ *   - `adminPassword?: string` – пароль (если не указан, используется `'admin123'`).
+ * - `seedAdmin`:
+ *   - `email: string` – email администратора.
+ *   - `password?: string` – пароль (по умолчанию `'admin123'`).
+ *
+ * ## Возвращаемое значение
+ * - `resetAndSeed`: `{ login: string, password: string }` если администратор
+ *   был создан, либо `null`.
+ * - `seedAdmin`: `{ login: string, password: string }`.
+ *
+ * @remarks
+ * - Использует `clearAllTestData` и `seedTestData` из тестовых фикстур.
+ * - Пароль хешируется через bcrypt и сохраняется в таблице `users`.
+ * - Одновременно создаётся запись в `employees` с флагом `isAdmin: true`.
+ */
 import { router, publicProcedure } from "../trpc";
 import { z } from "zod";
 import { auth } from "@/lib/auth/config";
@@ -5,7 +42,7 @@ import { db } from "@/db";
 import { users, employees } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
-import { clearAllTestData } from "@/test/helpers"; // <-- добавляем
+import { clearAllTestData } from "@/test/helpers";
 import { seedTestData } from "@/test/fixtures/fixtures";
 
 export const e2eTestHelpersRouter = router({
@@ -17,7 +54,7 @@ export const e2eTestHelpersRouter = router({
       }).optional()
     )
     .mutation(async ({ input }) => {
-      await clearAllTestData(); // <-- замена вместо clearDatabase
+      await clearAllTestData();
       await seedTestData();
 
       if (input?.adminEmail) {

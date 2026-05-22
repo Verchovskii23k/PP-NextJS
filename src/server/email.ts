@@ -1,3 +1,19 @@
+/**
+ * Модуль отправки почтовых уведомлений через SMTP.
+ *
+ * Использует nodemailer с настройками из переменных окружения:
+ * - `SMTP_HOST` (по умолчанию 'localhost')
+ * - `SMTP_PORT` (по умолчанию 1025, например, для Maildev в dev-окружении)
+ * - `SMTP_USER`, `SMTP_PASS` – если заданы, включается аутентификация.
+ * - `SMTP_FROM` – адрес отправителя (по умолчанию '"Расписание" <noreply@university.ru>').
+ *
+ * ## Функции
+ * - `sendPasswordResetEmail` – отправляет ссылку для сброса пароля.
+ * - `sendResetCodeEmail` – отправляет код сброса (альтернативный метод).
+ * - `sendNewCredentialsEmail` – отправляет новые учётные данные (логин и пароль).
+ *
+ * Все функции возвращают `true` при успешной отправке и `false` при ошибке.
+ */
 import nodemailer from 'nodemailer';
 
 const transporter = nodemailer.createTransport({
@@ -46,7 +62,6 @@ export async function sendPasswordResetEmail(
     return false;
   }
 }
-// В конец файла src/server/email.ts добавь:
 export async function sendResetCodeEmail(email: string, code: string) {
   const html = `<p>Ваш код для сброса пароля: <strong>${code}</strong></p><p>Код действителен 10 минут.</p>`;
   try {

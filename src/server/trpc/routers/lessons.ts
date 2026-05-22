@@ -15,6 +15,7 @@ list: adminProcedure.query(async ({ ctx }) => {
       disciplineId: lessons.disciplineId,
       teacherId: lessons.teacherId,
       countPerSemester: lessons.countPerSemester,
+      isActive: lessons.isActive,
       // ✅ добавляем читаемое представление
 display: sql<string>`
   ${units.code} || '-' || ${lessonTypes.abbreviation} || '-' ||

@@ -1,10 +1,69 @@
-// src/lib/table-meta.ts
+/**
+ * Централизованный реестр метаданных всех таблиц, доступных в CRUD-интерфейсе
+ * и участвующих в генерации расписания.
+ *
+ * ## Зачем нужен
+ * - **Универсальный CRUD**: компонент `DataTable` и форма `RecordForm` полностью
+ *   строятся по метаданным. Достаточно добавить запись в `tablesMeta` — и таблица
+ *   появляется в админке без написания новых компонентов.
+ * - **Проверка зависимостей при удалении**: `safeDelete` и `batchDeleteRouter`
+ *   используют `childTables`, чтобы до выполнения `DELETE` узнать, в каких
+ *   дочерних таблицах есть ссылки на удаляемую запись, и выдать пользователю
+ *   понятное сообщение с русскими названиями этих таблиц.
+ * - **Единый источник названий**: русские имена, ключи роутеров и имена таблиц БД
+ *   хранятся в одном месте. Это исключает рассинхронизацию между фронтендом и бэкендом.
+ *
+ * ## Структура интерфейсов
+ * ### FieldMeta – описание одного поля таблицы
+ * | Поле                        | Назначение                                                                                                                                     |
+ * |-----------------------------|------------------------------------------------------------------------------------------------------------------------------------------------|
+ * | `dbName`                    | Имя столбца в БД (snake_case). Используется в SQL-запросах и как ключ в данных строки.                                                         |
+ * | `displayName`               | Человекочитаемое имя для заголовков таблиц и подписей полей в формах.                                                                          |
+ * | `isFK`                      | Является ли поле внешним ключом. Если `true`, в таблице отображается через `ForeignKeyCell`, а в форме – выпадающий список.                    |
+ * | `required`                  | Обязательность заполнения в форме создания/редактирования.                                                                                     |
+ * | `inputType`                 | Тип поля в форме: `"text"`, `"number"`, `"select"`, `"toggle"` (для булевых полей), `"radioGroup"` (для приоритетов). По умолчанию – `"text"`. |
+ * | `showInCreate`              | Показывать ли поле в форме создания новой записи. `false` скрывает поле (например, для автоинкрементного `id` или вычисляемых полей).          |
+ * | `references`                | Объект с информацией о связанной таблице (только для полей с `isFK: true`):                                                                    |
+ * | | `references.table`        | ключ из `tablesMeta` для связанной таблицы.                                                                                                    |
+ * | | `references.displayField` | имя вычисляемого поля в данных для отображения (например, `"display"` или `"name"`).                                                           |
+ * | | `references.dbTableName`  | реальное имя таблицы в БД (если отличается от ключа).                                                                                          |
+ *
+ * ### TableMeta – описание таблицы целиком
+ * | Поле                 | Назначение                                                                                                                     |
+ * |----------------------|--------------------------------------------------------------------------------------------------------------------------------|
+ * | `nameRu`             | Русское название таблицы (отображается в админке).                                                                             |
+ * | `fields`             | Массив `FieldMeta` – описание каждого поля.                                                                                    |
+ * | `routerKey`          | Ключ для доступа к tRPC-роутеру (например, `"institutes"` → `trpc.institutes`).                                                |
+ * | `dbTableName`        | Реальное имя таблицы в БД (может отличаться от ключа).                                                                         |
+ * | `category`           | Категория для группировки в интерфейсе: `"reference"` (справочники), `"people"` (люди), `"generated"` (генерируемые сущности). |
+ * | `hidden`             | Если `true`, таблица не показывается в общем списке CRUD (но метаданные могут использоваться внутренними механизмами).         |
+ * | `childTables`        | Массив дочерних таблиц для проверки зависимостей при удалении. Каждый элемент содержит:                                        |
+ * | | `dbTableName`      | имя дочерней таблицы в БД.                                                                                                     |
+ * | | `foreignKeyColumn` | имя столбца в дочерней таблице, ссылающегося на `id` текущей.                                                                  |
+ *
+ * ## Использование
+ * - **CRUD-интерфейс**: `DataTable.tsx`, `RecordForm.tsx`, `ForeignKeyCell.tsx`
+ *   используют метаданные для рендеринга.
+ * - **Безопасное удаление**: `safeDelete.ts` и `batchDelete.ts` проверяют
+ *   `childTables` и при конфликте выводят русские названия из `nameRu`.
+ * - **Генераторы и оптимизатор** не зависят от этого файла; они работают
+ *   напрямую с Drizzle-схемой.
+ * - **Экспортируемый `tableNames`** – отфильтрованный список для выпадающих
+ *   меню выбора таблиц.
+ *
+ * ## Добавление новой таблицы
+ * 1. Создать Drizzle-схему в `db/schema.ts`.
+ * 2. Создать tRPC-роутер в `server/trpc/routers/<имя>.ts`.
+ * 3. Добавить запись в `tablesMeta` с корректным `routerKey`, `dbTableName`,
+ *    `fields` и (при необходимости) `childTables`.
+ * 4. После этого таблица автоматически появится в CRUD-интерфейсе.
+ */
 export interface FieldMeta {
   dbName: string;
   displayName: string;
   isFK: boolean;
   required?: boolean;
-  inputType?: "text" | "number" | "select" | "toggle" | "radioGroup"
+  inputType?: "text" | "number" | "select" | "toggle" | "radioGroup";
   showInCreate?: boolean;
   references?: {
     table: string;
@@ -19,8 +78,13 @@ export interface TableMeta {
   routerKey: string;
   dbTableName: string;
   category: "reference" | "people" | "generated";
-  hidden?: boolean; 
+  hidden?: boolean;
+  childTables?: {
+    dbTableName: string; // имя таблицы в БД
+    foreignKeyColumn: string; // колонка с внешним ключом, ссылающимся на нашу таблицу
+  }[];
 }
+
 export const TABLE_CATEGORIES: Record<string, string> = {
   reference: "Справочники",
   people: "Люди",
@@ -33,6 +97,9 @@ export const tablesMeta: Record<string, TableMeta> = {
     routerKey: "institutes",
     dbTableName: "institutes",
     category: "reference",
+    childTables: [
+      { dbTableName: "departments", foreignKeyColumn: "institute_id" },
+    ],
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "universityCode", displayName: "Код университета", isFK: false, required: true },
@@ -46,6 +113,9 @@ export const tablesMeta: Record<string, TableMeta> = {
     routerKey: "buildings",
     dbTableName: "buildings",
     category: "reference",
+    childTables: [
+      { dbTableName: "classrooms", foreignKeyColumn: "building_id" },
+    ],
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "number", displayName: "Номер", isFK: false, required: true },
@@ -57,6 +127,12 @@ export const tablesMeta: Record<string, TableMeta> = {
     routerKey: "departments",
     dbTableName: "departments",
     category: "reference",
+    childTables: [
+      { dbTableName: "specialties", foreignKeyColumn: "department_id" },
+      { dbTableName: "disciplines", foreignKeyColumn: "department_id" },
+      { dbTableName: "employees_departments", foreignKeyColumn: "department_id" },
+      { dbTableName: "classrooms", foreignKeyColumn: "department_id" },
+    ],
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "name", displayName: "Название", isFK: false, required: true },
@@ -72,6 +148,9 @@ export const tablesMeta: Record<string, TableMeta> = {
     routerKey: "specialties",
     dbTableName: "specialties",
     category: "reference",
+    childTables: [
+      { dbTableName: "profiles", foreignKeyColumn: "specialty_id" },
+    ],
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "code", displayName: "Код", isFK: false, required: true },
@@ -85,6 +164,11 @@ export const tablesMeta: Record<string, TableMeta> = {
     routerKey: "profiles",
     dbTableName: "profiles",
     category: "reference",
+      childTables: [
+      { dbTableName: "study_groups", foreignKeyColumn: "profile_id" },
+      { dbTableName: "students", foreignKeyColumn: "profile_id" },
+      { dbTableName: "curriculum_profiles", foreignKeyColumn: "profile_id" },
+    ],
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "name", displayName: "Название", isFK: false, required: true },
@@ -99,6 +183,11 @@ export const tablesMeta: Record<string, TableMeta> = {
     routerKey: "disciplines",
     dbTableName: "disciplines",
     category: "reference",
+      childTables: [
+      { dbTableName: "curriculum", foreignKeyColumn: "discipline_id" },
+      { dbTableName: "lessons", foreignKeyColumn: "discipline_id" },
+      { dbTableName: "discipline_teachers", foreignKeyColumn: "discipline_id" },
+    ],
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "name", displayName: "Название", isFK: false, required: true },
@@ -112,6 +201,9 @@ export const tablesMeta: Record<string, TableMeta> = {
     routerKey: "unitTypes",
     dbTableName: "unit_types",
     category: "reference",
+    childTables: [
+      { dbTableName: "units", foreignKeyColumn: "unit_type_id" },
+    ],
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "name", displayName: "Название", isFK: false, required: true },
@@ -128,6 +220,11 @@ export const tablesMeta: Record<string, TableMeta> = {
     routerKey: "lessonTypes",
     dbTableName: "lesson_types",
     category: "reference",
+    childTables: [
+      { dbTableName: "lessons", foreignKeyColumn: "lesson_type_id" },
+      { dbTableName: "hour_type_mapping", foreignKeyColumn: "lesson_type_id" },
+      { dbTableName: "discipline_teachers", foreignKeyColumn: "lesson_type_id" },
+    ],
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "name", displayName: "Системное имя", isFK: false, required: true },
@@ -140,6 +237,11 @@ export const tablesMeta: Record<string, TableMeta> = {
     routerKey: "classrooms",
     dbTableName: "classrooms",
     category: "reference",
+    childTables: [
+      { dbTableName: "lesson_classrooms", foreignKeyColumn: "classroom_id" },
+      { dbTableName: "schedule", foreignKeyColumn: "classroom_id" },
+      { dbTableName: "schedule_display", foreignKeyColumn: "classroom_id" },
+    ],
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "buildingId", displayName: "Корпус", isFK: true, references: { table: "buildings", displayField: "number" }, required: true },
@@ -159,6 +261,9 @@ export const tablesMeta: Record<string, TableMeta> = {
     routerKey: "positions",
     dbTableName: "positions",
     category: "reference",
+    childTables: [
+      { dbTableName: "employees_departments", foreignKeyColumn: "position_id" },
+    ],
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "name", displayName: "Название", isFK: false, required: true },
@@ -171,6 +276,9 @@ export const tablesMeta: Record<string, TableMeta> = {
     routerKey: "employmentTypes",
     dbTableName: "employment_types",
     category: "reference",
+    childTables: [
+      { dbTableName: "employees_departments", foreignKeyColumn: "employment_type_id" },
+    ],
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "name", displayName: "Название", isFK: false, required: true },
@@ -183,6 +291,12 @@ export const tablesMeta: Record<string, TableMeta> = {
         routerKey: "employees",
         dbTableName: "employees",
         category: "people",
+        childTables: [
+          { dbTableName: "institutes", foreignKeyColumn: "director_id" },
+          { dbTableName: "departments", foreignKeyColumn: "head_id" },
+          { dbTableName: "study_groups", foreignKeyColumn: "curator_id" },
+          { dbTableName: "employees_departments", foreignKeyColumn: "employee_id" },
+        ],
         fields: [
           { dbName: "id", displayName: "ID", isFK: false },
           { dbName: "surname", displayName: "Фамилия", isFK: false, required: true },
@@ -196,6 +310,7 @@ export const tablesMeta: Record<string, TableMeta> = {
         routerKey: "students",
         dbTableName: "students",
         category: "people",
+        childTables: [],
         fields: [
           { dbName: "id", displayName: "ID", isFK: false },
           { dbName: "surname", displayName: "Фамилия", isFK: false, required: true },
@@ -213,6 +328,10 @@ export const tablesMeta: Record<string, TableMeta> = {
     routerKey: "studyGroups",
     dbTableName: "study_groups",
     category: "generated",
+    childTables: [
+      { dbTableName: "students", foreignKeyColumn: "study_group_id" },
+      { dbTableName: "unit_roots", foreignKeyColumn: "study_group_id" },
+    ],
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "code", displayName: "Код группы", isFK: false, required: true },
@@ -227,6 +346,9 @@ export const tablesMeta: Record<string, TableMeta> = {
     routerKey: "units",
     dbTableName: "units",
     category: "generated",
+    childTables: [
+      { dbTableName: "lessons", foreignKeyColumn: "unit_id" },
+    ],
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "code", displayName: "Код юнита", isFK: false, required: true },
@@ -238,6 +360,11 @@ export const tablesMeta: Record<string, TableMeta> = {
     routerKey: "lessons",
     dbTableName: "lessons",
     category: "generated",
+    childTables: [
+      { dbTableName: "lesson_classrooms", foreignKeyColumn: "lesson_id" },
+      { dbTableName: "schedule", foreignKeyColumn: "lesson_id" },
+      { dbTableName: "schedule_display", foreignKeyColumn: "lesson_id" },
+    ],
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "curriculumId", displayName: "Учебный план", isFK: true, references: { table: "curriculum", displayField: "display" }, required: true },
@@ -253,6 +380,10 @@ export const tablesMeta: Record<string, TableMeta> = {
     routerKey: "curriculum",
     dbTableName: "curriculum",
     category: "reference",
+    childTables: [
+      { dbTableName: "lessons", foreignKeyColumn: "curriculum_id" },
+      { dbTableName: "curriculum_profiles", foreignKeyColumn: "curriculum_id" },
+    ],
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "course", displayName: "Курс", isFK: false, required: true },
@@ -272,6 +403,7 @@ lessonClassrooms: {
   routerKey: "lessonClassrooms",
   dbTableName: "lesson_classrooms",
   category: "generated",
+  childTables: [],
   fields: [
     { dbName: "id", displayName: "ID", isFK: false },
     { dbName: "lessonId", displayName: "Занятие", isFK: true, references: { table: "lessons", displayField: "display" }, required: true},
@@ -283,6 +415,7 @@ lessonClassrooms: {
     routerKey: "unitRoots",
     dbTableName: "unit_roots",
     category: "generated",
+    childTables: [],
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "unitCode", displayName: "Код юнита", isFK: false, required: true },
@@ -294,6 +427,7 @@ lessonClassrooms: {
     routerKey: "curriculumProfiles",
     dbTableName: "curriculum_profiles",
     category: "reference",
+    childTables: [],
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "curriculumId", displayName: "Учебный план", isFK: true, references: { table: "curriculum", displayField: "display" }, required: true },
@@ -306,6 +440,9 @@ lessonClassrooms: {
     routerKey: "academicLoadTypes",
     dbTableName: "academic_load_types",
     category: "reference",
+    childTables: [
+      { dbTableName: "curriculum", foreignKeyColumn: "additional_task_id" },
+    ],
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "name", displayName: "Название", isFK: false, required: true },
@@ -318,6 +455,9 @@ lessonClassrooms: {
     routerKey: "controlTypes",
     dbTableName: "control_types",
     category: "reference",
+    childTables: [
+      { dbTableName: "curriculum", foreignKeyColumn: "control_type_id" },
+    ],
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "name", displayName: "Название", isFK: false, required: true },
@@ -330,6 +470,7 @@ lessonClassrooms: {
     routerKey: "hourTypeMapping",
     dbTableName: "hour_type_mapping",
     category: "reference",
+    childTables: [],
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "planHourColumn", displayName: "План часов", isFK: false, required: true },
@@ -343,6 +484,10 @@ lessonClassrooms: {
     routerKey: "employeesDepartments",
     dbTableName: "employees_departments",
     category: "reference",
+    childTables: [
+      { dbTableName: "lessons", foreignKeyColumn: "teacher_id" },
+      { dbTableName: "discipline_teachers", foreignKeyColumn: "teacher_department_id" },
+    ],
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "employeeId", displayName: "Сотрудник", isFK: true, references: { table: "employees", displayField: "display" }, required: true },
@@ -357,6 +502,7 @@ lessonClassrooms: {
     routerKey: "disciplineTeachers",
     dbTableName: "discipline_teachers",
     category: "reference",
+    childTables: [],
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "lessonTypeId", displayName: "Тип занятия", isFK: true, references: { table: "lessonTypes", displayField: "display" }, required: true },
@@ -370,6 +516,10 @@ lessonClassrooms: {
     routerKey: "daysOfWeek",
     dbTableName: "days_of_week",
     category: "reference",
+    childTables: [
+      { dbTableName: "schedule", foreignKeyColumn: "day_of_week_id" },
+      { dbTableName: "schedule_display", foreignKeyColumn: "day_of_week_id" },
+    ],
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "name", displayName: "День", isFK: false, required: true },
@@ -381,6 +531,10 @@ lessonClassrooms: {
     routerKey: "pairs",
     dbTableName: "pairs",
     category: "reference",
+    childTables: [
+      { dbTableName: "schedule", foreignKeyColumn: "pair_number_id" },
+      { dbTableName: "schedule_display", foreignKeyColumn: "pair_number_id" },
+    ],
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "number", displayName: "Номер пары", isFK: false, required: true },
@@ -392,6 +546,10 @@ lessonClassrooms: {
     routerKey: "weeks",
     dbTableName: "weeks",
     category: "reference",
+    childTables: [
+      { dbTableName: "schedule", foreignKeyColumn: "week_number" },
+      { dbTableName: "schedule_display", foreignKeyColumn: "week_number" },
+    ],
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "type", displayName: "Тип", isFK: false, required: true },
@@ -403,6 +561,9 @@ lessonClassrooms: {
     routerKey: "educationLevels",
     dbTableName: "education_levels",
     category: "reference",
+    childTables: [
+      { dbTableName: "education", foreignKeyColumn: "level_id" },
+    ],
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "name", displayName: "Название", isFK: false, required: true },
@@ -415,6 +576,9 @@ lessonClassrooms: {
     routerKey: "educationForms",
     dbTableName: "education_forms",
     category: "reference",
+    childTables: [
+      { dbTableName: "education", foreignKeyColumn: "form_id" },
+    ],
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "name", displayName: "Название", isFK: false, required: true },
@@ -427,6 +591,9 @@ lessonClassrooms: {
     routerKey: "education",
     dbTableName: "education",
     category: "reference",
+    childTables: [
+      { dbTableName: "profiles", foreignKeyColumn: "education_id" },
+    ],
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "levelId", displayName: "Уровень", isFK: true, references: { table: "educationLevels", displayField: "name" }, required: true },

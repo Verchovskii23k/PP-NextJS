@@ -24,6 +24,7 @@ async function syncScheduleDisplayForLesson(localDb: typeof db, lessonId: number
       teacherPatronymic: employees.patronymic,
       buildingNumber: buildings.number,
       roomNumber: classrooms.roomNumber,
+      isActive: classrooms.isActive,
     })
     .from(scheduleDisplay)
     .innerJoin(lessons, eq(scheduleDisplay.lessonId, lessons.id))
@@ -63,6 +64,7 @@ export const lessonClassroomsRouter = router({
         id: lessonClassrooms.id,
         lessonId: lessonClassrooms.lessonId,
         classroomId: lessonClassrooms.classroomId,
+        isActive: lessonClassrooms.isActive,
         lessonDisplay: sql<string>`${units.code} || '-' || ${lessonTypes.abbreviation} || '-' || ${disciplines.abbreviation} || '-' || ${employees.surname} || ' ' || left(${employees.name},1) || '.' || left(${employees.patronymic},1) || '.'  `.as('lessonDisplay'),
         classroomDisplay: sql<string>` ${buildings.number} || '-' || ${classrooms.roomNumber} || '-' || COALESCE(${departments.abbreviation}, 'Общая') || '-' || ${classrooms.usageMetric} `.as('classroomDisplay'),
       })

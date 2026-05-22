@@ -10,6 +10,7 @@ export const unitsRouter = router({
         id: units.id,
         code: units.code,
         unitTypeId: units.unitTypeId,
+        isActive: units.isActive,
         display: sql<string>`${units.code} || ' (' || ${unitTypes.name} || ')'`.as('display'),
       })
       .from(units)

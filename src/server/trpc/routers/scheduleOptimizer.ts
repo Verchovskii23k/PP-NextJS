@@ -1,4 +1,80 @@
-// src/server/trpc/routers/scheduleOptimizer.ts
+/**
+ * Оптимизация расписания методом имитации отжига с расширенной статистикой.
+ *
+ * Улучшает распределение занятий по слотам (неделя, день, пара), минимизируя
+ * взвешенную сумму штрафов за:
+ * - **Окна** у преподавателей и учебных групп (пропуски между парами в течение дня).
+ * - **Дневной дисбаланс** – неравномерная нагрузка преподавателей/групп по дням.
+ * - **Однообразие типов занятий** – когда в день у группы >3 однотипных занятий.
+ * - **Единственное занятие в день** – приход только ради одной пары.
+ * - **Нерациональное использование юнитов** – несколько групп/подгрупп в одном слоте,
+ *   если это не поток.
+ *
+ * Также обрабатываются **группы слияния** (mergeNumber ≠ 0) – перемещаются как единое
+ * целое с автоматическим подбором аудитории нужной вместимости. При невозможности
+ * прямого размещения применяется принудительное вытеснение (`forcePlaceGroup`).
+ *
+ * ## Возвращаемая статистика
+ * - `iterations` – число выполненных итераций (обычно 20000).
+ * - `initialScore` / `finalScore` – штраф до и после оптимизации.
+ * - `acceptedMoves` – количество принятых мутаций (обменов или перемещений).
+ * - `singleMoved` – количество **уникальных занятий**, изменивших слот по сравнению с
+ *   исходным состоянием (не сумма событий).
+ * - `totalSingleEntries` – общее количество одиночных записей (без групп слияния) в
+ *   расписании.
+ * - `mergeGroupMoved` – сколько групп слияния успешно перемещены (получили новый слот
+ *   и аудиторию).
+ * - `totalMergeGroups` – общее число групп слияния.
+ * - `mergeGroupFailedNoClassroom` – количество откатов групп слияния из-за отсутствия
+ *   подходящей аудитории.
+ * - `mergeGroupFailedNoSlot` – количество попыток, когда группу не удалось разместить
+ *   даже после принудительного вытеснения.
+ * - `positionBlockedCount` – количество занятий, зафиксированных флагом `positionFlag`
+ *   (они исключены из перемещений, кроме случаев слияния).
+ *
+ * Если занятий меньше двух, возвращается `message: "Слишком мало занятий"` и все
+ * числовые показатели = 0.
+ *
+ * ## Особенности реализации
+ * - Параметры имитации отжига (`opt_initial_temperature`, `opt_cooling_rate`) и веса
+ *   штрафов (`opt_weight_*`) загружаются из таблицы `settings`. При отсутствии
+ *   создаются значения по умолчанию (температура = 1000, скорость охлаждения = 0.95,
+ *   веса в диапазоне 1–2).
+ * - На каждой итерации с вероятностью ~50% выбирается случайная группа слияния,
+ *   иначе – одиночное занятие. Для одиночных: 70% — обмен двух записей, 30% —
+ *   перемещение одной записи в случайный слот.
+ * - Принятие нового состояния: если штраф уменьшился, либо с вероятностью
+ *   `exp(-Δ / T)`, где T – температура. Температура охлаждается умножением на
+ *   `coolingRate` после каждой итерации, минимальное значение 0.01.
+ * - После всех итераций сохраняется **лучшее** найденное состояние (с минимальным
+ *   штрафом). Обновляются координаты, аудитории и флаги в БД, пересчитываются
+ *   `displayText` для человекочитаемого представления.
+ * - Занятия с установленным флагом `classroomFlag` **не защищены от смены аудитории**
+ *   при перемещении группы слияния – в текущей версии флаг не проверяется в этом
+ *   контексте (см. примечание в коде). Флаг `positionFlag` предотвращает любые
+ *   перемещения одиночных записей, но сбрасывается при вхождении в группу слияния.
+ * - Для групп слияния аудитория подбирается заново по критериям: вместимость ≥
+ *   суммарного числа студентов, принадлежность к кафедре дисциплины (или общая),
+ *   приоритет типа занятия, метрика использования, ID.
+ * - Связь `lessonClassrooms` синхронизируется после каждого успешного размещения
+ *   группы слияния.
+ *
+ * @param versionId - фильтр версии расписания:
+ *   - `null` или `undefined` – только активные записи (`isActive = true`, `versionId IS NULL`).
+ *   - число – записи конкретной архивной версии.
+ *
+ * @returns Объект с детальной статистикой (см. выше). Пригоден для отображения
+ *   администратору в виде информативных тостов.
+ *
+ * @remarks
+ * - Алгоритм не гарантирует глобальный оптимум, но на практике значительно улучшает
+ *   равномерность и удобство расписания.
+ * - Если в расписании преобладают зафиксированные записи, эффективность снижается.
+ * - Проблемы с размещением групп слияния можно диагностировать по полям
+ *   `mergeGroupFailedNoClassroom` и `mergeGroupFailedNoSlot`.
+ * - Для изменения параметров отжига администратор может воспользоваться интерфейсом
+ *   на странице расписания (кнопка ⚙️).
+ */
 import { db } from "@/db";
 import {
   scheduleDisplay as sdTable,
@@ -676,11 +752,28 @@ export async function optimizeSchedule(versionId?: number | null) {
     ? (versionId === null ? isNull(sdTable.versionId) : eq(sdTable.versionId, versionId))
     : isNull(sdTable.versionId);
   const allEntries = await db.select().from(sdTable)
-  .where(and(
-    eq(sdTable.isBuffered, false), versionCondition));
-  if (allEntries.length < 2) return { iterations: 0, initialScore: 0, finalScore: 0, message: "Слишком мало занятий" };
+    .where(and(eq(sdTable.isBuffered, false), versionCondition));
+  if (allEntries.length < 2) return {
+    iterations: 0,
+    initialScore: 0,
+    finalScore: 0,
+    message: "Слишком мало занятий",
+    acceptedMoves: 0,
+    singleMoved: 0,
+    totalSingleEntries: 0,
+    mergeGroupMoved: 0,
+    totalMergeGroups: 0,
+    mergeGroupFailedNoClassroom: 0,
+    mergeGroupFailedNoSlot: 0,
+    positionBlockedCount: 0,
+  };
 
   const ctx = await buildContext(allEntries);
+  // Сохраняем исходные слоты для каждого занятия
+  const originalSlots = new Map<number, { week: number; day: number; pair: number }>();
+  for (const e of ctx.entries) {
+    originalSlots.set(e.id, { week: e.weekId, day: e.dayOfWeekId, pair: e.pairNumberId });
+  }
   let currentScore = evaluateState(ctx);
   const initialScore = currentScore;
   let iterations = 0, accepted = 0;
@@ -694,6 +787,17 @@ export async function optimizeSchedule(versionId?: number | null) {
   const mergeGroups = [...ctx.mergeMap.values()];
   let bestScore = currentScore;
   let bestState = ctx.entries.map(e => ({ ...e }));
+
+  // === НОВЫЕ СЧЁТЧИКИ ===
+  let singleMoved = 0;                // сколько одиночных занятий изменили слот
+  let mergeGroupMoved = 0;            // успешные перемещения групп слияния
+  let mergeGroupFailedNoClassroom = 0; // откаты из-за отсутствия аудитории
+  let mergeGroupFailedNoSlot = 0;     // не удалось разместить даже силой
+
+  // Подсчёт одиночных записей и зафиксированных
+  const totalSingleEntries = ctx.entries.filter(e => (e.mergeNumber ?? 0) === 0).length;
+  const positionBlockedCount = ctx.entries.filter(e => e.positionFlag).length;
+  const totalMergeGroups = mergeGroups.length;
 
   while (iterations < MAX_ITER) {
     if (mergeGroups.length > 0 && Math.random() < 0.5) {
@@ -709,10 +813,8 @@ export async function optimizeSchedule(versionId?: number | null) {
           moveGroupToSlot(ctx, group, targetSlot.weekId, targetSlot.dayId, targetSlot.pairId);
           const newScore = evaluateState(ctx);
 
-          // Температурное принятие
           const delta = newScore - currentScore;
           if (delta < 0 || Math.random() < Math.exp(-delta / temperature)) {
-            // Принимаем – ищем подходящую аудиторию
             const classroomId = await findSuitableClassroomForGroup(group);
             if (classroomId !== null) {
               for (const entry of group.entries) {
@@ -722,14 +824,14 @@ export async function optimizeSchedule(versionId?: number | null) {
               ctx.mergeClassroomIds.set(group.mergeNum, classroomId);
               currentScore = newScore;
               accepted++;
+              mergeGroupMoved++; // <-- успешное перемещение группы
               if (currentScore < bestScore) {
                 bestScore = currentScore;
                 bestState = ctx.entries.map(e => ({ ...e }));
               }
               placed = true;
-              
             } else {
-              // Аудитория не найдена – откатываем перемещение
+              // Аудитория не найдена – откатываем
               for (let i = 0; i < group.entries.length; i++) {
                 const entry = group.entries[i];
                 const old = oldSlots[i];
@@ -738,6 +840,7 @@ export async function optimizeSchedule(versionId?: number | null) {
                 entry.pairNumberId = old.pair;
                 updateOccupancy(ctx, entry, targetSlot.weekId, targetSlot.dayId, targetSlot.pairId, old.week, old.day, old.pair);
               }
+              mergeGroupFailedNoClassroom++; // <-- не нашли аудиторию
             }
           } else {
             // Не принято по температуре – откатываем
@@ -758,13 +861,11 @@ export async function optimizeSchedule(versionId?: number | null) {
         for (let forceAttempt = 0; forceAttempt < 10 && !placed; forceAttempt++) {
           const targetSlot = ctx.slots[Math.floor(Math.random() * ctx.slots.length)];
           
-          // Сохраняем копии состояния до forcePlaceGroup, чтобы откатить при неудаче
           const oldEntries = group.entries.map(e => ({
             week: e.weekId,
             day: e.dayOfWeekId,
             pair: e.pairNumberId,
           }));
-          // forcePlaceGroup меняет записи и occupancy
           const forceSuccess = forcePlaceGroup(ctx, group, targetSlot.weekId, targetSlot.dayId, targetSlot.pairId);
           if (!forceSuccess) continue;
 
@@ -780,13 +881,14 @@ export async function optimizeSchedule(versionId?: number | null) {
               ctx.mergeClassroomIds.set(group.mergeNum, classroomId);
               currentScore = newScore;
               accepted++;
+              mergeGroupMoved++;
               if (currentScore < bestScore) {
                 bestScore = currentScore;
                 bestState = ctx.entries.map(e => ({ ...e }));
               }
               placed = true;
             } else {
-              // Нет аудитории – откатываем forcePlaceGroup
+              // Нет аудитории – откатываем
               for (let i = 0; i < group.entries.length; i++) {
                 const entry = group.entries[i];
                 const old = oldEntries[i];
@@ -795,9 +897,10 @@ export async function optimizeSchedule(versionId?: number | null) {
                 entry.pairNumberId = old.pair;
                 updateOccupancy(ctx, entry, targetSlot.weekId, targetSlot.dayId, targetSlot.pairId, old.week, old.day, old.pair);
               }
+              mergeGroupFailedNoClassroom++;
             }
           } else {
-            // Не принят по температуре – откатываем forcePlaceGroup
+            // Не принят по температуре – откатываем
             for (let i = 0; i < group.entries.length; i++) {
               const entry = group.entries[i];
               const old = oldEntries[i];
@@ -807,6 +910,9 @@ export async function optimizeSchedule(versionId?: number | null) {
               updateOccupancy(ctx, entry, targetSlot.weekId, targetSlot.dayId, targetSlot.pairId, old.week, old.day, old.pair);
             }
           }
+        }
+        if (!placed) {
+          mergeGroupFailedNoSlot++; // группа не смогла разместиться даже после force
         }
       }
     } else {
@@ -839,6 +945,7 @@ export async function optimizeSchedule(versionId?: number | null) {
         if (delta < 0 || Math.random() < Math.exp(-delta / temperature)) {
           currentScore = newScore;
           accepted++;
+          // singleMoved += 2; // оба занятия изменили позицию
           if (currentScore < bestScore) {
             bestScore = currentScore;
             bestState = ctx.entries.map(e => ({ ...e }));
@@ -874,6 +981,7 @@ export async function optimizeSchedule(versionId?: number | null) {
         if (delta < 0 || Math.random() < Math.exp(-delta / temperature)) {
           currentScore = newScore;
           accepted++;
+          // singleMoved++; // одно занятие перемещено
           if (currentScore < bestScore) {
             bestScore = currentScore;
             bestState = ctx.entries.map(e => ({ ...e }));
@@ -889,6 +997,14 @@ export async function optimizeSchedule(versionId?: number | null) {
     temperature *= coolingRate;
     if (temperature < 0.01) temperature = 0.01;
     iterations++;
+  }
+  // Подсчёт уникальных занятий, у которых изменился слот
+  if (accepted > 0) {
+    singleMoved = ctx.entries.filter(e => {
+      const orig = originalSlots.get(e.id);
+      if (!orig) return false;
+      return e.weekId !== orig.week || e.dayOfWeekId !== orig.day || e.pairNumberId !== orig.pair;
+    }).length;
   }
   if (bestScore < currentScore) {
     ctx.entries = bestState;
@@ -967,5 +1083,17 @@ export async function optimizeSchedule(versionId?: number | null) {
     }
   }
 
-  return { iterations, initialScore, finalScore: currentScore };
+    return {
+    iterations,
+    initialScore,
+    finalScore: currentScore,
+    acceptedMoves: accepted,
+    singleMoved,
+    totalSingleEntries,
+    mergeGroupMoved,
+    totalMergeGroups,
+    mergeGroupFailedNoClassroom,
+    mergeGroupFailedNoSlot,
+    positionBlockedCount,
+  };
 }

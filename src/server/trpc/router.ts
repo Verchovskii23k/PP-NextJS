@@ -1,4 +1,21 @@
-// src/server/trpc/router.ts
+/**
+ * Корневой роутер приложения.
+ *
+ * Объединяет все tRPC-роутеры в единое дерево `appRouter`.
+ * Каждый модуль отвечает за свой набор сущностей (справочники, генерацию,
+ * расписание, импорт/экспорт и т.д.).
+ *
+ * ## Структура
+ * - `auth`, `adminManagement`, `userManagement` – аутентификация и управление пользователями.
+ * - `institutes`, `departments`, `specialties`, … – CRUD-справочники (описаны в `tablesMeta`).
+ * - `generations` – генераторы групп, юнитов, занятий, аудиторий, расписания.
+ * - `schedule`, `scheduleDisplay`, `scheduleVersions` – работа с расписанием и версиями.
+ * - `batchDelete`, `crudImportExport`, `globalImportExport` – массовые операции.
+ * - `e2eTestHelpers` – доступен только в тестовом окружении для сброса данных.
+ *
+ * ## Экспортируемый тип
+ * `AppRouter` используется на клиенте для типизации tRPC-клиента (`trpc`).
+ */
 import { router } from "./trpc";
 import { authRouter } from "./routers/auth";
 import { institutesRouter } from "./routers/institutes";

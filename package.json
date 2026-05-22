@@ -15,7 +15,6 @@
     "test:db:push": "dotenv -e .env.test -- drizzle-kit push",
     "test": "vitest run --exclude 'e2e/**'",
     "test:e2e:auth": "npx playwright test e2e/auth-setup.spec.ts --headed",
-    "test:e2e:reset": "npx playwright test e2e/password-reset.spec.ts --headed",
     "test:e2e:mail": "npx playwright test e2e/password-reset-mail.spec.ts --headed",
     "test:e2e": "npx playwright test",
     "seed": "npx dotenv -e .env -- npx tsx src/db/seed.ts"

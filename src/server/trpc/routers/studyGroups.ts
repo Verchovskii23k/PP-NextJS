@@ -15,6 +15,7 @@ export const studyGroupsRouter = router({
         course: studyGroups.course,
         studentCount: studyGroups.studentCount,
         curatorId: studyGroups.curatorId,
+        isActive: studyGroups.isActive,
         display: sql<string>`${studyGroups.code} || ' (' || ${profiles.letterCode} || '-' || ${profiles.name} || ')'`.as('display'),
         curatorDisplay: sql<string>`${employees.surname} || ' ' || left(${employees.name},1) || '.' || left(${employees.patronymic},1) || '.'`.as('curator_display'),
       })

@@ -819,4 +819,34 @@ export const scheduleDisplayRouter = router({
     .mutation(async ({ input }) => {
       return await optimizeSchedule(input.versionId);
     }),
+    resetFlags: adminProcedure
+    .input(
+      z.object({
+        positionFlag: z.boolean().optional(),
+        classroomFlag: z.boolean().optional(),
+        mergeNumber: z.boolean().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const setData: Record<string, boolean | number> = {};
+      if (input.positionFlag) setData.positionFlag = false;
+      if (input.classroomFlag) setData.classroomFlag = false;
+      if (input.mergeNumber) setData.mergeNumber = 0;
+
+      if (Object.keys(setData).length === 0) {
+        return { success: true };
+      }
+
+      await ctx.db
+        .update(scheduleDisplay)
+        .set(setData)
+        .where(
+          and(
+            eq(scheduleDisplay.isActive, true),
+            isNull(scheduleDisplay.versionId),
+            eq(scheduleDisplay.isBuffered, false)
+          )
+        );
+      return { success: true };
+    }),
 });

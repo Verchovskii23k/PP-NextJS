@@ -1,4 +1,32 @@
-// src/test/fixtures/fixtures.ts
+/**
+ * Тестовые фикстуры для интеграционных и E2E тестов.
+ *
+ * Предоставляют:
+ * - `clearDatabase` – полную очистку всех таблиц и сброс автоинкрементных последовательностей.
+ * - `seedTestData` – заполнение базы минимально необходимыми справочными данными
+ *   (институты, кафедры, дисциплины, преподаватели, студенты, аудитории, учебные планы и т.д.).
+ * - `seedAuthUser` – создание тестового пользователя (admin) с известным паролем для тестов аутентификации.
+ *
+ * ## Использование
+ * ```ts
+ * import { clearDatabase, seedTestData, seedAuthUser } from '@/test/fixtures/fixtures';
+ *
+ * beforeEach(async () => {
+ *   await clearDatabase();
+ *   await seedTestData();
+ * });
+ *
+ * test('пример', async () => {
+ *   const { email, password } = await seedAuthUser();
+ *   // ...
+ * });
+ * ```
+ *
+ * @remarks
+ * - `clearDatabase` удаляет данные в порядке, учитывающем внешние ключи.
+ * - `seedTestData` возвращает объект с ID созданных сущностей для использования в тестах.
+ * - `seedAuthUser` хеширует пароль '123456' и создаёт связанного сотрудника с флагом isAdmin.
+ */
 import { db } from "@/db";
 import {
   institutes, buildings, unitTypes, lessonTypes,

@@ -1,26 +1,17 @@
+"use client";
 import Link from 'next/link';
-import { headers } from 'next/headers';
-import { auth } from '@/lib/auth/config';      // объект betterAuth, НЕ функция
-import { db } from '@/db';
-import { users } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { trpc } from "@/trpc/client";
+import { PageSkeleton } from '@/components/ui/page_skeleton';
 
-export default async function HomePage() {
-  // 1. Получаем сессию правильно – через auth.api.getSession
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
+export default function HomePage() {
+  const { data: me, isLoading } = trpc.auth.me.useQuery();
 
-  // 2. Проверяем, есть ли администратор (только если неавторизован)
-  let hasAdmin = false;
-  if (!session?.user) {
-    const [admin] = await db
-      .select({ id: users.id })
-      .from(users)
-      .where(eq(users.role, 'admin'))
-      .limit(1);
-    hasAdmin = !!admin;
-  }
+  if(isLoading) return <PageSkeleton/>
+
+  const dashboardLink =
+    me?.role === 'teacher' ? '/teacher' :
+    me?.role === 'student' ? '/student' :
+    '/admin'; // admin или если роль не определена (но такого почти не бывает)
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center px-4 text-center">
@@ -36,33 +27,26 @@ export default async function HomePage() {
       </p>
 
       <div className="mt-10">
-        {session?.user ? (
+        {me ? (
           <Link
-            href="/admin"
+            href={dashboardLink}
             className="hover:bg-primary/90 rounded-lg bg-primary px-8 py-3 text-lg font-medium text-white shadow transition-colors"
           >
             Перейти в панель управления
           </Link>
-        ) : hasAdmin ? (
+        ) : (
           <Link
             href="/login"
             className="hover:bg-primary/90 rounded-lg bg-primary px-8 py-3 text-lg font-medium text-white shadow transition-colors"
           >
             Войти
           </Link>
-        ) : (
-          <Link
-            href="/setup"
-            className="hover:bg-primary/90 rounded-lg bg-primary px-8 py-3 text-lg font-medium text-white shadow transition-colors"
-          >
-            Зарегистрировать администратора
-          </Link>
         )}
       </div>
 
       <p className="mt-8 text-sm text-muted-foreground">
-        {session?.user
-          ? `Последний раз вы вошли как ${session.user.email || 'пользователь'}.`
+        {me
+          ? `Вы вошли как ${me.fullName || me.email}.`
           : 'Для начала работы войдите или создайте учётную запись администратора.'}
       </p>
     </main>

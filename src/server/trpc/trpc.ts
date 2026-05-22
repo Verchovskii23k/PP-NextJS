@@ -1,3 +1,29 @@
+/**
+ * Инициализация tRPC-сервера и определение всех стандартных процедур.
+ *
+ * ## Что здесь делается
+ * 1. Создаётся экземпляр tRPC с контекстом `Context` и кастомным форматированием ошибок.
+ * 2. Определяются три вида процедур:
+ *    - `publicProcedure` – доступна без аутентификации.
+ *    - `protectedProcedure` – требует валидную сессию и добавляет в `ctx.user` id и роль.
+ *    - `adminProcedure` – наследует `protectedProcedure` и дополнительно проверяет,
+ *      что роль пользователя – `admin`.
+ * 3. Настраивается `errorFormatter`, который пытается извлечь «бизнесовую» ошибку
+ *    (TRPCError, ZodError) из цепочки `cause`. Если находит – отдаёт её как есть.
+ *    Иначе возвращает обобщённое сообщение «Возникла непредвиденная ошибка…».
+ *
+ * ## Как работает защита
+ * - `protectedProcedure` берёт `ctx.session.user` (результат better-auth).
+ *   Если пользователь не авторизован, выбрасывает `UNAUTHORIZED`.
+ *   Если роль не сохранена в сессии, подгружает её из БД.
+ * - `adminProcedure` после `protectedProcedure` проверяет `ctx.user.role === 'admin'`,
+ *   иначе выбрасывает `FORBIDDEN`.
+ *
+ * ## Экспорты
+ * - `router` – фабрика для создания роутеров.
+ * - `publicProcedure`, `protectedProcedure`, `adminProcedure` – базовые строительные блоки.
+ * - `createCallerFactory` – используется в тестах для создания клиента без HTTP.
+ */
 import { initTRPC, TRPCError } from '@trpc/server';
 import type { Context } from './context';
 import { users } from '@/db/schema';

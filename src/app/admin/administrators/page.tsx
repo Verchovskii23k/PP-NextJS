@@ -10,6 +10,7 @@ export default function AdministratorsPage() {
   }
   const utils = trpc.useUtils(); // <-- добавили
   const { data, isLoading, error } = trpc.adminManagement.listEmployeesWithAdminFlag.useQuery();
+  
   const { data: me } = trpc.auth.me.useQuery();
   const toggleMutation = trpc.adminManagement.toggleAdmin.useMutation({
     onSuccess: (data: ToggleAdminResult) => {
@@ -18,6 +19,8 @@ export default function AdministratorsPage() {
       }
     },
   });
+
+
   const [mutError, setMutError] = useState<string | null>(null);
   const [mutWarning, setMutWarning] = useState<string | null>(null);
 
