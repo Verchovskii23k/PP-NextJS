@@ -1,4 +1,74 @@
-// src/app/admin/schedule/page.tsx
+/**
+ * ## Страница «Расписание» (администратор)
+ *
+ * Полнофункциональный интерфейс для просмотра, ручного редактирования (drag-and-drop),
+ * тонкой настройки (флаги, слияния) и оптимизации расписания.
+ *
+ * ### Возможности
+ * - **Два режима просмотра:** «По юнитам» (поточные/групповые/подгрупповые коды) и
+ *   «По группам» (агрегация по кодам учебных групп).
+ * - **Версионирование:** сохранение активного расписания в архив, восстановление любой
+ *   версии, удаление версий. Активная версия доступна для редактирования, архивные –
+ *   только для чтения.
+ * - **Редактирование в режиме drag-and-drop:** занятия можно перетаскивать в свободные
+ *   ячейки (подсветка зелёным), менять местами (подсветка синим), а также убирать в
+ *   буфер и возвращать обратно.
+ * - **Буфер:** боковая панель для временного хранения занятий. При переносе в буфер
+ *   координаты обнуляются, занятие не блокирует слот. Из буфера можно перетащить
+ *   занятие в конкретную свободную ячейку.
+ * - **Флаги занятий:** фиксация позиции (`positionFlag`), закрепление аудитории
+ *   (`classroomFlag`), номер слияния (`mergeNumber`). Редактируются кликом по занятию
+ *   в режиме редактирования. При перемещении/обмене занятий с флагами выводится
+ *   предупреждение и флаги сбрасываются.
+ * - **Оптимизация расписания:** запуск алгоритма имитации отжига. Перед запуском, если
+ *   в буфере есть занятия, показывается диалог с предложением использовать их
+ *   (вернуть в расписание со сбросом флагов) или продолжить без них. После
+ *   оптимизации выводится детальная статистика (штраф, количество перемещённых
+ *   занятий, проблемы с группами слияния и аудиториями).
+ * - **Настройки отжига:** возможность изменить начальную температуру и скорость
+ *   охлаждения (сохраняются в таблице `settings`).
+ * - **Экспорт:** печать таблицы и выгрузка в CSV.
+ * - **Сброс флагов:** массовый сброс выбранных типов флагов для всех занятий активного
+ *   расписания.
+ *
+ * ### Архитектура компонента
+ * - **Состояния:** режим просмотра (`viewMode`), признак редактирования (`editMode`),
+ *   выбранная версия (`selectedVersionId`), текущее перетаскиваемое занятие
+ *   (`activeDragEntry`), статусы слотов (`slotStatuses` / `slotSwapIds`), диалоги
+ *   (подтверждения, ввода имени, восстановления версии, использования буфера,
+ *   параметров отжига, сброса флагов).
+ * - **Взаимодействие с сервером:** все запросы и мутации идут через tRPC-роутер
+ *   `scheduleDisplay`. Получение данных для сетки, буфера, проверки слотов,
+ *   перемещений, обменов, обновления флагов, запуска оптимизации и сброса флагов.
+ * - **Drag-and-drop:** на базе `@dnd-kit/core`. При старте перетаскивания для всех
+ *   ячеек текущего юнита вычисляются статусы через `checkSlots`. При завершении
+ *   выполняется `move`, `swap`, `moveToBuffer` или `moveFromBuffer` в зависимости от
+ *   ситуации.
+ * - **Оптимизация:** при нажатии кнопки сначала проверяется количество занятий в
+ *   буфере (`getBufferedCount`). Если есть, показывается диалог; при выборе «с
+ *   буфером» передаётся `includeBuffered: true`, и сервер снимает буфер и флаги перед
+ *   запуском оптимизатора.
+ * - **Версионирование:** выбор версии из выпадающего списка. При выборе архивной
+ *   версии запрашивается подтверждение (с возможностью предварительно сохранить
+ *   текущее активное расписание). Восстановленная версия отображается с пометкой
+ *   «текущая», пока не будет сохранена как новая версия.
+ *
+ * ### Вспомогательные компоненты
+ * - `DraggableLesson` – отдельное занятие (источник перетаскивания).
+ * - `DroppableArea` – ячейка сетки (цель перетаскивания). Меняет фон в зависимости от
+ *   статуса (`free`/`conflict`/`swap`) и недели.
+ * - `BufferEntry` – элемент в буфере (источник перетаскивания). При перетаскивании
+ *   скрывается, чтобы не занимать место.
+ * - `BufferZone` – боковая панель буфера (цель для сброса занятий).
+ *
+ * ### Примечания
+ * - Редактирование доступно только для активного расписания (`selectedVersionId === null`).
+ * - Все мутации сбрасывают флаги фиксации и слияния у перемещаемых занятий.
+ * - При восстановлении версии или удалении активных данных требуется подтверждение
+ *   через `ConfirmContext`.
+ * - Для тестирования и разработки можно использовать `handlePrint` и `handleCSV` для
+ *   быстрого просмотра текущего состояния расписания.
+ */
 "use client";
 import { toast } from "sonner";
 import { trpc } from "@/trpc/client";
@@ -24,9 +94,9 @@ type Pair = { id: number; number: number };
 
 type ScheduleRow = {
   id: number;
-  weekId: number;
-  dayOfWeekId: number;
-  pairNumberId: number;
+  weekId: number | null;
+  dayOfWeekId: number | null;
+  pairNumberId: number | null;
   unitCode: string;
   displayText: string;
   mergeNumber: number | null;
@@ -134,22 +204,18 @@ function DroppableArea({
 }
 
 function BufferEntry({ entry }: { entry: ScheduleRow }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `buffer-${entry.id}`,
     data: { entry },
   });
-  const style = transform
-    ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
-    : undefined;
+  if (isDragging) return null;
+
   return (
     <div
       ref={setNodeRef}
       {...listeners}
       {...attributes}
-      className={`mb-1 flex cursor-grab items-center gap-1 rounded border border-amber-200 bg-amber-50 p-1 text-xs dark:border-amber-800 dark:bg-amber-900/20 ${
-        isDragging ? "opacity-50" : ""
-      }`}
-      style={style}
+      className="mb-1 flex cursor-grab items-center gap-1 rounded border border-amber-200 bg-amber-50 p-1 text-xs dark:border-amber-800 dark:bg-amber-900/20"
     >
       <span className="truncate text-foreground">{entry.displayText}</span>
     </div>
@@ -163,7 +229,7 @@ function BufferZone({ entries, isEditMode }: { entries: ScheduleRow[]; isEditMod
   return (
     <div
       ref={setNodeRef}
-      className={`h-full w-56 flex-shrink-0 overflow-y-auto rounded border border-dashed border-border bg-muted p-2 ${
+      className={`h-full w-64 flex-shrink-0 overflow-y-auto rounded border border-dashed border-border bg-muted p-2 ${
         isOver ? "bg-blue-50 ring-2 ring-blue-500 dark:bg-blue-900/30" : ""
       }`}
     >
@@ -190,6 +256,7 @@ export default function AdminSchedulePage() {
   const [tempInput, setTempInput] = useState(1000);
   const [rateInput, setRateInput] = useState(0.95);
   const [resetFlagsDialog, setResetFlagsDialog] = useState(false);
+  const [bufferDialog, setBufferDialog] = useState<{ show: boolean; count: number }>({ show: false, count: 0 });
   const [resetFlagsSelection, setResetFlagsSelection] = useState({
     positionFlag: false,
     classroomFlag: false,
@@ -215,6 +282,15 @@ export default function AdminSchedulePage() {
       await settingsUpdateMut.mutateAsync({ key: "opt_cooling_rate", value: String(rateInput) });
       setShowAnnealingDialog(false);
     } catch (e) {}
+  };
+  const handleOptimize = async () => {
+    const countRes = await utils.scheduleDisplay.getBufferedCount.fetch({ versionId: null });
+    const count = countRes.count;
+    if (count > 0) {
+      setBufferDialog({ show: true, count });
+    } else {
+      optimizeScheduleMut.mutate({ versionId: selectedVersionId });
+    }
   };
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -387,7 +463,15 @@ export default function AdminSchedulePage() {
       const targetDayId = parseInt(parts[2], 10);
       const targetPairId = parseInt(parts[3], 10);
       const targetUnitCode = parts.slice(4).join("-");
-
+      if (
+        !entry.isBuffered &&
+        entry.weekId === targetWeekId &&
+        entry.dayOfWeekId === targetDayId &&
+        entry.pairNumberId === targetPairId &&
+        entry.unitCode === targetUnitCode
+      ) {
+        return;
+      }
       if (targetUnitCode !== entry.unitCode) {
         console.warn("Нельзя перенести занятие в другой юнит");
         return;
@@ -846,6 +930,7 @@ export default function AdminSchedulePage() {
             <button
               onClick={handleSaveVersion}
               disabled={saveActiveMut.isPending}
+              aria-label="Сохранить как версию"
               className="rounded bg-green-600 px-3 py-1 text-sm text-white hover:bg-green-700"
             >
               {saveActiveMut.isPending ? "Сохранение..." : "Сохранить как версию"}
@@ -854,6 +939,7 @@ export default function AdminSchedulePage() {
               onClick={async () => {
                 const ok = await confirm({
                   title: "Удаление активного расписания",
+                  
                   message:
                     "Будут полностью удалены все активные данные (расписание, занятия, юниты, группы). Действие нельзя отменить. Продолжить?",
                   confirmLabel: "Удалить",
@@ -866,7 +952,6 @@ export default function AdminSchedulePage() {
                   setRestoredVersionId(null);
                   toast.success("Активные данные удалены");
                 } catch (e) {
-                  // ошибка уже обработана в onError
                 }
               }}
               disabled={resetGeneratedMut.isPending}
@@ -881,6 +966,7 @@ export default function AdminSchedulePage() {
             <button
               onClick={handleSaveVersion}
               disabled={saveActiveMut.isPending}
+              aria-label="Сохранить как весрию"
               className="rounded bg-green-600 px-3 py-1 text-sm text-white hover:bg-green-700"
             >
               {saveActiveMut.isPending ? "Сохранение..." : "Сохранить как версию"}
@@ -888,6 +974,7 @@ export default function AdminSchedulePage() {
             <button
               onClick={handleDeleteVersion}
               disabled={deleteVersionMut.isPending}
+              aria-label="Удалить версию"
               className="rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
             >
               {deleteVersionMut.isPending ? "Удаление..." : "Удалить версию"}
@@ -898,6 +985,7 @@ export default function AdminSchedulePage() {
           <button
             onClick={handleDeleteVersion}
             disabled={deleteVersionMut.isPending}
+            aria-label="Удалить версию"
             className="rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
           >
             {deleteVersionMut.isPending ? "Удаление..." : "Удалить версию"}
@@ -942,7 +1030,42 @@ export default function AdminSchedulePage() {
           </div>
         </div>
       )}
-
+      {/* Диалог использования буфера */}
+      {bufferDialog.show && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
+          <div className="max-w-md rounded border border-border bg-background p-6 shadow-lg">
+            <p className="mb-4 text-foreground">
+              В буфере {bufferDialog.count} занятий. Использовать их при оптимизации?
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setBufferDialog({ show: false, count: 0 })}
+                className="rounded border border-border px-4 py-2 text-foreground hover:bg-muted"
+              >
+                Отмена
+              </button>
+              <button
+                onClick={() => {
+                  setBufferDialog({ show: false, count: 0 });
+                  optimizeScheduleMut.mutate({ versionId: selectedVersionId });
+                }}
+                className="rounded bg-yellow-600 px-4 py-2 text-white hover:bg-yellow-700"
+              >
+                Продолжить без буфера
+              </button>
+              <button
+                onClick={() => {
+                  setBufferDialog({ show: false, count: 0 });
+                  optimizeScheduleMut.mutate({ versionId: selectedVersionId, includeBuffered: true });
+                }}
+                className="hover:bg-primary/90 rounded bg-primary px-4 py-2 text-white"
+              >
+                Продолжить с буфером
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Легенда */}
       <div className="mb-4 flex flex-wrap gap-4 rounded border border-border bg-muted p-3 text-sm">
         {activeWeeksData.map((week, idx) => (
@@ -976,12 +1099,14 @@ export default function AdminSchedulePage() {
               <button
                 onClick={() => setConfirmDialog({ show: false, message: "", onConfirm: () => {} })}
                 className="rounded border border-border px-4 py-2 text-foreground hover:bg-muted"
+                aria-label="Отменить"
               >
                 Отмена
               </button>
               <button
                 onClick={confirmDialog.onConfirm}
                 className="hover:bg-primary/90 rounded bg-primary px-4 py-2 text-white"
+                aria-label="Подтвердить"
               >
                 Подтвердить
               </button>
@@ -996,7 +1121,8 @@ export default function AdminSchedulePage() {
         <button onClick={handlePrint} className="ml-2 rounded bg-blue-600 px-3 py-1 text-white hover:bg-blue-700">🖨️ Печать</button>
         <button onClick={handleCSV} className="ml-2 rounded bg-green-600 px-3 py-1 text-white hover:bg-green-700">📥 CSV</button>
         <button
-          onClick={() => optimizeScheduleMut.mutate({ versionId: selectedVersionId })}
+          onClick={handleOptimize}
+          // onClick={() => optimizeScheduleMut.mutate({ versionId: selectedVersionId })}
           disabled={editMode || optimizeScheduleMut.isPending || !isActiveVersion}
           className="rounded bg-purple-600 px-3 py-1 text-white hover:bg-purple-700 disabled:bg-gray-400"
         >
@@ -1015,6 +1141,7 @@ export default function AdminSchedulePage() {
           <>
             <button
               onClick={() => setResetFlagsDialog(true)}
+              aria-label="Сбросить флаги"
               className="rounded bg-yellow-600 px-3 py-1 text-sm text-white hover:bg-yellow-700"
             >
               Сбросить флаги…
@@ -1081,6 +1208,7 @@ export default function AdminSchedulePage() {
           <button
             onClick={() => setEditMode(!editMode)}
             disabled={!isActiveVersion}
+            aria-label="Режим редактирования"
             className="ml-auto rounded bg-blue-500 px-3 py-1 text-white hover:bg-blue-600 disabled:bg-gray-400"
           >
             {editMode ? "Завершить редактирование" : "Редактировать"}

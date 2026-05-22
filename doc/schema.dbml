@@ -1,0 +1,394 @@
+Enum role_enum {
+  admin
+  teacher
+  student
+}
+
+Table users {
+  id text [pk, note: 'crypto.randomUUID()']
+  name text
+  email text [not null, unique]
+  emailVerified boolean [default: false]
+  image text
+  role role_enum [not null, default: 'student']
+  createdAt timestamp [not null, default: `now()`]
+  updatedAt timestamp [not null, default: `now()`]
+  hashedPassword text
+}
+
+Table sessions {
+  id text [pk, note: 'crypto.randomUUID()']
+  userId text [not null]   // ref удалён, будет явный Ref
+  token text [not null, unique]
+  expiresAt timestamp [not null]
+  ipAddress text
+  userAgent text
+  createdAt timestamp [not null, default: `now()`]
+  updatedAt timestamp [not null, default: `now()`]
+}
+
+Table accounts {
+  id text [pk, note: 'crypto.randomUUID()']
+  userId text [not null]   // ref удалён
+  providerId text [not null]
+  accountId text [not null]
+  refreshToken text
+  accessToken text
+  expiresAt timestamp
+  password text
+  createdAt timestamp [not null, default: `now()`]
+  updatedAt timestamp [not null, default: `now()`]
+
+  Indexes {
+    (providerId, accountId) [unique, name: 'provider_account_unique']
+  }
+}
+
+Table verificationTokens {
+  id text [pk, note: 'crypto.randomUUID()']
+  identifier text [not null]
+  token text [not null, unique]
+  expires timestamp [not null]
+  createdAt timestamp [default: `now()`]
+}
+
+Table scheduleVersions {
+  id serial [pk]
+  name text [not null]
+  createdAt timestamp [not null, default: `now()`]
+}
+
+Table institutes {
+  id serial [pk]
+  universityCode integer [not null, unique]
+  name text [not null]
+  directorId integer [ref: > employees.id]
+  isActive boolean [not null, default: true]
+}
+
+Table buildings {
+  id serial [pk]
+  number integer [not null, unique]
+  isActive boolean [not null, default: true]
+}
+
+Table unitTypes {
+  id serial [pk]
+  name text [not null, unique]
+  maxSize integer [not null]
+  priorityLecture integer [not null, default: 3]
+  priorityWorkshop integer [not null, default: 3]
+  priorityGuidedStudy integer [not null, default: 3]
+  priorityLab integer [not null, default: 3]
+  isActive boolean [not null, default: true]
+}
+
+Table lessonTypes {
+  id serial [pk]
+  name text [not null, unique]
+  abbreviation text [not null, unique]
+  isActive boolean [not null, default: true]
+}
+
+Table hourTypeMapping {
+  id serial [pk]
+  planHourColumn text [not null, unique]
+  priorityColumn text [not null]
+  lessonTypeId integer [not null, ref: > lessonTypes.id]
+  isActive boolean [not null, default: true]
+}
+
+Table departments {
+  id serial [pk]
+  name text [not null]
+  abbreviation text [not null, unique]
+  instituteId integer [not null, ref: > institutes.id]
+  departmentCode integer [not null, unique]
+  headId integer [ref: > employees.id]
+  isActive boolean [not null, default: true]
+}
+
+Table specialties {
+  id serial [pk]
+  code text [not null, unique]
+  name text [not null]
+  departmentId integer [not null, ref: > departments.id]
+  isActive boolean [not null, default: true]
+}
+
+Table profiles {
+  id serial [pk]
+  name text [not null]
+  specialtyId integer [not null, ref: > specialties.id]
+  letterCode text [not null]
+  educationId integer [ref: > education.id]
+  isActive boolean [not null, default: true]
+
+  Indexes {
+    (letterCode, specialtyId) [unique, name: 'unique_profile_code']
+  }
+}
+
+Table disciplines {
+  id serial [pk]
+  name text [not null]
+  abbreviation text [not null]
+  departmentId integer [not null, ref: > departments.id]
+  isActive boolean [not null, default: true]
+}
+
+Table employees {
+  id serial [pk]
+  surname text [not null]
+  name text [not null]
+  patronymic text
+  userId text [unique]   // ref удалён, явный Ref ниже
+  isActive boolean [not null, default: true]
+  isAdmin boolean [not null, default: false]
+}
+
+Table studyGroups {
+  id serial [pk]
+  code text [not null, unique]
+  profileId integer [not null, ref: > profiles.id]
+  course integer [not null]
+  studentCount integer [not null]
+  curatorId integer [ref: > employees.id]
+  isActive boolean [not null, default: true]
+}
+
+Table students {
+  id serial [pk]
+  surname text [not null]
+  name text [not null]
+  patronymic text
+  admissionYear integer [not null]
+  profileId integer [not null, ref: > profiles.id]
+  studyGroupId integer [ref: > studyGroups.id]
+  course integer
+  userId text [unique]   // ref удалён
+  isActive boolean [not null, default: true]
+}
+
+Table educationLevels {
+  id serial [pk]
+  name text [not null, unique]
+  abbreviation text
+  isActive boolean [not null, default: true]
+}
+
+Table educationForms {
+  id serial [pk]
+  name text [not null, unique]
+  abbreviation text
+  isActive boolean [not null, default: true]
+}
+
+Table education {
+  id serial [pk]
+  levelId integer [not null, ref: > educationLevels.id]
+  formId integer [not null, ref: > educationForms.id]
+  durationMonths integer
+  isActive boolean [not null, default: true]
+
+  Indexes {
+    (levelId, formId) [unique]
+  }
+}
+
+Table academicLoadTypes {
+  id serial [pk]
+  name text [not null]
+  abbreviation text
+  isActive boolean [not null, default: true]
+}
+
+Table controlTypes {
+  id serial [pk]
+  name text [not null]
+  abbreviation text
+  isActive boolean [not null, default: true]
+}
+
+Table curriculum {
+  id serial [pk]
+  course integer [not null]
+  semester integer [not null]
+  disciplineId integer [not null, ref: > disciplines.id]
+  hoursLecture integer [default: 0]
+  hoursGuidedStudy integer [default: 0]
+  hoursWorkshop integer [default: 0]
+  hoursLab integer [default: 0]
+  additionalTaskId integer [ref: > academicLoadTypes.id]
+  controlTypeId integer [ref: > controlTypes.id]
+  isActive boolean [not null, default: true]
+}
+
+Table curriculumProfiles {
+  id serial [pk]
+  curriculumId integer [not null, ref: > curriculum.id]
+  profileId integer [not null, ref: > profiles.id]
+  isActive boolean [not null, default: true]
+
+  Indexes {
+    (curriculumId, profileId) [unique]
+  }
+}
+
+Table employeesDepartments {
+  id serial [pk]
+  employeeId integer [not null, ref: > employees.id]
+  departmentId integer [not null, ref: > departments.id]
+  employmentTypeId integer [ref: > employmentTypes.id]
+  positionId integer [ref: > positions.id]
+  isActive boolean [not null, default: true]
+
+  Indexes {
+    (employeeId, departmentId) [unique]
+  }
+}
+
+Table disciplineTeachers {
+  id serial [pk]
+  lessonTypeId integer [not null, ref: > lessonTypes.id]
+  disciplineId integer [not null, ref: > disciplines.id]
+  teacherDepartmentId integer [not null, ref: > employeesDepartments.id]
+  isActive boolean [not null, default: true]
+}
+
+Table classrooms {
+  id serial [pk]
+  buildingId integer [not null, ref: > buildings.id]
+  roomNumber text [not null]
+  capacity integer [not null]
+  departmentId integer [ref: > departments.id]
+  priorityLecture integer [default: 3]
+  priorityWorkshop integer [default: 3]
+  priorityGuidedStudy integer [default: 3]
+  priorityLab integer [default: 3]
+  usageMetric integer [default: 0]
+  isActive boolean [not null, default: true]
+}
+
+Table units {
+  id serial [pk]
+  code text [not null]
+  unitTypeId integer [not null, ref: > unitTypes.id]
+  versionId integer [ref: > scheduleVersions.id]
+  isActive boolean [not null, default: true]
+
+  Note: 'Частичный уникальный индекс: CREATE UNIQUE INDEX idx_units_code_active ON units (code) WHERE is_active = true'
+}
+
+Table unitRoots {
+  id serial [pk]
+  unitCode text [not null]
+  studyGroupId integer [not null, ref: > studyGroups.id]
+  versionId integer [ref: > scheduleVersions.id]
+  isActive boolean [not null, default: true]
+
+  Note: 'Частичный уникальный индекс: CREATE UNIQUE INDEX idx_unit_roots_active ON unit_roots (unit_code, study_group_id) WHERE is_active = true'
+}
+
+Table lessons {
+  id serial [pk]
+  curriculumId integer [not null, ref: > curriculum.id]
+  unitId integer [not null, ref: > units.id]
+  lessonTypeId integer [not null, ref: > lessonTypes.id]
+  disciplineId integer [not null, ref: > disciplines.id]
+  teacherId integer [ref: > employeesDepartments.id]
+  countPerSemester integer [not null]
+  versionId integer [ref: > scheduleVersions.id]
+  isActive boolean [not null, default: true]
+}
+
+Table lessonClassrooms {
+  id serial [pk]
+  lessonId integer [not null]   // ref удалён, явный Ref ниже
+  classroomId integer [not null, ref: > classrooms.id]
+  versionId integer [ref: > scheduleVersions.id]
+  isActive boolean [not null, default: true]
+
+  Indexes {
+    (lessonId, classroomId) [unique]
+  }
+}
+
+Table daysOfWeek {
+  id serial [pk]
+  name text [not null]
+  isActive boolean [not null, default: true]
+}
+
+Table pairs {
+  id serial [pk]
+  number integer [not null]
+  isActive boolean [not null, default: true]
+}
+
+Table weeks {
+  id serial [pk]
+  type text [not null]
+  isActive boolean [not null, default: true]
+}
+
+Table schedule {
+  id serial [pk]
+  weekId integer [not null, ref: > weeks.id]
+  dayOfWeekId integer [not null, ref: > daysOfWeek.id]
+  pairNumberId integer [not null, ref: > pairs.id]
+  lessonId integer [not null]   // ref удалён, явный Ref ниже
+  classroomId integer [ref: > classrooms.id]
+  mergeFlag integer
+  positionFlag integer
+  classroomFlag integer
+  versionId integer [ref: > scheduleVersions.id]
+  isActive boolean [not null, default: true]
+}
+
+Table scheduleDisplay {
+  id serial [pk]
+  lessonId integer [ref: > lessons.id]
+  weekId integer [not null, ref: > weeks.id]
+  dayOfWeekId integer [not null, ref: > daysOfWeek.id]
+  pairNumberId integer [not null, ref: > pairs.id]
+  unitCode text [not null]
+  displayText text [not null]
+  mergeNumber integer [default: 0]
+  positionFlag boolean [default: false]
+  classroomFlag boolean [default: false]
+  classroomId integer [ref: > classrooms.id]
+  isBuffered boolean [not null, default: false]
+  versionId integer [ref: > scheduleVersions.id]
+  isActive boolean [not null, default: true]
+}
+
+Table settings {
+  id serial [pk]
+  key text [not null, unique]
+  value text [not null]
+  createdAt timestamp [not null, default: `now()`]
+  updatedAt timestamp [not null, default: `now()`]
+}
+
+Table positions {
+  id serial [pk]
+  name text [not null, unique]
+  abbreviation text
+  isActive boolean [not null, default: true]
+}
+
+Table employmentTypes {
+  id serial [pk]
+  name text [not null, unique]
+  abbreviation text
+  isActive boolean [not null, default: true]
+}
+
+// Явные связи (для каскадного удаления, один-к-одному и т.п.)
+Ref: sessions.userId > users.id [delete: cascade]
+Ref: accounts.userId > users.id [delete: cascade]
+Ref: schedule.lessonId > lessons.id
+Ref: lessonClassrooms.lessonId > lessons.id
+Ref: employees.userId - users.id      // один-к-одному
+Ref: students.userId - users.id       // один-к-одному

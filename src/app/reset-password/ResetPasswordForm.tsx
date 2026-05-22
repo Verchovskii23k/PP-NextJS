@@ -8,7 +8,7 @@ export default function ResetPasswordForm() {
   const searchParams = useSearchParams();
   const token = searchParams.get("token") || "";
   const [newPassword, setNewPassword] = useState("");
-  const [newEmail, setNewEmail] = useState("");   // ← новое состояние
+  const [newEmail, setNewEmail] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -30,7 +30,7 @@ export default function ResetPasswordForm() {
           resetMut.mutate({
             token,
             newPassword,
-            newEmail: newEmail.trim() || undefined,  // передаём, если заполнено
+            newEmail: newEmail.trim() || undefined,
           });
         }}
       >
@@ -60,6 +60,7 @@ export default function ResetPasswordForm() {
           />
           <button
             type="button"
+            aria-label="Показать пароль"
             onClick={() => setShowPassword(!showPassword)}
             className="absolute right-2 top-1/2 -translate-y-1/2"
           >
@@ -69,6 +70,7 @@ export default function ResetPasswordForm() {
         {error && <p className="mb-3 text-red-500">{error}</p>}
         <button
           type="submit"
+          aria-label="Показать пароль"
           className="w-full rounded bg-primary px-4 py-2 text-white"
           disabled={resetMut.isPending}
         >

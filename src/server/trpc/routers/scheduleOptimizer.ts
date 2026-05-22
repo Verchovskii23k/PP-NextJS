@@ -96,10 +96,11 @@ import {
   employees,
   hourTypeMapping,
 } from "@/db/schema";
-import { eq, inArray, and, asc, gte, isNull, or, SQL } from "drizzle-orm";
+import { eq, inArray, and, asc, gte, isNull, or, SQL, isNotNull } from "drizzle-orm";
 
 type SlotKey = string;
 type ScheduleEntry = typeof sdTable.$inferSelect;
+type StrictScheduleEntry = ScheduleEntry & { weekId: number; dayOfWeekId: number; pairNumberId: number };
 
 interface Occupancy {
   teacherIds: Set<number>;
@@ -109,12 +110,12 @@ interface Occupancy {
 
 interface MergeGroup {
   mergeNum: number;
-  entries: ScheduleEntry[];
+  entries: StrictScheduleEntry[];
   totalStudents: number;
 }
 
 interface   OptimizationContext {
-  entries: ScheduleEntry[];
+  entries: StrictScheduleEntry[];
   slots: { weekId: number; dayId: number; pairId: number }[];
   occupancyBySlot: Map<SlotKey, Occupancy>;
   lessonTeacher: Map<number, number>;
@@ -240,15 +241,15 @@ function computeTotalStudents(
 }
 
 function prepareMergeGroups(
-  entries: ScheduleEntry[],
+  entries: StrictScheduleEntry[],
   unitGroups: Map<string, Set<number>>,
   unitTypeByUnitCode: Map<string, string>,
   studyGroupsMap: Map<number, number>
-): { mergeMap: Map<number, MergeGroup>; individualEntries: ScheduleEntry[] } {
+): { mergeMap: Map<number, MergeGroup>; individualEntries: StrictScheduleEntry[] } {
   const mergeMap = new Map<number, MergeGroup>();
-  const individualEntries: ScheduleEntry[] = [];
+  const individualEntries: StrictScheduleEntry[] = [];
 
-  const tempGroups = new Map<number, ScheduleEntry[]>();
+  const tempGroups = new Map<number, StrictScheduleEntry[]>();
   for (const entry of entries) {
     const mn = entry.mergeNumber ?? 0;
     if (mn !== 0) {
@@ -272,7 +273,7 @@ function prepareMergeGroups(
   return { mergeMap, individualEntries };
 }
 
-async function buildContext(entries: ScheduleEntry[]): Promise<OptimizationContext> {
+async function buildContext(entries: StrictScheduleEntry[]): Promise<OptimizationContext> {
   const allLessons = await db.select().from(lessons);
   const allUnitRoots = await db.select().from(unitRoots);
   const allDays = await db.select().from(daysOfWeek).orderBy(asc(daysOfWeek.id));
@@ -318,7 +319,7 @@ async function buildContext(entries: ScheduleEntry[]): Promise<OptimizationConte
     entries, unitGroups, unitTypeByUnitCode, studyGroupsMap
   );
 
-  const finalEntries: ScheduleEntry[] = [...individualEntries];
+  const finalEntries: StrictScheduleEntry[] = [...individualEntries];
   for (const [, group] of mergeMap) {
     finalEntries.push(...group.entries);
   }
@@ -384,7 +385,7 @@ async function buildContext(entries: ScheduleEntry[]): Promise<OptimizationConte
 
 function canMoveToSlot(
   ctx: OptimizationContext,
-  entry: ScheduleEntry,
+  entry: StrictScheduleEntry,
   weekId: number,
   dayId: number,
   pairId: number
@@ -524,7 +525,7 @@ async function findSuitableClassroomForGroup(
   return candidates[0].id;
 }
 
-function updateOccupancy(ctx: OptimizationContext, entry: ScheduleEntry, oldWeekId: number, oldDay: number, oldPair: number, newWeekId: number, newDay: number, newPair: number) {
+function updateOccupancy(ctx: OptimizationContext, entry: StrictScheduleEntry, oldWeekId: number, oldDay: number, oldPair: number, newWeekId: number, newDay: number, newPair: number) {
   const oldKey = slotKey(oldWeekId, oldDay, oldPair);
   const newKey = slotKey(newWeekId, newDay, newPair);
 
@@ -717,7 +718,7 @@ function forcePlaceGroup(
     return true;
   }
 
-  const moves: { entry: ScheduleEntry; oldSlot: { week: number; day: number; pair: number }; newSlot: { week: number; day: number; pair: number } }[] = [];
+  const moves: { entry: StrictScheduleEntry; oldSlot: { week: number; day: number; pair: number }; newSlot: { week: number; day: number; pair: number } }[] = [];
 
   for (const entry of conflictingEntries) {
     let found = false;
@@ -752,7 +753,13 @@ export async function optimizeSchedule(versionId?: number | null) {
     ? (versionId === null ? isNull(sdTable.versionId) : eq(sdTable.versionId, versionId))
     : isNull(sdTable.versionId);
   const allEntries = await db.select().from(sdTable)
-    .where(and(eq(sdTable.isBuffered, false), versionCondition));
+  .where(and(
+    eq(sdTable.isBuffered, false),
+    isNotNull(sdTable.weekId),
+    isNotNull(sdTable.dayOfWeekId),
+    isNotNull(sdTable.pairNumberId),
+    versionCondition
+  ));
   if (allEntries.length < 2) return {
     iterations: 0,
     initialScore: 0,
@@ -768,7 +775,14 @@ export async function optimizeSchedule(versionId?: number | null) {
     positionBlockedCount: 0,
   };
 
-  const ctx = await buildContext(allEntries);
+  // Гарантируем, что после фильтрации IS NOT NULL координаты не null
+  const safeEntries = allEntries.map(e => ({
+    ...e,
+    weekId: e.weekId!,
+    dayOfWeekId: e.dayOfWeekId!,
+    pairNumberId: e.pairNumberId!,
+  })) as (ScheduleEntry & { weekId: number; dayOfWeekId: number; pairNumberId: number })[];
+  const ctx = await buildContext(safeEntries);
   // Сохраняем исходные слоты для каждого занятия
   const originalSlots = new Map<number, { week: number; day: number; pair: number }>();
   for (const e of ctx.entries) {

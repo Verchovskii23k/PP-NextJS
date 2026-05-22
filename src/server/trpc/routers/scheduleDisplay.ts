@@ -1,4 +1,74 @@
-// src/server/trpc/routers/scheduleDisplay.ts
+/**
+ * ## Роутер `scheduleDisplayRouter`
+ *
+ * Отвечает за всё, что связано с отображением и редактированием расписания.
+ * Предоставляет CRUD-подобные процедуры для таблицы `schedule_display`, а также
+ * специализированные запросы для построения сетки расписания, буфера занятий,
+ * проверки конфликтов при drag‑and‑drop и запуска оптимизатора.
+ *
+ * Все процедуры доступны только администраторам (adminProcedure).
+ *
+ * ---
+ * ### 🔐 Версионирование данных
+ *
+ * Система поддерживает архивные версии расписания.
+ * В зависимости от переданного `versionId` выбирается один из трёх режимов:
+ * - `versionId === undefined` или `null` – **активное расписание** (`isActive = true`, `versionId IS NULL`).
+ * - `versionId` – конкретная архивная версия (`isActive = false`, `versionId = переданному`).
+ *
+ * Это касается не только `scheduleDisplay`, но и связанных таблиц:
+ * `unitRoots`, `lessons`, `lessonClassrooms`.
+ *
+ * Вспомогательные функции `scheduleVersionCondition`, `unitRootsVersionCondition` и т.д.
+ * генерируют нужное условие для SQL-запроса.
+ *
+ * ---
+ * ### 📋 Процедуры (endpoints)
+ *
+ * | Процедура          | Тип      | Описание                                                                                                    |
+ * |--------------------|----------|-------------------------------------------------------------------------------------------------------------|
+ * | `getForWeekPair`   | query    | Возвращает строки расписания, дни, пары и недели для режима "По юнитам".
+ *                                   Фильтрует только активные (не буфер) записи с известными координатами.                                      |
+ * | `getByGroup`       | query    | То же для одной учебной группы (по `studyGroupCode`).                                                       |
+ * | `getByStudyGroups` | query    | Агрегирует расписание сразу по всем группам: для каждой группы 
+ *                                   собирает связанные юниты и их строки. Используется в режиме "По группам".                                   |
+ * | `getBuffer`        | query    | Возвращает все записи, находящиеся в буфере (`isBuffered = true`) для заданной версии.                      |
+ * | `getBufferedCount` | query    | Возвращает количество записей в буфере. Используется для проверки необходимости диалога перед оптимизацией. |
+ * | `moveToBuffer`     | mutation | Перемещает занятие в буфер: устанавливает `isBuffered = true` и **обнуляет координаты** 
+ *                                  (`weekId`, `dayOfWeekId`, `pairNumberId`), чтобы слот освободился и не создавалось дубликатов.               |
+ * | `moveFromBuffer`   | mutation | Возвращает занятие из буфера в указанную ячейку. Проверяет, что запись действительно в буфере, 
+ *                                   и что целевой слот не занят. При успехе снимает флаг `isBuffered`, прописывает новые координаты и 
+ *                                   сбрасывает флаги фиксации.                                                                                  |
+ * | `checkSlots`       | mutation | **Ключевая логика drag‑and‑drop.** Для перетаскиваемого занятия (`movingId`) и массива 
+ *                                   потенциальных слотов возвращает статус каждого слота: `"free"` (свободно), 
+ *                                   `"conflict"` (конфликт) или `"swap"` (можно обменяться с находящимся там занятием). 
+ *                                   Учитывает: группы юнита, преподавателя, аудиторию, дисциплину, а также обратный конфликт при swap. 
+ *                                   Подробнее см. ниже.                                                                                         |
+ * | `move`             | mutation | Прямое перемещение занятия в свободный слот. Сбрасывает флаги фиксации.                                     |
+ * | `swap`             | mutation | Обмен двух записей одного юнита местами (с координатами). Сбрасывает флаги фиксации.                        |
+ * | `updateFlags`      | mutation | Изменяет флаги (`mergeNumber`, `positionFlag`, `classroomFlag`) у конкретной записи.                        |
+ * | `optimizeSchedule` | mutation | Запускает оптимизатор расписания. Если передан `includeBuffered: true`, предварительно снимает флаг
+ *                                   буфера и сбрасывает все ограничивающие флаги у всех записей в буфере, чтобы они могли быть
+ *                                   переставлены оптимизатором.                                                                                 |
+ * | `resetFlags`       | mutation | Массовый сброс выбранных флагов (позиции, аудитории, слияния) у всех активных не-буферных записей.          |
+ *
+ * ---
+ * ### 🧠 Логика проверки конфликтов в `checkSlots`
+ *
+ * Алгоритм для каждого слота:
+ * 1. Если слот совпадает с исходной позицией перемещаемого занятия (и оно не в буфере) – сразу `"free"`.
+ * 2. Загружаются все не-буферные записи в этом слоте.
+ * 3. Выделяются:
+ *    - `sameUnitEntry` – запись с тем же `unitCode`, что и у перетаскиваемого.
+ *    - `differentUnitEntries` – записи с другими `unitCode`.
+ * 4. **Прямой конфликт** проверяется только для `differentUnitEntries`: если хоть одна из них имеет общие группы с перемещаемым занятием, или того же преподавателя, или ту же аудиторию – статус `"conflict"`.
+ * 5. Если есть `sameUnitEntry` и перемещаемое занятие **не из буфера**:
+ *    - Сравниваются преподаватель, аудитория и дисциплина перемещаемого и найденного. Если все три совпадают – `"conflict"`.
+ *    - Иначе вычисляется `oldSlot` (откуда тянут). Для всех оставшихся записей в исходном слоте проверяется **обратный конфликт**: не будут ли они конфликтовать с `sameUnitEntry`, если тот переместится в исходный слот. Если конфликт есть – `"conflict"`, иначе `"swap"` (с указанием `swapId`).
+ * 6. Если `sameUnitEntry` нет – `"free"`.
+ *
+ * Эта логика гарантирует, что DnD не допустит двойного бронирования и предложит обмен там, где это возможно.
+ */
 import { z } from "zod";
 import { router, adminProcedure } from "../trpc";
 import {
@@ -11,7 +81,7 @@ import {
   lessons,
   lessonClassrooms,
 } from "@/db/schema";
-import { eq, inArray, asc, and, isNull } from "drizzle-orm";
+import { eq, inArray, asc, and, isNull, isNotNull } from "drizzle-orm";
 import { optimizeSchedule } from "./scheduleOptimizer";
 import { TRPCError } from "@trpc/server";
 
@@ -105,13 +175,13 @@ export const scheduleDisplayRouter = router({
       const rows = await ctx.db
         .select()
         .from(scheduleDisplay)
-        .where(and(eq(scheduleDisplay.isBuffered, false), versionCond))
-        .orderBy(
-          asc(scheduleDisplay.weekId),
-          asc(scheduleDisplay.dayOfWeekId),
-          asc(scheduleDisplay.pairNumberId),
-          asc(scheduleDisplay.unitCode)
-        );
+        .where(and(
+          eq(scheduleDisplay.isBuffered, false),
+          isNotNull(scheduleDisplay.weekId),
+          isNotNull(scheduleDisplay.dayOfWeekId),
+          isNotNull(scheduleDisplay.pairNumberId),
+          versionCond
+        ))
 
       const days = await ctx.db
         .select()
@@ -162,13 +232,14 @@ export const scheduleDisplayRouter = router({
       const rows = await ctx.db
         .select()
         .from(scheduleDisplay)
-        .where(
-          and(
-            inArray(scheduleDisplay.unitCode, unitCodes),
-            eq(scheduleDisplay.isBuffered, false),
-            versionCond
-          )
-        )
+        .where(and(
+          inArray(scheduleDisplay.unitCode, unitCodes),
+          eq(scheduleDisplay.isBuffered, false),
+          isNotNull(scheduleDisplay.weekId),
+          isNotNull(scheduleDisplay.dayOfWeekId),
+          isNotNull(scheduleDisplay.pairNumberId),
+          versionCond
+        ))
         .orderBy(
           asc(scheduleDisplay.weekId),
           asc(scheduleDisplay.dayOfWeekId),
@@ -219,7 +290,14 @@ export const scheduleDisplayRouter = router({
           scheduleDisplay,
           eq(unitRoots.unitCode, scheduleDisplay.unitCode)
         )
-        .where(and(eq(scheduleDisplay.isBuffered, false), versionCond, unitRootsCond));
+        .where(and(
+          eq(scheduleDisplay.isBuffered, false),
+          isNotNull(scheduleDisplay.weekId),
+          isNotNull(scheduleDisplay.dayOfWeekId),
+          isNotNull(scheduleDisplay.pairNumberId),
+          versionCond,
+          unitRootsCond
+        ))
 
       const groupUnitMap = new Map<string, Set<string>>();
       for (const { studyGroupCode, unitCode } of roots) {
@@ -252,13 +330,14 @@ export const scheduleDisplayRouter = router({
             isBuffered: scheduleDisplay.isBuffered,
           })
           .from(scheduleDisplay)
-          .where(
-            and(
-              inArray(scheduleDisplay.unitCode, unitList),
-              eq(scheduleDisplay.isBuffered, false),
-              versionCond
-            )
-          );
+          .where(and(
+            inArray(scheduleDisplay.unitCode, unitList),
+            eq(scheduleDisplay.isBuffered, false),
+            isNotNull(scheduleDisplay.weekId),
+            isNotNull(scheduleDisplay.dayOfWeekId),
+            isNotNull(scheduleDisplay.pairNumberId),
+            versionCond
+          ))
 
         for (const row of groupRows) {
           allRows.push({
@@ -270,9 +349,9 @@ export const scheduleDisplayRouter = router({
 
       allRows.sort(
         (a, b) =>
-          a.weekId - b.weekId ||
-          a.dayOfWeekId - b.dayOfWeekId ||
-          a.pairNumberId - b.pairNumberId ||
+          a.weekId! - b.weekId! ||
+          a.dayOfWeekId! - b.dayOfWeekId! ||
+          a.pairNumberId! - b.pairNumberId! ||
           a.studyGroupCode.localeCompare(b.studyGroupCode)
       );
 
@@ -302,19 +381,28 @@ export const scheduleDisplayRouter = router({
         .where(and(eq(scheduleDisplay.isBuffered, true), versionCond))
         .orderBy(asc(scheduleDisplay.id));
     }),
-
+  getBufferedCount: adminProcedure
+    .input(z.object({ versionId: z.number().nullable().optional() }))
+    .query(async ({ ctx, input }) => {
+      const versionCond = scheduleVersionCondition(input.versionId);
+      const rows = await ctx.db
+        .select()
+        .from(scheduleDisplay)
+        .where(and(eq(scheduleDisplay.isBuffered, true), versionCond));
+      return { count: rows.length };
+    }),
   moveToBuffer: adminProcedure
-    .input(
-      z.object({
-        id: z.number(),
-        versionId: z.number().nullable().optional(),
-      })
-    )
+    .input(z.object({ id: z.number(), versionId: z.number().nullable().optional() }))
     .mutation(async ({ ctx, input }) => {
       const versionCond = scheduleVersionCondition(input.versionId);
       await ctx.db
         .update(scheduleDisplay)
-        .set({ isBuffered: true })
+        .set({
+          isBuffered: true,
+          weekId: null,
+          dayOfWeekId: null,
+          pairNumberId: null,
+        })
         .where(and(eq(scheduleDisplay.id, input.id), versionCond));
       return { success: true };
     }),
@@ -452,6 +540,17 @@ export const scheduleDisplayRouter = router({
 
       for (const slot of input.slots) {
         const key = `week-${slot.weekId}-${slot.dayId}-${slot.pairId}-${slot.unitCode}`;
+        // Если это исходная позиция перемещаемого занятия – всегда "free"
+        if (
+          !m.isBuffered &&
+          m.weekId === slot.weekId &&
+          m.dayOfWeekId === slot.dayId &&
+          m.pairNumberId === slot.pairId &&
+          m.unitCode === slot.unitCode
+        ) {
+          results[key] = { status: "free" };
+          continue;
+        }
 
         const allInSlot = await ctx.db
           .select()
@@ -604,9 +703,9 @@ export const scheduleDisplayRouter = router({
               .from(scheduleDisplay)
               .where(
                 and(
-                  eq(scheduleDisplay.weekId, oldSlot.weekId),
-                  eq(scheduleDisplay.dayOfWeekId, oldSlot.dayId),
-                  eq(scheduleDisplay.pairNumberId, oldSlot.pairId),
+                  eq(scheduleDisplay.weekId, oldSlot.weekId!),
+                  eq(scheduleDisplay.dayOfWeekId, oldSlot.dayId!),
+                  eq(scheduleDisplay.pairNumberId, oldSlot.pairId!),
                   eq(scheduleDisplay.isBuffered, false),
                   versionCond
                 )
@@ -815,8 +914,24 @@ export const scheduleDisplayRouter = router({
     }),
 
   optimizeSchedule: adminProcedure
-    .input(z.object({ versionId: z.number().nullable().optional() }))
-    .mutation(async ({ input }) => {
+    .input(z.object({
+      versionId: z.number().nullable().optional(),
+      includeBuffered: z.boolean().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      if (input.includeBuffered) {
+        const versionCond = scheduleVersionCondition(input.versionId);
+        // Снимаем буфер и сбрасываем все флаги, которые мешают перемещению
+        await ctx.db
+          .update(scheduleDisplay)
+          .set({
+            isBuffered: false,
+            positionFlag: false,
+            mergeNumber: 0,
+            classroomFlag: false,
+          })
+          .where(and(eq(scheduleDisplay.isBuffered, true), versionCond));
+      }
       return await optimizeSchedule(input.versionId);
     }),
     resetFlags: adminProcedure

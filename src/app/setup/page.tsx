@@ -10,7 +10,7 @@ export default function SetupPage() {
     name: "",
     patronymic: "",
     phone: "",
-    email: "",          // теперь обязательный email
+    email: "",
     password: "",
   });
   const [showPassword, setShowPassword] = useState(false);

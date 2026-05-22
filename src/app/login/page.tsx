@@ -23,7 +23,6 @@ export default function LoginPage() {
       setLoading(false);
       return;
     }
-    // Просто уходим на главную – она сама разберётся по роли
     router.push('/');
   };
 

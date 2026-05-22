@@ -30,7 +30,7 @@ export function TRPCProvider({ children }: { children: React.ReactNode }) {
             return fetch(url, {
               ...options,
               credentials: "include",
-              signal: options?.signal ?? null,   // ← убираем undefined
+              signal: options?.signal ?? null,
             });
           },
         }),

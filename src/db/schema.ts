@@ -20,7 +20,7 @@ export const users = pgTable("user", {
   email: text("email").notNull().unique(),
   emailVerified: boolean("emailVerified").default(false),
   image: text("image"),
-  role: roleEnum("role").notNull().default('student'),   // кастомное поле
+  role: roleEnum("role").notNull().default('student'),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
   hashedPassword: text("hashed_password"),
@@ -350,9 +350,9 @@ export const schedule = pgTable("schedule", {
 export const scheduleDisplay = pgTable("schedule_display", {
   id: serial("id").primaryKey(),
   lessonId: integer("lesson_id").references(() => lessons.id, { onDelete: "set null" }),
-  weekId: integer("week_number").notNull().references(() => weeks.id),
-  dayOfWeekId: integer("day_of_week_id").notNull().references(() => daysOfWeek.id),
-  pairNumberId: integer("pair_number_id").notNull().references(() => pairs.id),
+  weekId: integer("week_number").references(() => weeks.id),
+  dayOfWeekId: integer("day_of_week_id").references(() => daysOfWeek.id),
+  pairNumberId: integer("pair_number_id").references(() => pairs.id),
   unitCode: text("unit_code").notNull(),
   displayText: text("display_text").notNull(),
   mergeNumber: integer("merge_number").default(0),

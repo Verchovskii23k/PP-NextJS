@@ -1,10 +1,10 @@
 # 📅 Информационная система для учета и составления расписания университета
 
-Данный проект представляет собой реализацию системы для полностью автоматического составления расписания без конфликтов занятий.
+Данный проект представляет собой реализацию системы для создания расписания с минимизацйией конфликтов и максимально возможно близкое к оптимальному. Широкий функционал для настройки должен помочь довести сырой вариант расписания до идеала.
 
 Система позволяет вести справочники, генерировать учебные группы, юниты, занятия, назначать аудитории, автоматически генерировать расписание жадным алгоритмом и редактировать его вручную через drag‑and‑drop интерфейс с последующей оптимизацией.
 
-Данное приложение не позволяет зарегистрироваться в систему извне, кроме самого первого сотрудника (администратора ИС). Дальнейший вход производится только по логину и паролю. Предусмотрено восстановление доступа по email.
+Данное приложение не позволяет зарегистрироваться в систему извне, кроме самого первого сотрудника (администратора ИС). Дальнейший вход производится только по логину и паролю. Предусмотрено восстановление доступа (сброс пароля) по email.
 
 ## 🧰 Технологический стек
 
@@ -362,9 +362,460 @@ src
 └── vitest.config.mts                                                    # Конфигурация Vitest (unit-тесты, окружение)
 ```
 
-### 11. 🔑 Аутентификация и безопасность
-* Вход осуществляется по логину и паролю (не по email). Email может быть указан у сотрудника/студента и используется только для восстановления пароля.
+### 11. 🗄️ Схема базы данных
+Вы можете ознакомиться со структурой базы данных по этой схеме:
 
+```mermaid
+erDiagram
+  users {
+    text id PK
+    text name
+    text email UK
+    boolean emailVerified
+    text image
+    role role
+    timestamp createdAt
+    timestamp updatedAt
+    text hashedPassword
+  }
+
+  sessions {
+    text id PK
+    text userId FK
+    text token UK
+    timestamp expiresAt
+    text ipAddress
+    text userAgent
+    timestamp createdAt
+    timestamp updatedAt
+  }
+
+  accounts {
+    text id PK
+    text userId FK
+    text providerId
+    text accountId
+    text refreshToken
+    text accessToken
+    timestamp expiresAt
+    text password
+    timestamp createdAt
+    timestamp updatedAt
+  }
+  note for accounts "UNIQUE(providerId, accountId)"
+
+  verificationTokens {
+    text id PK
+    text identifier
+    text token UK
+    timestamp expires
+    timestamp createdAt
+  }
+
+  scheduleVersions {
+    serial id PK
+    text name
+    timestamp created_at
+  }
+
+  institutes {
+    serial id PK
+    integer university_code UK
+    text name
+    integer director_id FK
+    boolean is_active
+  }
+
+  buildings {
+    serial id PK
+    integer number UK
+    boolean is_active
+  }
+
+  unitTypes {
+    serial id PK
+    text name UK
+    integer max_size
+    integer priority_lecture
+    integer priority_workshop
+    integer priority_guided_study
+    integer priority_lab
+    boolean is_active
+  }
+
+  lessonTypes {
+    serial id PK
+    text name UK
+    text abbreviation UK
+    boolean is_active
+  }
+
+  hourTypeMapping {
+    serial id PK
+    text plan_hour_column UK
+    text priority_column
+    integer lesson_type_id FK
+    boolean is_active
+  }
+
+  departments {
+    serial id PK
+    text name
+    text abbreviation UK
+    integer institute_id FK
+    integer department_code UK
+    integer head_id FK
+    boolean is_active
+  }
+
+  specialties {
+    serial id PK
+    text code UK
+    text name
+    integer department_id FK
+    boolean is_active
+  }
+
+  profiles {
+    serial id PK
+    text name
+    integer specialty_id FK
+    text letter_code
+    integer education_id FK
+    boolean is_active
+  }
+  note for profiles "UNIQUE(letter_code, specialty_id)"
+
+  disciplines {
+    serial id PK
+    text name
+    text abbreviation
+    integer department_id FK
+    boolean is_active
+  }
+
+  employees {
+    serial id PK
+    text surname
+    text name
+    text patronymic
+    text user_id UK
+    boolean is_active
+    boolean is_admin
+  }
+
+  studyGroups {
+    serial id PK
+    text code UK
+    integer profile_id FK
+    integer course
+    integer student_count
+    integer curator_id FK
+    boolean is_active
+  }
+
+  students {
+    serial id PK
+    text surname
+    text name
+    text patronymic
+    integer admission_year
+    integer profile_id FK
+    integer study_group_id FK
+    integer course
+    text user_id UK
+    boolean is_active
+  }
+
+  educationLevels {
+    serial id PK
+    text name UK
+    text abbreviation
+    boolean is_active
+  }
+
+  educationForms {
+    serial id PK
+    text name UK
+    text abbreviation
+    boolean is_active
+  }
+
+  education {
+    serial id PK
+    integer level_id FK
+    integer form_id FK
+    integer duration_months
+    boolean is_active
+  }
+  note for education "UNIQUE(level_id, form_id)"
+
+  academicLoadTypes {
+    serial id PK
+    text name
+    text abbreviation
+    boolean is_active
+  }
+
+  controlTypes {
+    serial id PK
+    text name
+    text abbreviation
+    boolean is_active
+  }
+
+  curriculum {
+    serial id PK
+    integer course
+    integer semester
+    integer discipline_id FK
+    integer hours_lecture
+    integer hours_guided_study
+    integer hours_workshop
+    integer hours_lab
+    integer additional_task_id FK
+    integer control_type_id FK
+    boolean is_active
+  }
+
+  curriculumProfiles {
+    serial id PK
+    integer curriculum_id FK
+    integer profile_id FK
+    boolean is_active
+  }
+  note for curriculumProfiles "UNIQUE(curriculum_id, profile_id)"
+
+  employeesDepartments {
+    serial id PK
+    integer employee_id FK
+    integer department_id FK
+    integer employment_type_id FK
+    integer position_id FK
+    boolean is_active
+  }
+  note for employeesDepartments "UNIQUE(employee_id, department_id)"
+
+  disciplineTeachers {
+    serial id PK
+    integer lesson_type_id FK
+    integer discipline_id FK
+    integer teacher_department_id FK
+    boolean is_active
+  }
+
+  classrooms {
+    serial id PK
+    integer building_id FK
+    text room_number
+    integer capacity
+    integer department_id FK
+    integer priority_lecture
+    integer priority_workshop
+    integer priority_guided_study
+    integer priority_lab
+    integer usage_metric
+    boolean is_active
+  }
+
+  units {
+    serial id PK
+    text code
+    integer unit_type_id FK
+    integer version_id FK
+    boolean is_active
+  }
+  note for units "Частичный уникальный индекс на (code) WHERE is_active = true"
+
+  unitRoots {
+    serial id PK
+    text unit_code
+    integer study_group_id FK
+    integer version_id FK
+    boolean is_active
+  }
+  note for unitRoots "Частичный уникальный индекс на (unit_code, study_group_id) WHERE is_active = true"
+
+  lessons {
+    serial id PK
+    integer curriculum_id FK
+    integer unit_id FK
+    integer lesson_type_id FK
+    integer discipline_id FK
+    integer teacher_id FK
+    integer count_per_semester
+    integer version_id FK
+    boolean is_active
+  }
+
+  lessonClassrooms {
+    serial id PK
+    integer lesson_id FK
+    integer classroom_id FK
+    integer version_id FK
+    boolean is_active
+  }
+  note for lessonClassrooms "UNIQUE(lesson_id, classroom_id)"
+
+  daysOfWeek {
+    serial id PK
+    text name
+    boolean is_active
+  }
+
+  pairs {
+    serial id PK
+    integer number
+    boolean is_active
+  }
+
+  weeks {
+    serial id PK
+    text type
+    boolean is_active
+  }
+
+  schedule {
+    serial id PK
+    integer week_id FK
+    integer day_of_week_id FK
+    integer pair_number_id FK
+    integer lesson_id FK
+    integer classroom_id FK
+    integer merge_flag
+    integer position_flag
+    integer classroom_flag
+    integer version_id FK
+    boolean is_active
+  }
+
+  scheduleDisplay {
+    serial id PK
+    integer lesson_id FK
+    integer week_id FK
+    integer day_of_week_id FK
+    integer pair_number_id FK
+    text unit_code
+    text display_text
+    integer merge_number
+    boolean position_flag
+    boolean classroom_flag
+    integer classroom_id FK
+    boolean is_buffered
+    integer version_id FK
+    boolean is_active
+  }
+
+  settings {
+    serial id PK
+    text key UK
+    text value
+    timestamp created_at
+    timestamp updated_at
+  }
+
+  positions {
+    serial id PK
+    text name UK
+    text abbreviation
+    boolean is_active
+  }
+
+  employmentTypes {
+    serial id PK
+    text name UK
+    text abbreviation
+    boolean is_active
+  }
+
+  %% связи
+  users ||--o{ sessions : userId
+  users ||--o{ accounts : userId
+  users ||--|| employees : user_id
+  users ||--|| students : user_id
+  scheduleVersions ||--o{ units : version_id
+  scheduleVersions ||--o{ unitRoots : version_id
+  scheduleVersions ||--o{ lessons : version_id
+  scheduleVersions ||--o{ lessonClassrooms : version_id
+  scheduleVersions ||--o{ schedule : version_id
+  scheduleVersions ||--o{ scheduleDisplay : version_id
+  institutes }o--|| employees : director_id
+  institutes ||--o{ departments : institute_id
+  buildings ||--o{ classrooms : building_id
+  unitTypes ||--o{ units : unit_type_id
+  lessonTypes ||--o{ hourTypeMapping : lesson_type_id
+  lessonTypes ||--o{ lessons : lesson_type_id
+  lessonTypes ||--o{ disciplineTeachers : lesson_type_id
+  departments }o--|| institutes : institute_id
+  departments }o--|| employees : head_id
+  departments ||--o{ specialties : department_id
+  departments ||--o{ disciplines : department_id
+  departments ||--o{ employeesDepartments : department_id
+  departments ||--o{ classrooms : department_id
+  specialties ||--o{ profiles : specialty_id
+  profiles }o--|| specialties : specialty_id
+  profiles }o--|| education : education_id
+  profiles ||--o{ studyGroups : profile_id
+  profiles ||--o{ students : profile_id
+  profiles ||--o{ curriculumProfiles : profile_id
+  disciplines ||--o{ curriculum : discipline_id
+  disciplines ||--o{ disciplineTeachers : discipline_id
+  employees ||--o{ studyGroups : curator_id
+  employees ||--o{ employeesDepartments : employee_id
+  studyGroups ||--o{ students : study_group_id
+  studyGroups ||--o{ unitRoots : study_group_id
+  educationLevels ||--o{ education : level_id
+  educationForms ||--o{ education : form_id
+  education ||--o{ profiles : education_id
+  curriculum }o--|| disciplines : discipline_id
+  curriculum }o--|| academicLoadTypes : additional_task_id
+  curriculum }o--|| controlTypes : control_type_id
+  curriculum ||--o{ curriculumProfiles : curriculum_id
+  curriculum ||--o{ lessons : curriculum_id
+  curriculumProfiles }o--|| curriculum : curriculum_id
+  curriculumProfiles }o--|| profiles : profile_id
+  employeesDepartments ||--o{ disciplineTeachers : teacher_department_id
+  employeesDepartments }o--|| employees : employee_id
+  employeesDepartments }o--|| departments : department_id
+  employeesDepartments }o--|| employmentTypes : employment_type_id
+  employeesDepartments }o--|| positions : position_id
+  disciplineTeachers }o--|| lessonTypes : lesson_type_id
+  disciplineTeachers }o--|| disciplines : discipline_id
+  disciplineTeachers }o--|| employeesDepartments : teacher_department_id
+  classrooms }o--|| buildings : building_id
+  classrooms }o--|| departments : department_id
+  units }o--|| unitTypes : unit_type_id
+  units }o--|| scheduleVersions : version_id
+  unitRoots }o--|| studyGroups : study_group_id
+  unitRoots }o--|| units : "unit_code -> code (не FK)"
+  lessons }o--|| curriculum : curriculum_id
+  lessons }o--|| units : unit_id
+  lessons }o--|| lessonTypes : lesson_type_id
+  lessons }o--|| disciplines : discipline_id
+  lessons }o--|| employeesDepartments : teacher_id
+  lessons }o--|| scheduleVersions : version_id
+  lessonClassrooms ||--o| lessons : lesson_id
+  lessonClassrooms ||--o| classrooms : classroom_id
+  schedule }o--|| weeks : week_id
+  schedule }o--|| daysOfWeek : day_of_week_id
+  schedule }o--|| pairs : pair_number_id
+  schedule }o--|| lessons : lesson_id
+  schedule }o--|| classrooms : classroom_id
+  schedule }o--|| scheduleVersions : version_id
+  scheduleDisplay }o--|| lessons : lesson_id
+  scheduleDisplay }o--|| weeks : week_id
+  scheduleDisplay }o--|| daysOfWeek : day_of_week_id
+  scheduleDisplay }o--|| pairs : pair_number_id
+  scheduleDisplay }o--|| classrooms : classroom_id
+  scheduleDisplay }o--|| scheduleVersions : version_id
+```
+или по этой ссылке: [![Схема базы данных](https://dbdiagram.io/d/PP-NextJS-6a107420dfb20dafcdd05b8a/export/png)](https://dbdiagram.io/d/PP-NextJS-6a107420dfb20dafcdd05b8a).
+
+
+### 12. 🔑 Аутентификация и безопасность
+* Вход осуществляется по логину и паролю (логином является почта). Такой подход позволяет централизованно хранить и проверять логины на уникальность.
+* Первичная регистрация доступна только в том случае, если в базе нет ни одной записи для аутентификации с ролью ```admin```. Если есть хотя бы одна такая запись - регистрация будет недоступна. Это сделано осознанно дабы исключить несанкционированный доступ в систему. Другие пользователи могут попасть в систему только после того как администратор физически добавит пользователя в базу и сгенерирует для него логин и пароль. 
+* При генерации логина используется несуществующий домен что исключает дублирование с реальными почтовыми адресами. После входа в свой аккаунт пользователь может сменить сгенерированный логин на любой по своему усмотрению (пока доступно только для пользователя с ролью администратор).
 * Все административные процедуры защищены через adminProcedure.
 
 * Пароли хэшируются с помощью bcryptjs.
@@ -373,10 +824,10 @@ src
 
 * При попытке удалить запись, на которую ссылаются другие таблицы, пользователь видит тост с понятным сообщением.
 
-### 12. Инструкция пользователя ИС
+### 13. Инструкция пользователя ИС
 На панели администратора мы можете найти ознакомиться с инструкцией пользователя ИС, где описаны возможные действия с интерфейсом.
 
-### 13. 🩺 Возможные проблемы и их решение
+### 14. 🩺 Возможные проблемы и их решение
 * Ошибка подключения к БД – проверьте DATABASE_URL и доступность PostgreSQL.
 
 * Письма не отправляются – убедитесь, что Mailpit запущен и адрес [http://localhost:8025](http://localhost:8025) доступен. Для продакшена настройте реальный SMTP.

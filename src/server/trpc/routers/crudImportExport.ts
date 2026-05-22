@@ -1,4 +1,39 @@
-// src/server/trpc/routers/crudImportExport.ts
+/**
+ * @module crudImportExportRouter
+ * @description Роутер для импорта и экспорта данных справочных таблиц.
+ *
+ * Позволяет администратору выгружать любую таблицу из `tablesMeta` в виде JSON
+ * и загружать обратно с проверкой существования записей, валидацией полей
+ * и последующим INSERT или UPDATE.
+ *
+ * Процедуры:
+ * - `exportAll` – экспорт таблицы.
+ * - `importData` – импорт данных с детальным отчётом.
+ * Экспортирует все строки указанной таблицы в виде массива объектов.
+ *
+ * @param {object} input - Входные параметры.
+ * @param {string} input.tableName - Имя таблицы из `tablesMeta`.
+ * @returns {Promise<unknown[]>} Массив строк таблицы.
+ * @throws {TRPCError} Если `tableName` отсутствует в `ALLOWED_TABLES` (проверка через Zod).
+ * Импортирует данные в указанную таблицу.
+ *
+ * Алгоритм для каждой строки:
+ * 1. Приводит ключи к snake_case.
+ * 2. Проверяет обязательные поля (определены в `tablesMeta[tableName].fields`).
+ * 3. Если запись с таким `id` отсутствует – выполняет INSERT.
+ * 4. Если запись существует и данные отличаются – UPDATE, иначе пропускает.
+ *
+ * @param {object} input - Входные параметры.
+ * @param {string} input.tableName - Имя таблицы (должно быть в `ALLOWED_TABLES`).
+ * @param {unknown[]} input.data - Массив объектов для импорта.
+ * @returns {Promise<{
+ *   total: number,
+ *   inserted: number,
+ *   updated: number,
+ *   skipped: number,
+ *   errors: string[]
+ * }>} Статистика импорта: общее количество, сколько вставлено, обновлено, пропущено, а также список ошибок с описанием.
+ */
 import { z } from "zod";
 import { router, adminProcedure } from "../trpc";
 import { sql } from "drizzle-orm";
