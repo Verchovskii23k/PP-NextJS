@@ -59,7 +59,7 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   const cancelRef = useRef<HTMLButtonElement>(null);
 
-  // Закрытие по Escape
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && open) {
@@ -70,7 +70,7 @@ export function ConfirmDialog({
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [open, onOpenChange]);
 
-  // Фокус на кнопке отмены при открытии
+
   useEffect(() => {
     if (open) {
       cancelRef.current?.focus();

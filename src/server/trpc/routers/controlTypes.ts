@@ -49,5 +49,5 @@ export const controlTypesRouter = router({
     }),
   delete: adminProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => safeDelete(controlTypes, input.id)),
+    .mutation(async ({ input }) => safeDelete(controlTypes, input.id, "controlTypes")),
 });

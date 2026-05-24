@@ -1,4 +1,3 @@
-// src/server/trpc/routers/__tests__/unitTypes.test.ts
 import { beforeAll, describe, expect, it } from 'vitest';
 import { createTestCaller } from '@/test/trpc';
 import { clearAllTestData } from '@/test/helpers';
@@ -149,7 +148,7 @@ describe('unitTypes CRUD', () => {
     // Теперь все поля обязательны при обновлении
     await caller.unitTypes.update({
       id: typeId,
-      name: 'Тестовый тип', // имя остаётся прежним
+      name: 'Тестовый тип',
       maxSize: 64,
       priorityLecture: 1,
       priorityWorkshop: 2,

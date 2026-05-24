@@ -1,4 +1,3 @@
-// src/server/trpc/routers/__tests__/generators-logic.test.ts
 import { describe, it, expect, beforeEach } from "vitest";
 import { db } from "@/db";
 import {

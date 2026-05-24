@@ -11,6 +11,7 @@ export const profilesRouter = router({
       .select({
         id: profiles.id,
         name: profiles.name,
+        abbreviation: profiles.abbreviation,
         specialtyId: profiles.specialtyId,
         letterCode: profiles.letterCode,
         educationId: profiles.educationId,
@@ -32,6 +33,7 @@ export const profilesRouter = router({
         .select({
           id: profiles.id,
           name: profiles.name,
+          abbreviation: profiles.abbreviation,
           specialtyId: profiles.specialtyId,
           letterCode: profiles.letterCode,
           educationId: profiles.educationId,
@@ -51,6 +53,7 @@ export const profilesRouter = router({
   create: adminProcedure
     .input(z.object({
       name: z.string().min(1),
+      abbreviation: z.string().min(1),
       specialtyId: z.coerce.number().int(),
       letterCode: z.string().min(1),
       educationId: z.coerce.number().int().nullable().optional(),
@@ -70,6 +73,7 @@ export const profilesRouter = router({
     .input(z.object({
       id: z.number(),
       name: z.string().min(1).optional(),
+      abbreviation: z.string().min(1).optional(),
       specialtyId: z.coerce.number().int().optional(),
       letterCode: z.string().optional(),
       educationId: z.coerce.number().int().nullable().optional(),
@@ -93,5 +97,5 @@ export const profilesRouter = router({
     }),
   delete: adminProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => safeDelete(profiles, input.id)),
+    .mutation(async ({ input }) => safeDelete(profiles, input.id, "profiles")),
 });

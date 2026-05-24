@@ -134,12 +134,12 @@ export const departmentsRouter = router({
       }
 
       if (isActive === false) {
-        // Каскадное отключение остаётся (специальности, дисциплины и т.д. – в исходном коде)
+
       }
 
       return ctx.db.update(departments).set({ ...data, headId, isActive }).where(eq(departments.id, id)).returning();
     }),
   delete: adminProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => safeDelete(departments, input.id)),
+    .mutation(async ({ input }) => safeDelete(departments, input.id, "departments")),
 });

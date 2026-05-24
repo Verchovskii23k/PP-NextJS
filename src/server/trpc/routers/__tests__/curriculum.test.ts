@@ -1,4 +1,3 @@
-// src/server/trpc/routers/__tests__/curriculum.test.ts
 import { beforeAll, describe, expect, it } from 'vitest';
 import { createTestCaller } from '@/test/trpc';
 import { clearAllTestData, createTestInstitute, createTestDepartment, createTestDiscipline } from '@/test/helpers';

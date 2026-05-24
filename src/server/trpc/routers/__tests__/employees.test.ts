@@ -1,4 +1,3 @@
-// src/server/trpc/routers/__tests__/employees.test.ts
 import { beforeAll, describe, expect, it } from 'vitest';
 import { createTestCaller } from '@/test/trpc';
 import {
@@ -79,7 +78,7 @@ describe('employees CRUD', () => {
   });
 
   it('should filter list by instituteId', async () => {
-    const list = await caller.employees.list({ instituteId: 1 }); // id нашего института
+    const list = await caller.employees.list({ instituteId: 1 });
     expect(list.some(e => e.id === empId)).toBe(true);
   });
 

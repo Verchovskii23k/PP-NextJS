@@ -47,5 +47,5 @@ export const daysOfWeekRouter = router({
     }),
   delete: adminProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => safeDelete(daysOfWeek, input.id)),
+    .mutation(async ({ input }) => safeDelete(daysOfWeek, input.id, "daysOfWeek")),
 });

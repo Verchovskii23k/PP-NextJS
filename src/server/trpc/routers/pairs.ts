@@ -15,7 +15,7 @@ export const pairsRouter = router({
     }),
   create: adminProcedure
     .input(z.object({
-      number: z.number().int().positive(),
+      number: z.coerce.number().int().positive(),
       isActive: z.boolean().default(true),
     }))
     .mutation(async ({ ctx, input }) => {
@@ -30,7 +30,7 @@ export const pairsRouter = router({
   update: adminProcedure
     .input(z.object({
       id: z.number(),
-      number: z.number().int().positive().optional(),
+      number: z.coerce.number().int().positive().optional(),
       isActive: z.boolean().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
@@ -47,5 +47,5 @@ export const pairsRouter = router({
     }),
   delete: adminProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => safeDelete(pairs, input.id)),
+    .mutation(async ({ input }) => safeDelete(pairs, input.id, "pairs")),
 });

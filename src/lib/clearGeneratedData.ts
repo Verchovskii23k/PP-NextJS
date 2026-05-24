@@ -56,7 +56,6 @@ export async function clearGeneratedData() {
       .set({ isActive: false })
       .where(eq(studyGroups.isActive, true));
 
-    // Сброс метрик аудиторий после удаления всех активных связей
     await tx.update(classrooms)
       .set({ usageMetric: 0 })
       .where(eq(classrooms.isActive, true));

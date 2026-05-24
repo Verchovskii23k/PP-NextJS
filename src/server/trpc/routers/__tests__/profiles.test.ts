@@ -1,4 +1,3 @@
-// src/server/trpc/routers/__tests__/profiles.test.ts
 import { beforeAll, describe, expect, it } from 'vitest';
 import { createTestCaller } from '@/test/trpc';
 import {
@@ -37,6 +36,7 @@ describe('profiles CRUD', () => {
       specialtyId,
       letterCode: 'т',
       educationId,
+      abbreviation: 'ТЕСТ',
     });
     expect(row).toHaveProperty('id');
     profileId = row.id;
@@ -48,6 +48,7 @@ describe('profiles CRUD', () => {
         name: 'Другой',
         specialtyId,
         letterCode: 'т',
+        abbreviation: 'ТЕСТ1',
       })
     ).rejects.toThrow(TRPCError);
     try {
@@ -55,6 +56,7 @@ describe('profiles CRUD', () => {
         name: 'Другой',
         specialtyId,
         letterCode: 'т',
+        abbreviation: 'ТЕСТ2',
       });
     } catch (e) {
       expect(e).toBeInstanceOf(TRPCError);
@@ -71,6 +73,7 @@ describe('profiles CRUD', () => {
         name: '',
         specialtyId,
         letterCode: 'а',
+        abbreviation: 'ТЕСТ1',
       })
     ).rejects.toThrow();
     await expect(
@@ -78,6 +81,7 @@ describe('profiles CRUD', () => {
         name: 'Имя',
         specialtyId,
         letterCode: '',
+        abbreviation: 'ТЕСТ2',
       })
     ).rejects.toThrow();
   });
@@ -120,6 +124,7 @@ describe('profiles CRUD', () => {
       name: 'Второй',
       specialtyId,
       letterCode: 'к',
+      abbreviation: 'ТЕСТ1',
     });
     secondProfileId = row2.id;
 
@@ -166,6 +171,7 @@ describe('profiles CRUD', () => {
       name: 'Связанный профиль',
       specialtyId,
       letterCode: 'с',
+      abbreviation: 'ТЕСТ2',
     });
     await db.insert(students).values({
       surname: 'Иванов',

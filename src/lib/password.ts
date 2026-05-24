@@ -1,16 +1,15 @@
 /**
- * Генерирует случайный пароль из 8 символов:
- * - минимум 2 заглавные буквы,
- * - минимум 2 строчные буквы,
- * - минимум 2 цифры,
- * - 2 любых символа из алфавита (буквы + цифры).
+ * Генерирует пароль в зависимости от уровня сложности.
+ * - low: 6 символов (без спецсимволов)
+ * - medium: 12 символов (без спецсимволов)
+ * - high: длина по умолчанию 12, включает спецсимволы
+ * Если вызвана без аргументов, возвращает legacy-пароль (8 символов).
  *
- * Символы перемешиваются. Если в пароле встречается запрещённая
- * последовательность (например, «123», «abc»), генерация повторяется.
- *
- * @returns Строка из 8 символов без явных словарных последовательностей.
+ * @param securityLevel - уровень сложности (low | medium | high)
+ * @param length - длина пароля для high (по умолчанию 12)
+ * @returns Строка пароля
  */
-export function generateRandomPassword(): string {
+export function generateLegacyPassword(): string {
   const upper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
   const lower = 'abcdefghijklmnopqrstuvwxyz';
   const digits = '0123456789';
@@ -27,7 +26,7 @@ export function generateRandomPassword(): string {
                      'ijk','jkl','klm','lmn','mno','nop','opq','pqr',
                      'qrs','rst','stu','tuv','uvw','vwx','wxy','xyz'];
   if (forbidden.some(seq => password.toLowerCase().includes(seq))) {
-    return generateRandomPassword();
+    return generateLegacyPassword();
   }
   return password;
 }
@@ -77,11 +76,94 @@ export function transliterate(name: string): string {
 export function makeEmail(surname: string, name: string): string {
   const base = transliterate(surname).toLowerCase();
   const initialRaw = name.charAt(0);
-  const initial = transliterate(initialRaw).toLowerCase() || 'x'; // fallback, если вдруг не транслитерировалось
+  const initial = transliterate(initialRaw).toLowerCase() || 'x';
   const randomSuffix = Math.floor(10 + Math.random() * 90);
   return `${base}.${initial}${randomSuffix}@internal.uni`;
 }
+/**
+ * Генерирует пароль в зависимости от уровня сложности.
+ * - low: 6 символов (2 заглавные, 2 строчные, 2 цифры)
+ * - medium: 8 символов (как раньше)
+ * - high: длина по умолчанию 12, включает спецсимволы
+ *
+ * @param securityLevel - уровень сложности (low | medium | high)
+ * @param length - длина пароля для high (по умолчанию 12)
+ * @returns Строка пароля
+ */
+export function generateRandomPassword(
+  securityLevel?: "low" | "medium" | "high",
+  length?: number
+): string {
+  if (!securityLevel) {
+    return generateLegacyPassword();
+  }
+  switch (securityLevel) {
+    case "low":
+      return generateLowPassword();
+    case "medium":
+      return generateSimplePassword(10);
+    case "high":
+      return generateHighPassword(length ?? 12);
+  }
+}
 
+/** 6 символов без спецсимволов */
+function generateLowPassword(): string {
+  const upper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const lower = 'abcdefghijklmnopqrstuvwxyz';
+  const digits = '0123456789';
+  const getRandom = (source: string, count: number) =>
+    Array.from({ length: count }, () => source[Math.floor(Math.random() * source.length)]).join('');
+  let password = getRandom(upper, 2) + getRandom(lower, 2) + getRandom(digits, 2);
+  password = password.split('').sort(() => Math.random() - 0.5).join('');
+  return password;
+}
+/**
+ * Генерирует пароль заданной длины без спецсимволов.
+ * Минимум 2 заглавные, 2 строчные, 2 цифры, остальные – любые из алфавита.
+ */
+function generateSimplePassword(length: number): string {
+  const upper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const lower = 'abcdefghijklmnopqrstuvwxyz';
+  const digits = '0123456789';
+  const all = upper + lower + digits;
+  const getRandom = (source: string, count: number) =>
+    Array.from({ length: count }, () => source[Math.floor(Math.random() * source.length)]).join('');
+
+  let password = getRandom(upper, 2) + getRandom(lower, 2) + getRandom(digits, 2);
+  const remaining = length - 6;
+  if (remaining > 0) password += getRandom(all, remaining);
+  password = password.split('').sort(() => Math.random() - 0.5).join('');
+
+  const forbidden = ['123','234','345','456','567','678','789','890',
+                     'abc','bcd','cde','def','efg','fgh','ghi','hij',
+                     'ijk','jkl','klm','lmn','mno','nop','opq','pqr',
+                     'qrs','rst','stu','tuv','uvw','vwx','wxy','xyz'];
+  if (forbidden.some(seq => password.toLowerCase().includes(seq))) {
+    return generateSimplePassword(length);
+  }
+  return password;
+}
+/** 12+ символов со спецсимволами */
+function generateHighPassword(length: number): string {
+  const upper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const lower = 'abcdefghijklmnopqrstuvwxyz';
+  const digits = '0123456789';
+  const specials = '!@#$%^&*()_+-=[]{}|;:,.<>?';
+  const all = upper + lower + digits + specials;
+  const getRandom = (source: string, count: number) =>
+    Array.from({ length: count }, () => source[Math.floor(Math.random() * source.length)]).join('');
+  let password = getRandom(upper, 2) + getRandom(lower, 2) + getRandom(digits, 2) + getRandom(specials, 1) + getRandom(all, length - 7);
+  password = password.split('').sort(() => Math.random() - 0.5).join('');
+  const forbidden = ['123','234','345','456','567','678','789','890',
+                     'abc','bcd','cde','def','efg','fgh','ghi','hij',
+                     'ijk','jkl','klm','lmn','mno','nop','opq','pqr',
+                     'qrs','rst','stu','tuv','uvw','vwx','wxy','xyz'];
+  if (forbidden.some(seq => password.toLowerCase().includes(seq))) {
+    return generateHighPassword(length);
+  }
+  return password;
+}
 /** Хеширование пароля */
 /**
  * Хеширует пароль с помощью bcrypt (соль 10 раундов).
@@ -91,6 +173,7 @@ export function makeEmail(surname: string, name: string): string {
  * @param password - открытый пароль.
  * @returns Хеш пароля.
  */
+
 export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 10);
 }

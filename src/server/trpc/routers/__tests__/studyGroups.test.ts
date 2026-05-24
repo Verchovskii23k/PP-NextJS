@@ -1,4 +1,3 @@
-// src/server/trpc/routers/__tests__/studyGroups.test.ts
 import { beforeAll, describe, expect, it } from 'vitest';
 import { createTestCaller } from '@/test/trpc';
 import {
@@ -100,7 +99,7 @@ describe('studyGroups CRUD', () => {
     expect(list.some(g => g.id === groupId)).toBe(true);
     const created = list.find(g => g.id === groupId);
     expect(created?.display).toBeDefined();
-    expect(created?.curatorDisplay).toBeNull(); // куратора нет
+    expect(created?.curatorDisplay).toBeNull();
   });
 
   it('should get existing group with display', async () => {
@@ -124,10 +123,10 @@ describe('studyGroups CRUD', () => {
     // Теперь все поля кроме куратора обязательны
     await caller.studyGroups.update({
       id: groupId,
-      code: 'TEST-1',          // обязательное поле
-      profileId,                // обязательное
-      course: 3,                // обязательное
-      studentCount: 20,         // меняем
+      code: 'TEST-1',
+      profileId,
+      course: 3,
+      studentCount: 20,
     });
     const row = await caller.studyGroups.get({ id: groupId });
     expect(row?.studentCount).toBe(20);

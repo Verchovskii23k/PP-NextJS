@@ -74,9 +74,7 @@ export const adminManagementRouter = router({
       return { success: true };
     }),
 
-  // Полная очистка всех учётных записей (для отладки)
   clearAllCredentials: adminProcedure.mutation(async ({ ctx }) => {
-    // Принудительно завершаем сессию текущего администратора
     if (ctx.session?.session?.id) {
       await ctx.db.delete(sessions).where(eq(sessions.id, ctx.session.session.id));
     }

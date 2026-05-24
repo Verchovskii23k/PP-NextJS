@@ -53,5 +53,5 @@ export const curriculumProfilesRouter = router({
     }),
   delete: adminProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => safeDelete(curriculumProfiles, input.id)),
+    .mutation(async ({ input }) => safeDelete(curriculumProfiles, input.id, "curriculumProfiles")),
 });

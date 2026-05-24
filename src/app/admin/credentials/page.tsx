@@ -65,7 +65,7 @@ export default function CredentialsPage() {
               onChange={(e) => setCredSecurity(e.target.value as SecurityLevel)}
               className="ml-2 rounded border border-border bg-background px-2 py-1 text-foreground"
             >
-              <option value="low">Низкий (s_фамилия / t_фамилия)</option>
+              <option value="low">Низкий (случайный 6 символов)</option>
               <option value="medium">Средний (случайный 8‑12 символов)</option>
               <option value="high">Высокий (заданная длина, спецсимволы)</option>
             </select>

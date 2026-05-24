@@ -113,37 +113,12 @@ interface RecordFormProps {
   onClose: () => void;
 }
 
-// Безопасное получение CRUD-роутера из trpc
-function getFormCrudRouter(key: string): CrudRouter | undefined {
-  const trpcObj = trpc as Record<string, unknown>;
-  if (key in trpcObj) {
-    const router = trpcObj[key];
-    if (typeof router === 'object' && router !== null && 'list' in router) {
-      // здесь мы не проверяем 'get', 'create', 'update', но для формы это не критично
-      return router as unknown as CrudRouter;
-    }
-  }
-  return undefined;
-}
-
-// Безопасное получение числового значения из formValues
-function getNumberOrUndefined(value: unknown): number | undefined {
-  return typeof value === 'number' ? value : undefined;
-}
-
-// Безопасное приведение к Record<string, unknown>
-function ensureRecord(value: unknown): Record<string, unknown> | null {
-  if (value && typeof value === 'object' && !Array.isArray(value)) {
-    return value as Record<string, unknown>;
-  }
-  return null;
-}
-
 export function RecordForm({ tableName, editId, onClose }: RecordFormProps) {
   const meta = tablesMeta[tableName];
 
-  // ---------- все хуки до условного возврата ----------
-  const router = meta ? getFormCrudRouter(meta.routerKey) : undefined;
+  const router = meta
+    ? (trpc as unknown as Record<string, CrudRouter>)[meta.routerKey] as CrudRouter | undefined
+    : undefined;
 
   const { data: existingData } = router?.get?.useQuery?.(
     { id: editId! },
@@ -156,26 +131,22 @@ export function RecordForm({ tableName, editId, onClose }: RecordFormProps) {
   const [formValues, setFormValues] = useState<Record<string, unknown>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Хуки для фильтрации в disciplineTeachers
-  const selectedDisciplineId = tableName === "disciplineTeachers" ? getNumberOrUndefined(formValues.disciplineId) : undefined;
+  const selectedDisciplineId = (tableName === "disciplineTeachers" ? formValues.disciplineId : undefined) as number | undefined;
   const { data: selectedDiscipline } = trpc.disciplines.get.useQuery(
     { id: selectedDisciplineId! },
     { enabled: tableName === "disciplineTeachers" && !!selectedDisciplineId }
   );
 
-  const selectedTeacherDeptId = tableName === "disciplineTeachers" ? getNumberOrUndefined(formValues.teacherDepartmentId) : undefined;
+  const selectedTeacherDeptId = (tableName === "disciplineTeachers" ? formValues.teacherDepartmentId : undefined) as number | undefined;
   const { data: selectedEmpDept } = trpc.employeesDepartments.get.useQuery(
     { id: selectedTeacherDeptId! },
     { enabled: tableName === "disciplineTeachers" && !!selectedTeacherDeptId }
   );
 
-  // Заполнение формы данными при изменении existingData
   useEffect(() => {
     if (!meta) return;
     if (editId && existingData) {
-      const data = ensureRecord(existingData);
-      if (data) setFormValues(data);
-      else setFormValues({});
+      setFormValues({ ...existingData } as Record<string, unknown>);
     } else if (!editId) {
       const initial: Record<string, unknown> = {};
       meta.fields.forEach((f) => {
@@ -195,7 +166,6 @@ export function RecordForm({ tableName, editId, onClose }: RecordFormProps) {
   }, [editId, existingData, meta]);
 
   if (!meta) return null;
-  // -----------------------------------------
 
   const handleChange = (field: string, value: unknown) => {
     setFormValues((prev) => ({ ...prev, [field]: value }));
@@ -239,18 +209,16 @@ export function RecordForm({ tableName, editId, onClose }: RecordFormProps) {
     setErrors({});
     try {
       if (editId) {
-        if (!updateMutation) throw new Error("Мутация обновления недоступна");
-        await updateMutation.mutateAsync({ id: editId, ...cleanedValues });
+        await updateMutation?.mutateAsync({ id: editId, ...cleanedValues } as { id: number } & Record<string, unknown>);
       } else {
-        if (!createMutation) throw new Error("Мутация создания недоступна");
-        await createMutation.mutateAsync(cleanedValues);
+        await createMutation?.mutateAsync(cleanedValues);
       }
       onClose();
-    } catch (err: unknown) {
-      console.log('tRPC error:', err);
-      const message = err instanceof TRPCClientError ? err.message : (err instanceof Error ? err.message : "Неизвестная ошибка");
-      toast.error(message);
-    }
+      } catch (err: unknown) {
+        console.log('tRPC error:', err); 
+        const message = err instanceof TRPCClientError ? err.message : (err instanceof Error ? err.message : "Неизвестная ошибка");
+        toast.error(message);
+      }
   };
 
   const renderField = (field: FieldMeta) => {
@@ -260,46 +228,45 @@ export function RecordForm({ tableName, editId, onClose }: RecordFormProps) {
     const hasError = !!errors[field.dbName];
     const errorMsg = errors[field.dbName];
 
-    // внешний ключ
     if (field.isFK && field.references) {
       const refTable = field.references.table;
       const refRouterKey = tablesMeta[refTable]?.routerKey;
       let input: Record<string, unknown> | undefined;
 
       if (field.dbName === "classroomId" && tableName === "lessonClassrooms") {
-        const lessonId = getNumberOrUndefined(formValues.lessonId);
-        input = lessonId ? { lessonId } : undefined;
+        input = formValues.lessonId ? { lessonId: formValues.lessonId as number } : undefined;
       } else if (field.dbName === "directorId") {
-        const universityCode = getNumberOrUndefined(formValues.universityCode);
-        input = universityCode ? { instituteId: universityCode } : undefined;
+        input = formValues.universityCode ? { instituteId: formValues.universityCode as number } : undefined;
       } else if (field.dbName === "headId") {
-        input = editId ? { departmentId: editId } : undefined;
+        input = editId ? { departmentId: editId as number } : undefined;
       } else if (field.dbName === "curatorId") {
         const profileId = editId
-          ? (ensureRecord(existingData)?.profileId as number | undefined)
-          : getNumberOrUndefined(formValues.profileId);
-        input = profileId ? { profileId } : undefined;
+          ? (existingData as Record<string, unknown> | null)?.profileId
+          : formValues.profileId;
+        input = profileId ? { profileId: profileId as number } : undefined;
       }
 
       // ========== БЛОК: фильтрация для disciplineTeachers ==========
       if (tableName === "disciplineTeachers") {
         if (field.dbName === "teacherDepartmentId") {
-          const deptId = selectedDiscipline?.departmentId;
-          if (typeof deptId === 'number') {
-            input = { departmentId: deptId };
+          // При выборе дисциплины – фильтруем преподавателей по её кафедре
+          if (selectedDiscipline?.departmentId) {
+            input = { departmentId: selectedDiscipline.departmentId as number };
           }
         } else if (field.dbName === "disciplineId") {
-          const deptId = selectedEmpDept?.departmentId;
-          if (typeof deptId === 'number') {
-            input = { departmentId: deptId };
+          // При выборе преподавателя – фильтруем дисциплины по его кафедре
+          if (selectedEmpDept?.departmentId) {
+            input = { departmentId: selectedEmpDept.departmentId as number };
           }
         }
       }
       // ========== КОНЕЦ БЛОКА ==========
 
-      const refRouter = refRouterKey ? getFormCrudRouter(refRouterKey) : undefined;
-      const { data: options = [], isLoading: optionsLoading = false } =
-        (refRouter as unknown as { list: { useQuery: (input?: unknown) => { data?: Record<string, unknown>[]; isLoading?: boolean } } } | undefined)?.list?.useQuery?.(input) ?? {};
+      const refRouter = refRouterKey
+        ? (trpc as unknown as Record<string, { list: { useQuery: (input?: unknown) => { data?: Record<string, unknown>[]; isLoading?: boolean } } }>)[refRouterKey]
+        : undefined;
+      const { data: options = [] as Record<string, unknown>[], isLoading: optionsLoading = false } =
+        refRouter?.list?.useQuery?.(input) ?? {};
 
       return (
         <div key={field.dbName} className="mb-3">
@@ -308,18 +275,15 @@ export function RecordForm({ tableName, editId, onClose }: RecordFormProps) {
             {field.required && <span className="ml-1 text-red-500">*</span>}
           </label>
           <select
-            value={typeof value === 'number' ? value : ''}
-            onChange={(e) => {
-              const raw = e.target.value;
-              handleChange(field.dbName, raw === "" ? null : Number(raw));
-            }}
+            value={(value as string | number | undefined) ?? ""}
+            onChange={(e) => handleChange(field.dbName, e.target.value === "" ? null : Number(e.target.value))}
             className={`w-full rounded border bg-background px-3 py-1.5 text-foreground ${hasError ? "border-red-500" : "border-border"}`}
             disabled={optionsLoading}
           >
             <option value="">-- Не выбрано --</option>
-            {Array.isArray(options) && options.map((opt) => (
-              <option key={String(opt.id)} value={Number(opt.id)}>
-                {opt[field.references!.displayField] != null ? String(opt[field.references!.displayField]) : String(opt.id)}
+            {options.map((opt) => (
+              <option key={opt.id as number} value={opt.id as number}>
+                {opt[field.references!.displayField] as string ?? String(opt.id)}
               </option>
             ))}
           </select>
@@ -328,7 +292,7 @@ export function RecordForm({ tableName, editId, onClose }: RecordFormProps) {
       );
     }
     if (field.inputType === "radioGroup") {
-      const selectedValue = typeof value === 'number' ? value : 3;
+      const selectedValue = (value as number) || 3;
       const options = [
         { value: 3, label: "Низкий" },
         { value: 2, label: "Средний" },
@@ -358,7 +322,6 @@ export function RecordForm({ tableName, editId, onClose }: RecordFormProps) {
         </div>
       );
     }
-    // toggle
     if (TOGGLE_FIELDS.has(field.dbName) || field.inputType === "toggle") {
       const isActive = !!value;
       return (
@@ -382,7 +345,6 @@ export function RecordForm({ tableName, editId, onClose }: RecordFormProps) {
       );
     }
 
-    // текстовое / числовое
     return (
       <div key={field.dbName} className="mb-3">
         <label className="mb-1 block text-sm font-medium text-foreground">
@@ -391,7 +353,7 @@ export function RecordForm({ tableName, editId, onClose }: RecordFormProps) {
         </label>
         <input
           type={isNumericField(field) ? "number" : "text"}
-          value={value != null ? String(value) : ''}
+          value={(value as string | number) ?? ""}
           onChange={(e) => {
             if (isNumericField(field)) {
               const raw = e.target.value;

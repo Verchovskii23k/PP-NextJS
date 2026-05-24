@@ -71,7 +71,6 @@ export const scheduleVersionsRouter = router({
     }),
 
   // Восстановить выбранную архивную версию как активную
-// src/server/trpc/routers/scheduleVersions.ts (фрагмент restoreAsActive)
 
 restoreAsActive: adminProcedure
   .input(z.object({ versionId: z.number() }))

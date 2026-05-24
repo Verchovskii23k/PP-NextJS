@@ -51,5 +51,5 @@ export const hourTypeMappingRouter = router({
     }),
   delete: adminProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => safeDelete(hourTypeMapping, input.id)),
+    .mutation(async ({ input }) => safeDelete(hourTypeMapping, input.id, "hourTypeMapping")),
 });

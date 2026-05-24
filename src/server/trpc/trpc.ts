@@ -36,7 +36,6 @@ interface TrpcErrorLike {
 }
 
 function extractBusinessError(error: unknown): { message: string; code: string } | null {
-  // ZodError
   if (error instanceof ZodError) {
     const firstIssue = error.issues[0];
     if (firstIssue) {

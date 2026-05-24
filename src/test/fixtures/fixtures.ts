@@ -136,8 +136,8 @@ export async function seedTestData() {
 
   // === 8. Профили ===
   const profData = await db.insert(profiles).values([
-    { name: "Профиль А", specialtyId: specA.id, letterCode: "а" },
-    { name: "Профиль Б", specialtyId: specB.id, letterCode: "б" },
+    { name: "Профиль А", abbreviation: 'ТЕСТ1',specialtyId: specA.id, letterCode: "а" },
+    { name: "Профиль Б", abbreviation: 'ТЕСТ2',specialtyId: specB.id, letterCode: "б" },
   ]).returning();
   const profA = profData[0];
   const profB = profData[1];
@@ -210,15 +210,15 @@ export async function seedTestData() {
 
   // === 15. Студенты ===
   const studentProfiles = [
-    { surname: "Студентов", name: "Анна", admissionYear: 2023, profileId: profA.id, course: 3 },
+    { surname: "Студентова", name: "Анна", admissionYear: 2023, profileId: profA.id, course: 3 },
     { surname: "Студентов", name: "Борис", admissionYear: 2023, profileId: profA.id, course: 3 },
-    { surname: "Студентов", name: "Вера", admissionYear: 2023, profileId: profA.id, course: 3 },
+    { surname: "Студентова", name: "Вера", admissionYear: 2023, profileId: profA.id, course: 3 },
     { surname: "Студентов", name: "Глеб", admissionYear: 2021, profileId: profA.id, course: 2 },
-    { surname: "Студентов", name: "Диана", admissionYear: 2023, profileId: profB.id, course: 3 },
+    { surname: "Студентова", name: "Диана", admissionYear: 2023, profileId: profB.id, course: 3 },
     { surname: "Студентов", name: "Егор", admissionYear: 2023, profileId: profB.id, course: 3 },
-    { surname: "Студентов", name: "Жанна", admissionYear: 2023, profileId: profB.id, course: 3 },
+    { surname: "Студентова", name: "Жанна", admissionYear: 2023, profileId: profB.id, course: 3 },
     { surname: "Студентов", name: "Захар", admissionYear: 2022, profileId: profB.id, course: 3 },
-    { surname: "Студентов", name: "Ирина", admissionYear: 2021, profileId: profA.id, course: 2 },
+    { surname: "Студентова", name: "Ирина", admissionYear: 2021, profileId: profA.id, course: 2 },
     { surname: "Студентов", name: "Константин", admissionYear: 2023, profileId: profB.id, course: 3 },
   ];
   for (const s of studentProfiles) {

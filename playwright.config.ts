@@ -8,7 +8,7 @@ export default defineConfig({
     baseURL: 'http://localhost:3000',
     headless: false,
     launchOptions: {
-      slowMo: 500,            // задержка 500 мс между действиями
+      slowMo: 500,
     },
     screenshot: 'only-on-failure',
     trace: 'on-first-retry',

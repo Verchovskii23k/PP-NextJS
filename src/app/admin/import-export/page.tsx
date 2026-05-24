@@ -12,14 +12,13 @@ export default function ImportExportPage() {
   const [isImporting, setIsImporting] = useState(false);
 
   const exportQuery = trpc.globalImportExport.exportAll.useQuery(undefined, {
-    enabled: false, // ручной вызов
+    enabled: false,
   });
 
   const importMutation = trpc.globalImportExport.importAll.useMutation({
     onSuccess: (data) => {
       setImportResult(data);
 
-      // Собираем сводку
       let totalInserted = 0;
       let totalUpdated = 0;
       let totalErrors = 0;

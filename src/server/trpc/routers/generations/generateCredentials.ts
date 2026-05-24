@@ -18,9 +18,9 @@
  *
  * 1. **Входные параметры**
  *    - `securityLevel` – уровень сложности пароля (`"low"`, `"medium"`, `"high"`).
- *      *В текущей версии не влияет на генерацию пароля, зарезервирован для будущих доработок.*
- *    - `loginLength` – желаемая длина логина (опционально).
- *      *В текущей версии не используется, email формируется по шаблону.*
+ *      *Влияет на длину и состав пароля.*
+ *    - ``loginLength` – желаемая длина пароля (опционально, используется только для `"high"`).
+ *      *Email формируется по шаблону - подробнее ниже по тексту.*
  *    - `generateFor` – массив с элементами `"employees"` и/или `"students"`.
  *
  * 2. **Выборка персон**
@@ -76,19 +76,18 @@ import { z } from "zod";
 import { router, adminProcedure } from "../../trpc";
 import { users, employees, students } from "@/db/schema";
 import { eq, and, isNull } from "drizzle-orm";
-import { accounts } from "@/db/schema";  // таблица accounts
+import { accounts } from "@/db/schema";
 import { makeEmail, generateRandomPassword, hashPassword } from '@/lib/password';
-// ---------- Роутер ----------
 
 export const generateCredentialsRouter = router({
   generateCredentials: adminProcedure
     .input(z.object({
       securityLevel: z.enum(["low", "medium", "high"]),
-      loginLength: z.number().int().min(6).max(32).optional(),
+      loginLength: z.number().int().min(6).max(40).optional(),
       generateFor: z.array(z.enum(["employees", "students"])).min(1),
     }))
     .mutation(async ({ ctx, input }) => {
-      const { securityLevel: _securityLevel, loginLength: _loginLength, generateFor } = input;
+      const { securityLevel, loginLength, generateFor } = input;
       const newCredentials: {
         fullName: string;
         email: string;
@@ -108,7 +107,7 @@ export const generateCredentialsRouter = router({
       ) => {
         const fullName = [person.surname, person.name, person.patronymic].filter(Boolean).join(" ");
         const email = person.email || makeEmail(person.surname, person.name);
-        const password = generateRandomPassword();
+        const password = generateRandomPassword(securityLevel, loginLength);
 
         const role = type === "student" ? "student" : (person.isAdmin ? "admin" : "teacher");
         const hashed = await hashPassword(password)

@@ -81,5 +81,5 @@ export const lessonTypesRouter = router({
     }),
   delete: adminProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => safeDelete(lessonTypes, input.id)),
+    .mutation(async ({ input }) => safeDelete(lessonTypes, input.id, "lessonTypes")),
 });

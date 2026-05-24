@@ -44,5 +44,5 @@ export const unitsRouter = router({
     }),
 delete: adminProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => safeDelete(units, input.id)),
+    .mutation(async ({ input }) => safeDelete(units, input.id, "units")),
 });

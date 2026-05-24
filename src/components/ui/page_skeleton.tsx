@@ -1,4 +1,3 @@
-// src/components/ui/page-skeleton.tsx
 import { Skeleton } from "./skeleton";
 
 export function PageSkeleton() {

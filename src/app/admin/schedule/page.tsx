@@ -152,7 +152,6 @@ const WEEK_COLORS = [
 ];
 
 function DraggableLesson({ entry, isEditMode }: { entry: ScheduleRow; isEditMode: boolean }) {
-  // ... без изменений
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `lesson-${entry.id}`,
     data: { entry },
@@ -197,7 +196,6 @@ function DroppableArea({
   status: "free" | "conflict" | "swap" | null;
   onCellClick: (e: ScheduleRow) => void;
 }) {
-  // ... без изменений
   const droppableId = `week-${weekId}-${dayId}-${pairId}-${unitCode}`;
   const { isOver, setNodeRef } = useDroppable({
     id: droppableId,
@@ -238,7 +236,6 @@ function DroppableArea({
 }
 
 function BufferEntry({ entry }: { entry: ScheduleRow }) {
-  // ... без изменений
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `buffer-${entry.id}`,
     data: { entry },
@@ -258,7 +255,6 @@ function BufferEntry({ entry }: { entry: ScheduleRow }) {
 }
 
 function BufferZone({ entries, isEditMode }: { entries: ScheduleRow[]; isEditMode: boolean }) {
-  // ... без изменений
   const droppableId = "buffer-zone";
   const { isOver, setNodeRef } = useDroppable({ id: droppableId, disabled: !isEditMode });
 
@@ -279,7 +275,6 @@ function BufferZone({ entries, isEditMode }: { entries: ScheduleRow[]; isEditMod
 }
 
 export default function AdminSchedulePage() {
-  // ... состояния без изменений
   const [viewMode, setViewMode] = useState<"units" | "groups">("units");
   const [editMode, setEditMode] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<ScheduleRow | null>(null);
@@ -331,7 +326,15 @@ export default function AdminSchedulePage() {
       optimizeScheduleMut.mutate({ versionId: selectedVersionId });
     }
   };
-
+  useEffect(() => {
+  const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && resetFlagsDialog) {
+        setResetFlagsDialog(false);
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [resetFlagsDialog]);
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && showAnnealingDialog) {
@@ -662,11 +665,167 @@ export default function AdminSchedulePage() {
   };
 
   const handlePrint = () => {
-    // ... без изменений, код опущен для краткости, но оставлен как есть
+    const headerCells: string[] = [];
+    const rows: string[][] = [];
+
+    if (viewMode === "units" && unitsData) {
+      const unitCodes = Array.from(new Set(unitsData.rows.map(r => r.unitCode))).sort();
+      headerCells.push("День", "Пара", "Неделя", ...unitCodes);
+
+      for (const day of unitsData.days) {
+        for (const pair of unitsData.pairs) {
+          for (const week of activeWeeksData) {
+            const row = [
+              day.name,
+              String(pair.number),
+              week.type,
+            ];
+            for (const code of unitCodes) {
+              const entry = unitsData.rows.find(
+                r => r.unitCode === code && r.dayOfWeekId === day.id && r.pairNumberId === pair.id && r.weekId === week.id
+              );
+              row.push(entry ? entry.displayText : "—");
+            }
+            // Сохраняем тип недели для последующего определения фона
+            (row as string[] & { _isEven?: boolean })._isEven = week.id % 2 === 0;
+            rows.push(row);
+          }
+        }
+      }
+    } else if (viewMode === "groups" && groupsData) {
+      const groupCodes = Array.from(new Set(groupsData.rows.map((r: ScheduleRowWithGroup) => r.studyGroupCode))).sort();
+      headerCells.push("День", "Пара", "Неделя", ...groupCodes);
+
+      for (const day of groupsData.days) {
+        for (const pair of groupsData.pairs) {
+          for (const week of activeWeeksData) {
+            const row = [
+              day.name,
+              String(pair.number),
+              week.type,
+            ];
+            for (const code of groupCodes) {
+              const entry = groupsData.rows.find(
+                r => r.unitCode === code && r.dayOfWeekId === day.id && r.pairNumberId === pair.id && r.weekId === week.id
+              );
+              row.push(entry ? entry.displayText : "—");
+            }
+            // Сохраняем тип недели для последующего определения фона
+            (row as string[] & { _isEven?: boolean })._isEven = week.id % 2 === 0;
+            rows.push(row);
+          }
+        }
+      }
+    }
+
+    if (rows.length === 0) return;
+
+    let html = `<table border="1" cellpadding="4" cellspacing="0" style="border-collapse: collapse; width: 100%; font-size: 10px;">`;
+    html += `<thead><tr>${headerCells.map(h => `<th style="border:1px solid #666; padding:4px; background:#e5e7eb;">${h}</th>`).join("")}</tr></thead>`;
+    html += `<tbody>`;
+    rows.forEach(row => {
+      const isEven = (row as string[] & { _isEven?: boolean })._isEven === true;
+      const bg = isEven ? 'background-color:#d1d5db;' : '';
+      html += `<tr style="${bg}">`;
+      row.forEach(cell => {
+        html += `<td style="border:1px solid #666; padding:4px; vertical-align:middle;">${cell}</td>`;
+      });
+      html += `</tr>`;
+    });
+    html += `</tbody></table>`;
+
+    const printWindow = window.open("", "_blank", "width=1200,height=800");
+    if (!printWindow) return;
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Расписание</title>
+          <style>
+            @media print {
+              * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+              table { border-collapse: collapse; width: 100%; font-size: 9px; }
+              th { background: #e5e7eb !important; }
+            }
+          </style>
+        </head>
+        <body class="p-4">
+          <h1 class="text-xl font-bold mb-4">Расписание</h1>
+          ${html}
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+    printWindow.close();
   };
 
   const handleCSV = () => {
-    // ... без изменений
+    const rows: string[][] = [];
+    const header = ["День", "Пара", ...activeWeeksData.map(w => w.type)];
+
+    if (viewMode === "units" && unitsData) {
+      const unitCodes = Array.from(new Set(unitsData.rows.map(r => r.unitCode))).sort();
+      unitCodes.forEach(code => header.push(code));
+      rows.push(header);
+
+      for (const day of unitsData.days) {
+        for (const pair of unitsData.pairs) {
+          for (const week of activeWeeksData) {
+            const row = [
+              day.name,
+              String(pair.number),
+              week.type,
+            ];
+            for (const code of unitCodes) {
+              const entry = unitsData.rows.find(
+                r => r.unitCode === code && r.dayOfWeekId === day.id && r.pairNumberId === pair.id && r.weekId === week.id
+              );
+              row.push(entry ? entry.displayText : "—");
+            }
+            // Сохраняем тип недели для последующего определения фона
+            (row as string[] & { _isEven?: boolean })._isEven = week.id % 2 === 0;
+            rows.push(row);
+          }
+        }
+      }
+    } else if (viewMode === "groups" && groupsData) {
+      const groupCodes = Array.from(new Set(groupsData.rows.map((r: ScheduleRowWithGroup) => r.studyGroupCode))).sort();
+      groupCodes.forEach(code => header.push(code));
+      rows.push(header);
+
+      for (const day of groupsData.days) {
+        for (const pair of groupsData.pairs) {
+          for (const week of activeWeeksData) {
+            const row = [
+              day.name,
+              String(pair.number),
+              week.type,
+            ];
+            for (const code of groupCodes) {
+              const entry = groupsData.rows.find(
+                r => r.unitCode === code && r.dayOfWeekId === day.id && r.pairNumberId === pair.id && r.weekId === week.id
+              );
+              row.push(entry ? entry.displayText : "—");
+            }
+            // Сохраняем тип недели для последующего определения фона
+            (row as string[] & { _isEven?: boolean })._isEven = week.id % 2 === 0;
+            rows.push(row);
+          }
+        }
+      }
+    }
+
+    if (rows.length === 0) return;
+
+    const bom = "\uFEFF";
+    const csvContent = "data:text/csv;charset=utf-8," + bom + rows.map(r => r.join(";")).join("\n");
+    const link = document.createElement("a");
+    link.setAttribute("href", encodeURI(csvContent));
+    link.setAttribute("download", `schedule.csv`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
   };
 
   const resetGeneratedMut = trpc.generations.resetGeneratedData.useMutation({
@@ -825,7 +984,7 @@ export default function AdminSchedulePage() {
               setRestoredVersionName(null);
               setRestoredVersionId(null);
             } else if (val === "restored") {
-              // ничего
+
             } else {
               setRestoredVersionName(null);
               setRestoredVersionId(null);
@@ -1038,14 +1197,15 @@ export default function AdminSchedulePage() {
         <button onClick={() => setViewMode("groups")} className={viewMode === "groups" ? "border-b-2 border-blue-500 font-bold" : ""}>По группам</button>
         <button onClick={handlePrint} className="ml-2 rounded bg-blue-600 px-3 py-1 text-white hover:bg-blue-700">🖨️ Печать</button>
         <button onClick={handleCSV} className="ml-2 rounded bg-green-600 px-3 py-1 text-white hover:bg-green-700">📥 CSV</button>
-        <button
-          onClick={handleOptimize}
-          // onClick={() => optimizeScheduleMut.mutate({ versionId: selectedVersionId })}
-          disabled={editMode || optimizeScheduleMut.isPending || !isActiveVersion}
-          className="rounded bg-purple-600 px-3 py-1 text-white hover:bg-purple-700 disabled:bg-gray-400"
-        >
-          {optimizeScheduleMut.isPending ? "Оптимизация..." : "Оптимизировать"}
-        </button>
+        {viewMode === "units" && (
+          <button
+            onClick={handleOptimize}
+            disabled={editMode || optimizeScheduleMut.isPending || !isActiveVersion}
+            className="rounded bg-purple-600 px-3 py-1 text-white hover:bg-purple-700 disabled:bg-gray-400"
+          >
+            {optimizeScheduleMut.isPending ? "Оптимизация..." : "Оптимизировать"}
+          </button>
+        )}
         {editMode && isActiveVersion && (
           <button
             onClick={handleOpenAnnealing}
@@ -1228,7 +1388,14 @@ export default function AdminSchedulePage() {
       </DndContext>
 
       {selectedEntry && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30"
+          tabIndex={-1}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              setSelectedEntry(null);
+              e.stopPropagation();
+            }
+          }}>
           <div className="w-80 rounded border border-border bg-background p-6 shadow-lg">
             <h2 className="mb-4 font-bold text-foreground">Редактирование занятия</h2>
             <div className="mb-2 text-sm text-foreground">{selectedEntry.displayText}</div>

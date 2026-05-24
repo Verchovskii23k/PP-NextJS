@@ -9,7 +9,6 @@ export default function SetupPage() {
     surname: "",
     name: "",
     patronymic: "",
-    phone: "",
     email: "",
     password: "",
   });
@@ -60,8 +59,7 @@ export default function SetupPage() {
             surname: form.surname,
             name: form.name,
             patronymic: form.patronymic || undefined,
-            phone: form.phone || undefined,
-            email: form.email,   // обязателен, без || undefined
+            email: form.email,
             password: form.password,
           });
         }}
@@ -103,20 +101,6 @@ export default function SetupPage() {
             className="w-full rounded border border-border bg-background px-3 py-2 text-foreground"
             name="patronymic"
             value={form.patronymic}
-            onChange={handleChange}
-            placeholder="Необязательно"
-          />
-        </div>
-
-        {/* Телефон */}
-        <div className="mb-3">
-          <label className="mb-1 block text-sm text-muted-foreground">
-            Телефон
-          </label>
-          <input
-            className="w-full rounded border border-border bg-background px-3 py-2 text-foreground"
-            name="phone"
-            value={form.phone}
             onChange={handleChange}
             placeholder="Необязательно"
           />

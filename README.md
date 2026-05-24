@@ -1,10 +1,10 @@
 # 📅 Информационная система для учета и составления расписания университета
 
-Данный проект представляет собой реализацию системы для создания расписания с минимизацйией конфликтов и максимально возможно близкое к оптимальному. Широкий функционал для настройки должен помочь довести сырой вариант расписания до идеала.
+Данный проект представляет собой реализацию системы для создания расписания с минимизацйией конфликтов и максимально возможно близкое к оптимальному. Широкий функционал для настройки должен помочь довести сырой вариант расписания до некоторого оптимизированного варианта.
 
 Система позволяет вести справочники, генерировать учебные группы, юниты, занятия, назначать аудитории, автоматически генерировать расписание жадным алгоритмом и редактировать его вручную через drag‑and‑drop интерфейс с последующей оптимизацией.
 
-Данное приложение не позволяет зарегистрироваться в систему извне, кроме самого первого сотрудника (администратора ИС). Дальнейший вход производится только по логину и паролю. Предусмотрено восстановление доступа (сброс пароля) по email.
+Данное приложение не позволяет зарегистрироваться в систему извне, кроме самого первого сотрудника (администратора ИС). Дальнейший вход производится только по логину и паролю для тех пользователей, которых добавил администратор. Предусмотрено восстановление доступа (сброс пароля) по email и через панель администратора, если был забыт логин.
 
 ## 🧰 Технологический стек
 
@@ -26,18 +26,121 @@
 
 ## 🏗️ Архитектура (основные модули)
 
-- `public/` – статические ресурсы (favicon).
-- `e2e/` – end‑to‑end тесты (Playwright).
-- `src/contexts` – React‑контексты (ConfirmContext).
-- `src/hooks` – пользовательские хуки (useConfirm).
-- `src/db` – схема базы данных (Drizzle ORM), миграции, сиды.
-- `src/lib` – утилиты: очистка данных (`clearGeneratedData`), безопасное удаление (`safeDelete`), метаданные таблиц (`table-meta`), пересчёт метрики аудиторий (`usageMetrics`), tRPC‑клиент для серверных вызовов.
-- `src/server/email.ts` – почтовый клиент (Nodemailer).
-- `src/server/auth` – хеширование паролей и управление сессиями.
-- `src/server/trpc` – tRPC‑сервер (контекст, корневой роутер, процедуры, middleware, роутеры сущностей, генераторы).
-- `src/trpc` – tRPC‑клиент для браузера и провайдер с React Query.
-- `src/test` – утилиты для тестирования (test caller, фикстуры).
-- `.github/workflows` – конфигурация CI/CD.
+- **`public/`** – статические ресурсы (`favicon.ico`).
+- **`e2e/`** – end‑to‑end тесты (Playwright): настройка аутентификации и тест восстановления пароля через Mailpit.
+- **`mailpit/`** – исполняемый файл почтового сервера Mailpit для Windows (используется при разработке).
+
+### 📁 `src/` – исходный код приложения
+
+#### 🌐 `app/` – роутинг Next.js (App Router)
+- **`globals.css`** – глобальные стили Tailwind CSS.
+- **`layout.tsx`** – корневой layout: подключает провайдеры (`Providers`, `ConfirmProvider`), задаёт метаданные.
+- **`not-found.tsx`** – кастомная страница 404.
+- **`page.tsx`** – главная страница: для авторизованных пользователей показывает кнопку перехода по роли, иначе предлагает вход или регистрацию.
+
+**`admin/`** – панель администратора (все страницы защищены `adminProcedure`):
+- **`layout.tsx`** – проверка роли `admin`, иначе `Forbidden`.
+- **`page.tsx`** – дашборд администратора: сетка карточек разделов.
+- **`account/`** – личный кабинет администратора (изменение email и пароля).
+- **`administrators/`** – управление списком администраторов (назначение/снятие роли).
+- **`credentials/`** – генерация учётных записей преподавателей и студентов.
+- **`crud/`** – универсальный CRUD для всех справочников:
+  - `page.tsx` – выбор таблицы и отрисовка `DataTable`.
+  - `_components/`:
+    - `DataTable.tsx` – таблица на основе метаданных (сортировка, фильтры, пагинация, массовое удаление, импорт/экспорт).
+    - `RecordForm.tsx` – модальная форма создания/редактирования записи.
+    - `ForeignKeyCell.tsx` – отображение значения внешнего ключа через запрос к связанной таблице.
+    - `ColumnFilterPopover.tsx` – всплывающий фильтр для столбца.
+- **`generations/`** – запуск генераторов данных (групп, юнитов, занятий, расписания) с параметрами.
+- **`import-export/`** – глобальный импорт/экспорт всей БД в JSON.
+- **`manual/`** – инструкция пользователя.
+- **`optimization-settings/`** – редактирование весов штрафов и параметров имитации отжига.
+- **`schedule/`** – просмотр, drag‑and‑drop редактирование, оптимизация и версионирование расписания.
+- **`users/`** – управление пользователями (сброс паролей, изменение ролей).
+
+**`api/`** – API-роуты:
+- **`auth/[...all]/route.ts`** – обработчик better‑auth (вход, регистрация, сессии).
+- **`trpc/[trpc]/route.ts`** – tRPC-сервер (все процедуры).
+
+**Публичные страницы:**
+- **`forgot-password/`** – форма отправки email для сброса пароля.
+- **`login/`** – форма входа (email + пароль).
+- **`reset-password/`** – форма сброса пароля по токену.
+- **`setup/`** – форма создания первого администратора (доступна только при пустой БД).
+
+**Кабинеты пользователей (заглушки):**
+- **`student/`** – кабинет студента (проверка роли `student`, иначе `Forbidden`).
+- **`teacher/`** – кабинет преподавателя (проверка роли `teacher`, иначе `Forbidden`).
+
+#### 🧩 `components/` – переиспользуемые UI-компоненты
+- **`EntityTooltip.tsx`** – всплывающая карточка с полной информацией о связанной сущности.
+- **`Forbidden.tsx`** – ошибка 403 «Доступ запрещён».
+- **`Providers.tsx`** – корневой провайдер: `ThemeProvider`, `TRPCProvider`, шапка (`HeaderContent`), `Toaster`.
+- **`ThemeToggle.tsx`** – кнопка переключения светлой/тёмной темы.
+- **`unauthorized.tsx`** – ошибка 401 «Вы не авторизованы».
+- **`ui/`** – примитивные UI-компоненты:
+  - `ConfirmDialog.tsx` – модальное окно подтверждения.
+  - `InputDialog.tsx` – диалог ввода строки.
+  - `InputDialogReset.tsx` – диалог ввода кода сброса пароля.
+  - `page_skeleton.tsx` – скелетон для страниц.
+  - `skeleton.tsx` – базовый скелетон (прямоугольник) и скелетон таблицы.
+
+#### 🗂️ `contexts/` – React-контексты
+- **`ConfirmContext.tsx`** – провайдер для `ConfirmDialog`, предоставляет метод `confirm()`.
+
+#### 🗄️ `db/` – база данных (Drizzle ORM)
+- **`index.ts`** – подключение к PostgreSQL через `drizzle-orm/postgres-js`.
+- **`schema.ts`** – описание всех таблиц (пользователи, институты, …, расписание).
+- **`seed.ts`** – начальное наполнение (для разработки).
+
+#### 🪝 `hooks/` – пользовательские хуки
+- **`useConfirm.ts`** – хук, возвращающий функцию `confirm()` для вызова диалога подтверждения.
+
+#### 📚 `lib/` – бизнес-логика и вспомогательные модули
+- **`clearGeneratedData.ts`** – очистка активных динамических данных (schedule, lessons, …).
+- **`password.ts`** – генерация паролей, транслитерация, создание email.
+- **`safeDelete.ts`** – удаление записи с предварительной проверкой дочерних таблиц.
+- **`table-meta.ts`** – единый реестр метаданных всех таблиц (поля, связи, названия).
+- **`usageMetrics.ts`** – пересчёт метрики использования аудиторий.
+- **`auth/`**:
+  - `client.ts` – клиент better‑auth для React (`useSession`, `signIn` и т.д.).
+  - `config.ts` – серверная конфигурация better‑auth (адаптер, колбэки, стратегии).
+- **`trpc/`**:
+  - `client.ts` – создание tRPC‑клиента для серверных вызовов.
+
+#### ⚙️ `server/` – серверная логика
+- **`email.ts`** – отправка писем через Nodemailer (восстановление пароля, учётные данные).
+
+**`trpc/`** – tRPC-сервер:
+- **`context.ts`** – создание контекста запроса (сессия, БД, req).
+- **`index.ts`** – реэкспорт процедур и типа `Context`.
+- **`router.ts`** – корневой роутер (объединение всех подроутеров).
+- **`trpc.ts`** – инициализация tRPC, `publicProcedure`, `protectedProcedure`, `adminProcedure`, `errorFormatter`.
+- **`routers/`** – роутеры предметной области (CRUD для каждой таблицы + специализированные):
+  - `auth.ts`, `adminManagement.ts`, `userManagement.ts`, `batchDelete.ts`, `crudImportExport.ts`, `globalImportExport.ts`, `lookup.ts`, `settings.ts`.
+  - **Роутеры сущностей:** `academicLoadTypes.ts`, `buildings.ts`, `classRooms.ts`, `controlTypes.ts`, `curriculum.ts`, `curriculumProfiles.ts`, `daysOfWeek.ts`, `departments.ts`, `disciplines.ts`, `disciplineTeachers.ts`, `education.ts`, `educationForms.ts`, `educationLevels.ts`, `employees.ts`, `employeesDepartments.ts`, `employmentTypes.ts`, `hourTypeMapping.ts`, `institutes.ts`, `lessons.ts`, `lessonClassrooms.ts`, `lessonTypes.ts`, `pairs.ts`, `positions.ts`, `profiles.ts`, `specialties.ts`, `students.ts`, `studyGroups.ts`, `units.ts`, `unitRoots.ts`, `unitTypes.ts`, `weeks.ts`.
+  - **Расписание:** `schedule.ts` (публичное API), `scheduleDisplay.ts` (drag‑and‑drop, буфер, флаги), `scheduleOptimizer.ts` (имитация отжига), `scheduleVersions.ts` (версионирование).
+  - **Генераторы:** `generations/index.ts` (объединение), `generateCredentials.ts`, `generateGroups.ts`, `generateUnits.ts`, `generateLessons.ts`, `assignClassrooms.ts`, `generateSchedule.ts`.
+  - **Тесты:** `__tests__/` – **Unit-тесты (Vitest, 143 теста)** покрывают все CRUD-роутеры справочных таблиц,
+роутеры аутентификации и управления пользователями, а также генераторы.
+Отдельные модули (`scheduleOptimizer`, `scheduleVersions`, `scheduleDisplay`,
+`crudImportExport`, `globalImportExport`, `batchDelete`, `adminManagement`)
+не покрыты unit-тестами из-за высокой сложности изоляции их логики;
+их корректность проверяется интеграционными E2E-тестами и ручным тестированием.
+
+#### 🧪 `test/` – тестовая инфраструктура
+- **`helpers.ts`** – хелперы: очистка таблиц, создание тестовых сущностей.
+- **`setup.ts`** – глобальная настройка тестов (env, мок `next/headers`).
+- **`trpc.ts`** – создание тестового tRPC‑клиента с моковой сессией.
+- **`fixtures/fixtures.ts`** – полные фикстуры: очистка БД и заполнение тестовыми данными.
+
+#### 🖥️ `trpc/` – tRPC-клиент для фронтенда
+- **`client.ts`** – создание React‑клиента (`createTRPCReact`).
+- **`provider.tsx`** – провайдер tRPC + React Query (`QueryClient`, `httpBatchLink`).
+
+#### 📝 `types/` – дополнительные декларации типов
+- **`better-auth.d.ts`** – расширение типов для better‑auth.
+- **`css.d.ts`** – декларация для CSS‑модулей.
 
 ## 📋 Требования
 
@@ -136,7 +239,6 @@ npx playwright test
 Доступные команды для запуска E2E‑тестов:
 ```bash
 npm run test:e2e:auth    # только авторизация
-npm run test:e2e:reset   # восстановление пароля (без почты)
 npm run test:e2e:mail    # восстановление пароля через почту (Mailpit)
 npm run test:e2e         # все E2E‑тесты (без графического интерфейса)
 ```
@@ -148,23 +250,24 @@ E2E‑тесты покрывают сценарии авторизации, в�
 - **E2E** (`.github/workflows/e2e.yml`) — полный цикл Playwright‑тестов с поднятием тестового сервера и Mailpit. Запускается **вручную** из вкладки Actions.
 ### 10. 📜 Доступные npm‑скрипты
 
-|Скрипт	                |   Описание                                             |
-|:----------------------|:-------------------------------------------------------|
-|npm run dev	        |   Запуск сервера разработки (рабочая БД)               |
-|npm run dev:test	    |   Запуск сервера с тестовой базой данных               |
-|npm run build	        |   Сборка production‑версии                             |
-|npm run start	        |   Запуск production‑сервера                            |
-|npm run db:generate	|   Генерация миграций Drizzle                           |
-|npm run db:push	    |   Применение миграций к текущей БД                     |
-|npm run type-check	    |   Проверка типов TypeScript                            |
-|npm run lint	        |   Линтинг кода (ESLint)                                |
-|npm run lint:fix	    |   Автоисправление ошибок линтинга                      |
-|npm run test:db:push	|   Накат схемы на тестовую БД                           |
-|npm run test	        |   Запуск всех unit‑тестов Vitest (исключая e2e/)       |
-|npm run test:e2e:auth	|   Запуск E2E теста авторизации (с графикой)            |
-|npm run test:e2e:mail	|   Запуск E2E теста восстановления через почту (Mailpit)|
-|npm run test:e2e	    |   Запуск всех E2E‑тестов (без графического интерфейса) |
-|npm run seed	        |   Наполнение БД тестовыми данными                      |
+|Скрипт	              |   Описание                                                |
+|:--------------------|:----------------------------------------------------------|
+|npm run dev	        |   Запуск сервера разработки (рабочая БД)                  |
+|npm run dev:test	    |   Запуск сервера с тестовой базой данных, для e2e-тестов  |
+|npm run build	      |   Сборка production‑версии                                |
+|npm run start	      |   Запуск production‑сервера                               |
+|npm run db:generate	|   Генерация миграций Drizzle                              |
+|npm run db:push	    |   Применение миграций к текущей БД                        |
+|npm run db:migrate   |   Применение сгенерированных миграций к базе данных       |
+|npm run type-check	  |   Проверка типов TypeScript                               |
+|npm run lint	        |   Линтинг кода (ESLint)                                   |
+|npm run lint:fix	    |   Автоисправление ошибок линтинга                         |
+|npm run test:db:push	|   Накат схемы на тестовую БД                              |
+|npm run test	        |   Запуск всех unit‑тестов Vitest (исключая e2e/)          |
+|npm run test:e2e:auth|   Запуск E2E теста авторизации (с графикой)               |
+|npm run test:e2e:mail|   Запуск E2E теста восстановления через почту (Mailpit)   |
+|npm run test:e2e	    |   Запуск всех E2E‑тестов (без графического интерфейса)    |
+|npm run seed	        |   Наполнение БД тестовыми данными                         |
 
 ### 11. Структура проекта
 ```
@@ -319,14 +422,52 @@ src
 │           ├── unitTypes.ts                                             # CRUD "Типы юнитов"
 │           ├── userManagement.ts                                        # Управление пользователями (сброс паролей, роли)
 │           ├── weeks.ts                                                 # CRUD "Недели"
-│           └── generations/                                             # Генераторы данных
-│               ├── index.ts                                             # Объединение всех генераторов в один роутер
-│               ├── assignClassrooms.ts                                  # Назначение аудиторий занятиям
-│               ├── generateCredentials.ts                               # Генерация учётных записей преподавателей/студентов
-│               ├── generateGroups.ts                                    # Генерация учебных групп
-│               ├── generateLessons.ts                                   # Генерация занятий
-│               ├── generateSchedule.ts                                  # Генерация расписания (жадный алгоритм)
-│               └── generateUnits.ts                                     # Генерация юнитов (потоки, группы, подгруппы)
+│           ├── generations/                                             # Генераторы данных
+│           │   ├── index.ts                                             # Объединение всех генераторов в один роутер
+│           │   ├── assignClassrooms.ts                                  # Назначение аудиторий занятиям
+│           │   ├── generateCredentials.ts                               # Генерация учётных записей преподавателей/студентов
+│           │   ├── generateGroups.ts                                    # Генерация учебных групп
+│           │   ├── generateLessons.ts                                   # Генерация занятий
+│           │   ├── generateSchedule.ts                                  # Генерация расписания (жадный алгоритм)
+│           │   └── generateUnits.ts                                     # Генерация юнитов (потоки, группы, подгруппы)
+│           └── __tests__/                                                   # Unit‑тесты (Vitest)
+│               ├── academicLoadTypes.test.ts
+│               ├── auth.test.ts
+│               ├── buildings.test.ts
+│               ├── classRooms.test.ts
+│               ├── controlTypes.test.ts
+│               ├── curriculum.test.ts
+│               ├── curriculumProfiles.test.ts
+│               ├── daysOfWeek.test.ts
+│               ├── departments.test.ts
+│               ├── disciplines.test.ts
+│               ├── disciplineTeachers.test.ts
+│               ├── education.test.ts
+│               ├── educationForms.test.ts
+│               ├── educationLevels.test.ts
+│               ├── employees.test.ts
+│               ├── employeesDepartments.test.ts
+│               ├── employmentTypes.test.ts
+│               ├── generators-logic.test.ts
+│               ├── generators.test.ts
+│               ├── hourTypeMapping.test.ts
+│               ├── institutes.test.ts
+│               ├── lessons.test.ts
+│               ├── lessonTypes.test.ts
+│               ├── lookup.test.ts
+│               ├── pairs.test.ts
+│               ├── positions.test.ts
+│               ├── profiles.test.ts
+│               ├── schedule.test.ts
+│               ├── settings.test.ts
+│               ├── specialties.test.ts
+│               ├── students.test.ts
+│               ├── studyGroups.test.ts
+│               ├── unitRoots.test.ts
+│               ├── units.test.ts
+│               ├── unitTypes.test.ts
+│               ├── userManagement.test.ts
+│               └── weeks.test.ts
 │
 ├── test/                                                                # Тестовая инфраструктура
 │   ├── helpers.ts                                                       # Хелперы: очистка таблиц, создание тестовых сущностей
@@ -479,6 +620,7 @@ erDiagram
   profiles {
     serial id PK
     text name
+    text abbrevation
     integer specialty_id FK
     text letter_code
     integer education_id FK
@@ -825,7 +967,7 @@ erDiagram
 * При попытке удалить запись, на которую ссылаются другие таблицы, пользователь видит тост с понятным сообщением.
 
 ### 13. Инструкция пользователя ИС
-На панели администратора мы можете найти ознакомиться с инструкцией пользователя ИС, где описаны возможные действия с интерфейсом.
+На панели администратора мы можете ознакомиться с инструкцией администратора ИС, где описаны возможные действия с интерфейсом.
 
 ### 14. 🩺 Возможные проблемы и их решение
 * Ошибка подключения к БД – проверьте DATABASE_URL и доступность PostgreSQL.

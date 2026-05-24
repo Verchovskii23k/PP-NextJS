@@ -1,4 +1,3 @@
-// src/server/trpc/routers/__tests__/employeesDepartments.test.ts
 import { beforeAll, describe, expect, it } from 'vitest';
 import { createTestCaller } from '@/test/trpc';
 import {
@@ -87,7 +86,7 @@ describe('employeesDepartments CRUD', () => {
     expect(byDept.some(l => l.id === linkId)).toBe(true);
 
     // фильтр по институту
-    const byInst = await caller.employeesDepartments.list({ instituteId: 1 }); // id института из createTestInstitute
+    const byInst = await caller.employeesDepartments.list({ instituteId: 1 });
     expect(byInst.some(l => l.id === linkId)).toBe(true);
   });
 

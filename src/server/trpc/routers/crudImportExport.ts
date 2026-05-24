@@ -49,7 +49,6 @@ export const crudImportExportRouter = router({
       return rows;
     }),
 
-  // Упрощённая версия импорта – без ошибок
   importData: adminProcedure
   .input(z.object({
     tableName: z.string().refine(t => ALLOWED_TABLES.includes(t)),

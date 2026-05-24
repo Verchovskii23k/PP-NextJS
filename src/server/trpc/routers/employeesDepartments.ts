@@ -100,5 +100,5 @@ export const employeesDepartmentsRouter = router({
     }),
   delete: adminProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => safeDelete(employeesDepartments, input.id)),
+    .mutation(async ({ input }) => safeDelete(employeesDepartments, input.id, "employeesDepartments")),
 });

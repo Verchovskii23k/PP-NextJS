@@ -256,7 +256,7 @@ export const generateLessonsRouter = router({
               and(
                 inArray(studyGroups.profileId, profileIds),
                 eq(studyGroups.course, course),
-                eq(studyGroups.isActive, true) // ← новое условие
+                eq(studyGroups.isActive, true)
               )
             );
           const groupIds = groups.map((g) => g.id);
@@ -289,9 +289,9 @@ export const generateLessonsRouter = router({
               and(
                 inArray(unitRoots.studyGroupId, groupIds),
                 eq(unitTypes.isActive, true),
-                eq(units.isActive, true), // активные юниты
+                eq(units.isActive, true),
                 isNull(units.versionId),
-                eq(unitRoots.isActive, true), // активные связи
+                eq(unitRoots.isActive, true),
                 isNull(unitRoots.versionId)
               )
             );
@@ -420,7 +420,6 @@ export const generateLessonsRouter = router({
         .from(lessons)
         .where(and(eq(lessons.isActive, true), isNull(lessons.versionId)));
 
-            // === НОВАЯ ПРОВЕРКА ===
       if ((totalLessons?.cnt ?? 0) === 0) {
         const reasons: string[] = [];
         if (plans.length === 0) reasons.push("отсутствуют учебные планы на текущий семестр");

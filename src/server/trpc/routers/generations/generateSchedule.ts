@@ -322,7 +322,7 @@ export const generateScheduleRouter = router({
             buildingNumber: buildings.number,
             roomNumber: classrooms.roomNumber,
             unitCode: units.code,
-            teacherId: lessons.teacherId, // ← добавляем
+            teacherId: lessons.teacherId,
           })
           .from(schedule)
           .innerJoin(lessons, eq(schedule.lessonId, lessons.id))
@@ -366,7 +366,7 @@ export const generateScheduleRouter = router({
             isBuffered: false,
             isActive: true,
             versionId: null,
-            teacherId: row.teacherId, // ← сохраняем
+            teacherId: row.teacherId,
           };
         });
 

@@ -273,7 +273,6 @@ export const globalImportExportRouter = router({
         const allowedFields = tablesMeta[tableName]?.fields?.map(f => f.dbName) ?? [];
 
         for (const _row of rows) {
-          // Проверяем, что _row – объект
           if (!isRecord(_row)) {
             stats[tableName].errors.push(`Пропущена строка: не объект`);
             continue;

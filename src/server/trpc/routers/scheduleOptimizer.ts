@@ -926,7 +926,7 @@ export async function optimizeSchedule(versionId?: number | null) {
           }
         }
         if (!placed) {
-          mergeGroupFailedNoSlot++; // группа не смогла разместиться даже после force
+          mergeGroupFailedNoSlot++;
         }
       }
     } else {
@@ -959,7 +959,6 @@ export async function optimizeSchedule(versionId?: number | null) {
         if (delta < 0 || Math.random() < Math.exp(-delta / temperature)) {
           currentScore = newScore;
           accepted++;
-          // singleMoved += 2; // оба занятия изменили позицию
           if (currentScore < bestScore) {
             bestScore = currentScore;
             bestState = ctx.entries.map(e => ({ ...e }));
@@ -995,7 +994,6 @@ export async function optimizeSchedule(versionId?: number | null) {
         if (delta < 0 || Math.random() < Math.exp(-delta / temperature)) {
           currentScore = newScore;
           accepted++;
-          // singleMoved++; // одно занятие перемещено
           if (currentScore < bestScore) {
             bestScore = currentScore;
             bestState = ctx.entries.map(e => ({ ...e }));

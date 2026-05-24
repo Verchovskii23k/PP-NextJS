@@ -47,13 +47,30 @@ test.describe('Password reset via Mailpit', () => {
   });
 
   test('reset password via email', async ({ page }) => {
+    // 1. Попытка входа с заведомо неверным паролем и проверка «глазка»
     await page.goto('/login');
+    const emailInput = page.locator('input[placeholder="Email"]');
+    await emailInput.fill(adminLogin);
+    const passwordInputLogin = page.locator('input[placeholder="Пароль"]');
+    await passwordInputLogin.fill('wrongPassword');
+
+    // Кликаем по «глазку» на странице входа – проверяем, что пароль виден
+    const loginShowBtn = page.locator('button[aria-label="Показать пароль"]');
+    await loginShowBtn.click();
+    await expect(passwordInputLogin).toHaveAttribute('type', 'text');
+
+
+    // Пытаемся войти – ожидаем ошибку
+    await page.click('button:has-text("Войти")');
+    await page.waitForSelector('.text-red-500', { timeout: 5000 }); // красный текст ошибки
+
+    // 2. Восстановление пароля
     await page.click('a:has-text("Забыли пароль?")');
     await page.waitForURL('/forgot-password');
 
-    const emailInput = page.locator('input[type="email"]');
-    await emailInput.waitFor({ timeout: 10000 });
-    await emailInput.fill('admin@test.com');
+    const forgotEmailInput = page.locator('input[type="email"]');
+    await forgotEmailInput.waitFor({ timeout: 10000 });
+    await forgotEmailInput.fill('admin@test.com');
     await page.click('button:has-text("Восстановить пароль")');
 
     // Ожидаем появления зелёного сообщения об успехе
@@ -63,21 +80,42 @@ test.describe('Password reset via Mailpit', () => {
     if (!token) throw new Error('Token not found in Mailpit');
     console.log('Mail token:', token);
 
+    // 3. Установка нового пароля
     await page.goto(`/reset-password?token=${token}`);
     await page.waitForSelector('input[type="password"]', { timeout: 10000 });
 
     const newPassword = 'mailPass456';
-    await page.fill('input[type="password"]', newPassword);
+    // Локатор для поля ввода нового пароля (не зависит от type)
+    const resetPasswordInput = page.locator('input[type="password"], input[type="text"]').first();
+    await resetPasswordInput.fill(newPassword);
+
+    // Кликаем по «глазку» на странице сброса
+    const resetShowBtn = page.locator('button[aria-label="Показать пароль"]');
+    await resetShowBtn.click();
+    // После клика поле должно быть текстовым – проверяем, что значение видно
+    await expect(resetPasswordInput).toHaveValue(newPassword);
+
+    // Сохраняем новый пароль
     await page.click('button:has-text("Сохранить")');
 
-    // Успешный сброс редиректит на /login
+    // 4. Вход с новым паролем
     await page.waitForURL('/login', { timeout: 10000 });
     await expect(page).toHaveURL('/login');
 
-    // Логин с новым паролем
     await page.fill('input[placeholder="Email"]', adminLogin);
-    await page.fill('input[placeholder="Пароль"]', newPassword);
+    const loginPasswordInput2 = page.locator('input[placeholder="Пароль"]');
+    await loginPasswordInput2.fill(newPassword);
+
+    // Снова показываем пароль на странице входа
+    const loginShowBtn2 = page.locator('button[aria-label="Показать пароль"]');
+    await loginShowBtn2.click();
+    await expect(loginPasswordInput2).toHaveAttribute('type', 'text');
+
+    // Входим
     await page.click('button:has-text("Войти")');
+    const dashboardLink = page.locator('a:has-text("Перейти в панель управления")');
+    await dashboardLink.waitFor({ state: 'visible', timeout: 15000 });
+    await dashboardLink.click();
     await page.waitForURL(/\/admin/);
     await expect(page).toHaveURL(/\/admin/);
   });

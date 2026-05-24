@@ -79,15 +79,15 @@ export const curriculumRouter = router({
   update: adminProcedure
     .input(z.object({
       id: z.number(),
-      course: z.number().int().optional(),
-      semester: z.number().int().optional(),
-      disciplineId: z.number().int().optional(),
-      hoursLecture: z.number().int().optional(),
-      hoursGuidedStudy: z.number().int().optional(),
-      hoursWorkshop: z.number().int().optional(),
-      hoursLab: z.number().int().optional(),
-      additionalTaskId: z.number().int().nullable().optional(),
-      controlTypeId: z.number().int().nullable().optional(),
+      course: z.coerce.number().int().optional(),
+      semester: z.coerce.number().int().optional(),
+      disciplineId: z.coerce.number().int().optional(),
+      hoursLecture: z.coerce.number().int().optional(),
+      hoursGuidedStudy: z.coerce.number().int().optional(),
+      hoursWorkshop: z.coerce.number().int().optional(),
+      hoursLab: z.coerce.number().int().optional(),
+      additionalTaskId: z.coerce.number().int().nullable().optional(),
+      controlTypeId: z.coerce.number().int().nullable().optional(),
       isActive: z.boolean().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
@@ -112,5 +112,5 @@ export const curriculumRouter = router({
     }),
   delete: adminProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => safeDelete(curriculum, input.id)),
+    .mutation(async ({ input }) => safeDelete(curriculum, input.id, "curriculum")),
 });

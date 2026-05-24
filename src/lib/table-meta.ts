@@ -80,8 +80,8 @@ export interface TableMeta {
   category: "reference" | "people" | "generated";
   hidden?: boolean;
   childTables?: {
-    dbTableName: string; // имя таблицы в БД
-    foreignKeyColumn: string; // колонка с внешним ключом, ссылающимся на нашу таблицу
+    dbTableName: string;
+    foreignKeyColumn: string;
   }[];
 }
 
@@ -104,7 +104,7 @@ export const tablesMeta: Record<string, TableMeta> = {
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "universityCode", displayName: "Код университета", isFK: false, required: true },
       { dbName: "name", displayName: "Название", isFK: false, required: true },
-      { dbName: "directorId", displayName: "Директор", isFK: true, references: { table: "employees", displayField: "display" }, showInCreate: false },
+      { dbName: "directorId", displayName: "Директор", isFK: true, references: { table: "employees", displayField: "display" } },
       { dbName: "isActive", displayName: "Активен", isFK: false, required: true, inputType: "toggle" }
     ],
   },
@@ -172,6 +172,7 @@ export const tablesMeta: Record<string, TableMeta> = {
     fields: [
       { dbName: "id", displayName: "ID", isFK: false },
       { dbName: "name", displayName: "Название", isFK: false, required: true },
+      { dbName: "abbreviation", displayName: "Аббревиатура", isFK: false, required: true },
       { dbName: "specialtyId", displayName: "Специальность", isFK: true, references: { table: "specialties", displayField: "display" }, required: true },
       { dbName: "letterCode", displayName: "Буквенный код", isFK: false, required: true },
       { dbName: "educationId", displayName: "Образование", isFK: true, references: { table: "education", displayField: "display" } },
@@ -305,24 +306,24 @@ export const tablesMeta: Record<string, TableMeta> = {
           { dbName: "isActive", displayName: "Активен", isFK: false, required: true, inputType: "toggle" },
         ],
     },
-    students: {
-        nameRu: "Студенты",
-        routerKey: "students",
-        dbTableName: "students",
-        category: "people",
-        childTables: [],
-        fields: [
-          { dbName: "id", displayName: "ID", isFK: false },
-          { dbName: "surname", displayName: "Фамилия", isFK: false, required: true },
-          { dbName: "name", displayName: "Имя", isFK: false, required: true },
-          { dbName: "patronymic", displayName: "Отчество", isFK: false },
-          { dbName: "admissionYear", displayName: "Год поступления", isFK: false, required: true },
-          { dbName: "profileId", displayName: "Профиль", isFK: true, references: { table: "profiles", displayField: "profileDisplay" }, required: true },
-          { dbName: "studyGroupId", displayName: "Учебная группа", isFK: true, references: { table: "studyGroups", displayField: "display" } },
-          { dbName: "course", displayName: "Курс", isFK: false },
-          { dbName: "isActive", displayName: "Активен", isFK: false, required: true, inputType: "toggle" },
-        ],
-    },
+  students: {
+      nameRu: "Студенты",
+      routerKey: "students",
+      dbTableName: "students",
+      category: "people",
+      childTables: [],
+      fields: [
+        { dbName: "id", displayName: "ID", isFK: false },
+        { dbName: "surname", displayName: "Фамилия", isFK: false, required: true },
+        { dbName: "name", displayName: "Имя", isFK: false, required: true },
+        { dbName: "patronymic", displayName: "Отчество", isFK: false },
+        { dbName: "admissionYear", displayName: "Год поступления", isFK: false, required: true },
+        { dbName: "profileId", displayName: "Профиль", isFK: true, references: { table: "profiles", displayField: "profileDisplay" }, required: true },
+        { dbName: "studyGroupId", displayName: "Учебная группа", isFK: true, references: { table: "studyGroups", displayField: "display" } },
+        { dbName: "course", displayName: "Курс", isFK: false },
+        { dbName: "isActive", displayName: "Активен", isFK: false, required: true, inputType: "toggle" },
+      ],
+  },
   studyGroups: {
     nameRu: "Учебные группы",
     routerKey: "studyGroups",
@@ -371,7 +372,7 @@ export const tablesMeta: Record<string, TableMeta> = {
       { dbName: "unitId", displayName: "Юнит", isFK: true, references: { table: "units", displayField: "display" }, required: true },
       { dbName: "lessonTypeId", displayName: "Тип занятия", isFK: true, references: { table: "lessonTypes", displayField: "display" }, required: true },
       { dbName: "disciplineId", displayName: "Дисциплина", isFK: true, references: { table: "disciplines", displayField: "name" }, required: true },
-      { dbName: "teacherId", displayName: "Преподаватель", isFK: true, references: { table: "employees", displayField: "display" }, required: true },
+      { dbName: "teacherId", displayName: "Преподаватель", isFK: true, references: { table: "employeesDepartments", displayField: "display" }, required: true },
       { dbName: "countPerSemester", displayName: "На семестр", isFK: false, required: true },
     ],
   },
@@ -389,27 +390,27 @@ export const tablesMeta: Record<string, TableMeta> = {
       { dbName: "course", displayName: "Курс", isFK: false, required: true },
       { dbName: "semester", displayName: "Семестр", isFK: false, required: true },
       { dbName: "disciplineId", displayName: "Дисциплина", isFK: true, references: { table: "disciplines", displayField: "name" }, required: true },
-      { dbName: "hoursLecture", displayName: "Часов лекций", isFK: false },
-      { dbName: "hoursGuidedStudy", displayName: "Часов КСР", isFK: false },
-      { dbName: "hoursWorkshop", displayName: "Часов практик", isFK: false },
-      { dbName: "hoursLab", displayName: "Часов лаб.", isFK: false },
-      { dbName: "additionalTaskId", displayName: "Доп. задача", isFK: true, references: { table: "academicLoadTypes", displayField: "name" } },
-      { dbName: "controlTypeId", displayName: "Тип контроля", isFK: true, references: { table: "controlTypes", displayField: "name" } },
+      { dbName: "hoursLecture", displayName: "Часов лекций", isFK: false, required: true },
+      { dbName: "hoursGuidedStudy", displayName: "Часов КСР", isFK: false, required: true },
+      { dbName: "hoursWorkshop", displayName: "Часов практик", isFK: false, required: true },
+      { dbName: "hoursLab", displayName: "Часов лаб.", isFK: false, required: true },
+      { dbName: "additionalTaskId", displayName: "Доп. задача", isFK: true, references: { table: "academicLoadTypes", displayField: "name" }, required: true },
+      { dbName: "controlTypeId", displayName: "Тип контроля", isFK: true, references: { table: "controlTypes", displayField: "name" }, required: true },
       { dbName: "isActive", displayName: "Активен", isFK: false, required: true, inputType: "toggle" }
     ],
   },
-lessonClassrooms: {
-  nameRu: "Аудитории занятий",
-  routerKey: "lessonClassrooms",
-  dbTableName: "lesson_classrooms",
-  category: "generated",
-  childTables: [],
-  fields: [
-    { dbName: "id", displayName: "ID", isFK: false },
-    { dbName: "lessonId", displayName: "Занятие", isFK: true, references: { table: "lessons", displayField: "display" }, required: true},
-    { dbName: "classroomId", displayName: "Аудитория", isFK: true, references: { table: "classrooms", displayField: "display" }, required: true},
-  ],
-},
+  lessonClassrooms: {
+    nameRu: "Аудитории занятий",
+    routerKey: "lessonClassrooms",
+    dbTableName: "lesson_classrooms",
+    category: "generated",
+    childTables: [],
+    fields: [
+      { dbName: "id", displayName: "ID", isFK: false },
+      { dbName: "lessonId", displayName: "Занятие", isFK: true, references: { table: "lessons", displayField: "display" }, required: true},
+      { dbName: "classroomId", displayName: "Аудитория", isFK: true, references: { table: "classrooms", displayField: "display" }, required: true},
+    ],
+  },
   unitRoots: {
     nameRu: "Корни юнитов",
     routerKey: "unitRoots",
@@ -602,7 +603,7 @@ lessonClassrooms: {
       { dbName: "isActive", displayName: "Активен", isFK: false, required: true, inputType: "toggle" },
     ],
   },
-    // Скрываем служебные таблицы
+
   schedule: {
     nameRu: "Расписание",
     routerKey: "schedule",

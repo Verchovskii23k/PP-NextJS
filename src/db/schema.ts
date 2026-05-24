@@ -1,4 +1,3 @@
-// src/db/schema.ts
 import { eq } from "drizzle-orm";
 import {
   pgTable,
@@ -41,11 +40,11 @@ export const accounts = pgTable("account", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   userId: text("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
   providerId: text("providerId").notNull(),
-  accountId: text("accountId").notNull(),          // именно accountId
+  accountId: text("accountId").notNull(),
   refreshToken: text("refreshToken"),
   accessToken: text("accessToken"),
   expiresAt: timestamp("expiresAt"),
-  password: text("password"),                      // хеш пароля для credential-провайдера
+  password: text("password"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
 }, (table) => ({
@@ -61,7 +60,7 @@ export const verificationTokens = pgTable("verificationToken", {
 });
 
 
-// ==================== ТВОИ ТАБЛИЦЫ ====================
+
 export const scheduleVersions = pgTable("schedule_versions", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
@@ -130,6 +129,7 @@ export const specialties = pgTable("specialties", {
 export const profiles = pgTable("profiles", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
+  abbreviation: text("abbreviation").notNull(),
   specialtyId: integer("specialty_id").notNull().references(() => specialties.id),
   letterCode: text("letter_code").notNull(),
   educationId: integer("education_id").references(() => education.id),
@@ -151,7 +151,7 @@ export const employees = pgTable("employees", {
   surname: text("surname").notNull(),
   name: text("name").notNull(),
   patronymic: text("patronymic"),
-  userId: text("user_id").unique().references(() => users.id), // связь с учётной записью
+  userId: text("user_id").unique().references(() => users.id),
   isActive: boolean("is_active").notNull().default(true),
   isAdmin: boolean("is_admin").default(false).notNull(),
 });
@@ -175,7 +175,7 @@ export const students = pgTable("students", {
   profileId: integer("profile_id").notNull().references(() => profiles.id),
   studyGroupId: integer("study_group_id").references(() => studyGroups.id),
   course: integer("course"),
-  userId: text("user_id").unique().references(() => users.id), // связь
+  userId: text("user_id").unique().references(() => users.id),
   isActive: boolean("is_active").notNull().default(true),
 });
 

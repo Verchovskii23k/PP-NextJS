@@ -1,4 +1,3 @@
-// src/server/trpc/routers/lessonClassrooms.ts
 import { z } from "zod";
 import { router, adminProcedure } from "../trpc";
 import {
@@ -175,6 +174,7 @@ export const lessonClassroomsRouter = router({
       }
       if (lessonId) {
         await syncScheduleDisplayForLesson(ctx.db, lessonId);
+        await recalculateUsageMetrics()
       }
       return { success: true };
     }),

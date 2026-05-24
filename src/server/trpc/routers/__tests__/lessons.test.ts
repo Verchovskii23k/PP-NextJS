@@ -1,4 +1,3 @@
-// src/server/trpc/routers/__tests__/lessons.test.ts
 import { beforeAll, describe, expect, it } from 'vitest';
 import { createTestCaller } from '@/test/trpc';
 import {
@@ -148,7 +147,7 @@ describe('lessons CRUD', () => {
   it('should reject update with invalid data', async () => {
     await expect(
       caller.lessons.update({ id: lessonId, countPerSemester: -1 })
-    ).rejects.toThrow(); // Zod validation
+    ).rejects.toThrow();
   });
 
   it('should not fail on non-existent id update', async () => {

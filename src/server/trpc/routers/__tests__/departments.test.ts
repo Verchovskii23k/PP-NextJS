@@ -1,4 +1,3 @@
-// src/server/trpc/routers/__tests__/departments.test.ts
 import { beforeAll, describe, expect, it } from 'vitest';
 import { createTestCaller } from '@/test/trpc';
 import { 
@@ -153,7 +152,7 @@ describe('departments CRUD', () => {
     // Создаём сотрудника и группу, назначаем куратора
     const empId = await createTestEmployee();
     const eduId = await createTestEducation();
-    const specId = await createTestSpecialty(deptId); // нужна специальность с deptId, но у нас deptId уже есть
+    const specId = await createTestSpecialty(deptId);
     const profId = await createTestProfile(specId, eduId);
     await createTestStudyGroup(profId, { curatorId: empId });
 

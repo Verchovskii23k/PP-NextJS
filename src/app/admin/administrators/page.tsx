@@ -8,7 +8,7 @@ export default function AdministratorsPage() {
     success: boolean;
     warning?: string;
   }
-  const utils = trpc.useUtils(); // <-- добавили
+  const utils = trpc.useUtils();
   const { data, isLoading, error } = trpc.adminManagement.listEmployeesWithAdminFlag.useQuery();
   
   const { data: me } = trpc.auth.me.useQuery();

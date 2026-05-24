@@ -11,7 +11,6 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
 
   useEffect(() => {
     if (!isLoading && (!me || me.role !== "teacher")) {
-      // router.replace("/login");
     }
   }, [me, isLoading, router]);
 

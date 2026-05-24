@@ -14,7 +14,6 @@ export const authRouter = router({
       surname: z.string().min(1),
       name: z.string().min(1),
       patronymic: z.string().optional(),
-      phone: z.string().optional(),
       email: z.string().email(),
       password: z.string().min(6),
     }))
@@ -156,7 +155,7 @@ export const authRouter = router({
     .input(z.object({
       token: z.string(),
       newPassword: z.string().min(6),
-      newEmail: z.string().email().optional(),   // ← добавляем
+      newEmail: z.string().email().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const [tokenRecord] = await ctx.db
@@ -222,4 +221,14 @@ export const authRouter = router({
 
       return { success: true };
     }),
+    canSetup: publicProcedure.query(async ({ ctx }) => {
+    // Считаем количество пользователей с ролью admin
+    const rows = await ctx.db
+      .select()
+      .from(users)
+      .where(eq(users.role, 'admin'))
+      .limit(1);
+    // Если ни одной записи не найдено — первичная регистрация разрешена
+    return rows.length === 0;
+  }),
 });

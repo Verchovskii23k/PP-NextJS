@@ -170,5 +170,5 @@ export const studyGroupsRouter = router({
     }),
   delete: adminProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => safeDelete(studyGroups, input.id)),
+    .mutation(async ({ input }) => safeDelete(studyGroups, input.id, "studyGroups")),
 });

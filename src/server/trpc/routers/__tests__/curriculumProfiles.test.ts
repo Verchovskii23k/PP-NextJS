@@ -1,4 +1,3 @@
-// src/server/trpc/routers/__tests__/curriculumProfiles.test.ts
 import { beforeAll, describe, expect, it } from 'vitest';
 import { createTestCaller } from '@/test/trpc';
 import { 

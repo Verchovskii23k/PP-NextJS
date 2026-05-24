@@ -80,13 +80,13 @@ export async function clearAllTestData() {
     unitRoots, units, unitTypes,
     daysOfWeek, pairs, weeks,
     students, studyGroups,
-    profiles,  // <-- удаляем до education
+    profiles,
     education, 
-    specialties,  // <-- удаляем до departments
-    disciplines,  // <-- удаляем до departments
+    specialties,
+    disciplines,
     departments,
     institutes, buildings, employees,
-    educationLevels, educationForms,  // <-- после education, но без зависимостей
+    educationLevels, educationForms,
     positions, employmentTypes, academicLoadTypes, controlTypes,
     settings, scheduleVersions,
     accounts, users,
@@ -209,6 +209,7 @@ export async function createTestProfile(specialtyId: number, educationId: number
       letterCode: `t${Math.floor(Math.random() * 100)}`,
       specialtyId,
       educationId,
+      abbreviation: overrides?.abbreviation ?? 'ТЕСТ',
       ...overrides,
     })
     .returning({ id: profiles.id });
@@ -332,5 +333,5 @@ export async function createTestUnit(unitTypeId: number, overrides?: Partial<typ
       ...overrides,
     })
     .returning({ id: units.id, code: units.code });
-  return u; // возвращаем объект с id и code
+  return u;
 }

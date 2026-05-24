@@ -4,14 +4,23 @@ import { trpc } from "@/trpc/client";
 import { PageSkeleton } from '@/components/ui/page_skeleton';
 
 export default function HomePage() {
-  const { data: me, isLoading } = trpc.auth.me.useQuery();
+  const { data: me, isLoading: meLoading } = trpc.auth.me.useQuery();
 
-  if(isLoading) return <PageSkeleton/>
+  const { data: canSetup, isLoading: setupLoading } = trpc.auth.canSetup.useQuery(
+    undefined,
+    { enabled: !me }
+  );
+
+  if (meLoading || setupLoading) return <PageSkeleton />;
 
   const dashboardLink =
     me?.role === 'teacher' ? '/teacher' :
     me?.role === 'student' ? '/student' :
-    '/admin'; // admin или если роль не определена (но такого почти не бывает)
+    '/admin';
+
+  const isSetupAllowed = canSetup ?? false;
+  const loginLink = isSetupAllowed ? '/setup' : '/login';
+  const loginButtonText = isSetupAllowed ? 'Зарегистрироваться' : 'Войти';
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center px-4 text-center">
@@ -36,10 +45,10 @@ export default function HomePage() {
           </Link>
         ) : (
           <Link
-            href="/login"
+            href={loginLink}
             className="hover:bg-primary/90 rounded-lg bg-primary px-8 py-3 text-lg font-medium text-white shadow transition-colors"
           >
-            Войти
+            {loginButtonText}
           </Link>
         )}
       </div>
@@ -47,7 +56,9 @@ export default function HomePage() {
       <p className="mt-8 text-sm text-muted-foreground">
         {me
           ? `Вы вошли как ${me.fullName || me.email}.`
-          : 'Для начала работы войдите или создайте учётную запись администратора.'}
+          : isSetupAllowed
+            ? 'Для начала работы создайте учётную запись администратора.'
+            : 'Для продолжения войдите в систему.'}
       </p>
     </main>
   );

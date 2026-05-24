@@ -1,4 +1,3 @@
-// src/server/trpc/routers/__tests__/userManagement.test.ts
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { db } from '@/db';
 import { users, students, accounts, verificationTokens, profiles } from '@/db/schema';

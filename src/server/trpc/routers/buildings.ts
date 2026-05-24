@@ -9,6 +9,12 @@ export const buildingsRouter = router({
   list: adminProcedure.query(async ({ ctx }) => {
     return ctx.db.select().from(buildings).orderBy(asc(buildings.id));
   }),
+  get: adminProcedure
+  .input(z.object({ id: z.number() }))
+  .query(async ({ ctx, input }) => {
+    const rows = await ctx.db.select().from(buildings).where(eq(buildings.id, input.id)).limit(1);
+    return rows[0] ?? null;
+  }),
   create: adminProcedure
     .input(z.object({
       number: z.coerce.number().int().positive(),
@@ -43,11 +49,6 @@ export const buildingsRouter = router({
     }),
   delete: adminProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => safeDelete(buildings, input.id)),
-  get: adminProcedure
-    .input(z.object({ id: z.number() }))
-    .query(async ({ ctx, input }) => {
-      const rows = await ctx.db.select().from(buildings).where(eq(buildings.id, input.id)).limit(1);
-      return rows[0] ?? null;
-    }),
+    .mutation(async ({ input }) => safeDelete(buildings, input.id, "buildings")),
+
 });

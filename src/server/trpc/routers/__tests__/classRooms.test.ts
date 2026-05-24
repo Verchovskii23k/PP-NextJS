@@ -1,4 +1,3 @@
-// src/server/trpc/routers/__tests__/classRooms.test.ts
 import { beforeAll, describe, expect, it } from 'vitest';
 import { createTestCaller } from '@/test/trpc';
 import {
@@ -17,10 +16,6 @@ let deptId: number;
 beforeAll(async () => {
   // Очищаем нужные таблицы
   await clearAllTestData();
-  // await clearTable(classrooms);
-  // await clearTable(buildings);
-  // await clearTable(departments);
-  // await clearTable(institutes);
 
   // Создаём институт и кафедру для departmentId
   const instId = await createTestInstitute();

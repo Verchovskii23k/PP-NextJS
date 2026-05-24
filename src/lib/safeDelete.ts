@@ -53,7 +53,7 @@ import { tablesMeta } from "@/lib/table-meta";
 export async function safeDelete(
   table: PgTable,
   id: number,
-  tableNameKey?: string // ключ в tablesMeta, например "institutes"
+  tableNameKey?: string
 ) {
   const tableConfig = getTableConfig(table);
   const idColumn = tableConfig.columns.find((c) => c.name === "id");
@@ -63,7 +63,6 @@ export async function safeDelete(
   if (tableNameKey) {
     const meta = tablesMeta[tableNameKey];
     if (meta?.childTables && meta.childTables.length > 0) {
-      // Строим карту русских названий
       const nameByDbTable: Record<string, string> = {};
       for (const key of Object.keys(tablesMeta)) {
         const m = tablesMeta[key];
@@ -78,7 +77,7 @@ export async function safeDelete(
             sql`SELECT 1 FROM ${sql.identifier(child.dbTableName)}
                 WHERE ${sql.identifier(child.foreignKeyColumn)} = ${id} LIMIT 1`
           );
-          const hasRows = (result as unknown as Array<unknown>).length > 0;
+          const hasRows = Array.isArray(result) && result.length > 0;
           const ruName = nameByDbTable[child.dbTableName] || child.dbTableName;
           return { name: ruName, hasRows };
         })

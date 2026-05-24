@@ -23,7 +23,6 @@ export default function UsersPage() {
     onError: (e) => { toast.error(e.message ?? "Ошибка") },
   });
 
-  // Мутации для сброса пароля
   const sendResetCodeMut = trpc.userManagement.sendResetCode.useMutation({
     onError: (e) => {toast.error(e.message)},
   });

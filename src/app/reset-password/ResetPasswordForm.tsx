@@ -70,7 +70,7 @@ export default function ResetPasswordForm() {
         {error && <p className="mb-3 text-red-500">{error}</p>}
         <button
           type="submit"
-          aria-label="Показать пароль"
+          aria-label="Сохранить новый пароль"
           className="w-full rounded bg-primary px-4 py-2 text-white"
           disabled={resetMut.isPending}
         >

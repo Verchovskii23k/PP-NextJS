@@ -1,4 +1,3 @@
-// src/server/trpc/routers/__tests__/specialties.test.ts
 import { beforeAll, describe, expect, it } from 'vitest';
 import { createTestCaller } from '@/test/trpc';
 import {
@@ -14,14 +13,14 @@ import { TRPCError } from '@trpc/server';
 
 let caller: Awaited<ReturnType<typeof createTestCaller>>;
 let deptId: number;
-let educationId: number; // <-- добавить
+let educationId: number;
 
 beforeAll(async () => {
   await clearAllTestData();
 
   const instId = await createTestInstitute();
   deptId = await createTestDepartment(instId);
-  educationId = await createTestEducation(); // <-- создать один раз
+  educationId = await createTestEducation();
 
   caller = await createTestCaller({ id: 1, role: 'admin' });
 });
@@ -141,7 +140,8 @@ describe('specialties CRUD', () => {
       name: 'Профиль для каскада',
       specialtyId: spec2Id,
       letterCode: 'к',
-      educationId,   // <-- используем существующий
+      educationId,
+      abbreviation: 'ТЕСТ',
       isActive: true,
     }).returning({ id: profiles.id });
 
@@ -186,6 +186,7 @@ describe('specialties CRUD', () => {
       specialtyId: spec.id,
       letterCode: 'св',
       educationId,
+      abbreviation: 'ТЕСТ',
       isActive: true,
     });
 

@@ -122,7 +122,7 @@ export const classroomsRouter = router({
       buildingId: z.coerce.number().int().min(1),
       roomNumber: z.string().min(1),
       capacity: z.coerce.number().int().min(1, "Вместимость должна быть больше нуля"),
-      departmentId: z.coerce.number().int(),
+      departmentId: z.coerce.number().int().nullable().optional(),
       priorityLecture: z.number().int().min(1).max(3).default(3),
       priorityWorkshop: z.number().int().min(1).max(3).default(3),
       priorityGuidedStudy: z.number().int().min(1).max(3).default(3),
@@ -165,7 +165,6 @@ export const classroomsRouter = router({
     .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;
       if (data.roomNumber || data.buildingId) {
-        // Получаем текущие значения, если какие-то не переданы
         const current = await ctx.db
           .select({
             buildingId: classrooms.buildingId,
@@ -212,7 +211,7 @@ export const classroomsRouter = router({
   delete: adminProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
-      await safeDelete(classrooms, input.id);
+      await safeDelete(classrooms, input.id, "classrooms");
       await recalculateUsageMetrics();
       return { success: true };
     }),

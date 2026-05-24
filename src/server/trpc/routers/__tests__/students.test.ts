@@ -1,4 +1,3 @@
-// src/server/trpc/routers/__tests__/students.test.ts
 import { beforeAll, describe, expect, it } from 'vitest';
 import { createTestCaller } from '@/test/trpc';
 import {
@@ -170,7 +169,7 @@ describe('students CRUD', () => {
       .from(users)
       .where(eq(users.id, otherUserId))
       .limit(1);
-    expect(deletedUser).toBeUndefined(); // или проверка на undefined/ null
+    expect(deletedUser).toBeUndefined();
   });
 
   it('should reject deleting non-existent student', async () => {

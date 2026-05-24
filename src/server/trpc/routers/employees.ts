@@ -122,7 +122,7 @@ delete: adminProcedure
       const [employee] = await ctx.db
         .select({ userId: employees.userId })
         .from(employees)
-        .where(eq(employees.id, input.id))
+        .where(eq(employees.id, input.id, ))
         .limit(1);
       if (!employee) throw new TRPCError({ code: 'NOT_FOUND', message: 'Сотрудник не найден' });
       if (employee.userId && ctx.user?.id === employee.userId) {

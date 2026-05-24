@@ -255,7 +255,7 @@ export default function AdminCrudPage() {
                 Сбросить всё
               </button>
             </div>
-            <DataTable tableName={selectedTable} />
+            <DataTable key={selectedTable} tableName={selectedTable} />
           </>
         ) : (
           <div className="mt-10 text-center text-muted-foreground">

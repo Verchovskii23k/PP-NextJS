@@ -94,11 +94,10 @@ export async function createTestCaller(user?: { id: string | number; role: strin
         role: user.role || 'student',
         email: 'test@test.local',
       },
-      expires: new Date(Date.now() + 3600000), // +1 час
+      expires: new Date(Date.now() + 3600000),
       sessionToken: 'test-session-token',
     };
 
-    // Приводим к типу сессии из контекста (обычно Session | null)
     ctx.session = mockSession as unknown as Context['session'];
   }
 

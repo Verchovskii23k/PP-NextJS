@@ -1,4 +1,3 @@
-// src/server/trpc/routers/__tests__/institutes.test.ts
 import { beforeAll, describe, expect, it } from 'vitest';
 import { createTestCaller } from '@/test/trpc';
 import {
@@ -40,13 +39,13 @@ describe('institutes CRUD', () => {
     await expect(
       caller.institutes.create({
         name: 'Другой',
-        universityCode: 100, // тот же код
+        universityCode: 100,
       })
     ).rejects.toThrow(TRPCError);
 
     await expect(
       caller.institutes.create({
-        name: 'Тестовый институт', // то же имя
+        name: 'Тестовый институт',
         universityCode: 200,
       })
     ).rejects.toThrow(TRPCError);

@@ -64,7 +64,7 @@ return (
       <div className="mx-auto flex h-12 max-w-7xl items-center justify-between px-4">
         {/* Левая группа */}
         <div className="flex items-center gap-4">
-          {!isPublicPage && !isHomePage && (   // ← добавил условие на isHomePage
+          {!isPublicPage && !isHomePage && (
             <Link
               href={homePath}
               className="flex items-center gap-1.5 text-foreground transition-colors hover:text-primary"
