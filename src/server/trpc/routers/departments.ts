@@ -4,6 +4,7 @@ import { departments, employees, institutes, studyGroups } from "@/db/schema";
 import { eq, asc, sql, and } from "drizzle-orm";
 import { safeDelete } from "@/lib/safeDelete";
 import { TRPCError } from "@trpc/server";
+import { cascadeDeactivate } from "@/lib/cascadeDeactivate";
 
 export const departmentsRouter = router({
   list: adminProcedure.query(async ({ ctx }) => {
@@ -133,8 +134,16 @@ export const departmentsRouter = router({
         if (duplicate) throw new TRPCError({ code: 'CONFLICT', message: 'Кафедра с таким кодом уже существует' });
       }
 
-      if (isActive === false) {
-
+      if (input.isActive === false) {
+        return ctx.db.transaction(async (tx) => {
+          await cascadeDeactivate(tx, "departments", id);
+          const [result] = await tx
+            .update(departments)
+            .set({ ...data, headId, isActive: false })
+            .where(eq(departments.id, id))
+            .returning();
+          return result;
+        });
       }
 
       return ctx.db.update(departments).set({ ...data, headId, isActive }).where(eq(departments.id, id)).returning();

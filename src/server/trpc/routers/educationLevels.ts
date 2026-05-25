@@ -4,6 +4,7 @@ import { educationLevels } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { safeDelete } from "@/lib/safeDelete";
 import { TRPCError } from "@trpc/server";
+import { cascadeDeactivate } from "@/lib/cascadeDeactivate";
 
 export const educationLevelsRouter = router({
   list: adminProcedure.query(async ({ ctx }) => ctx.db.select().from(educationLevels)),
@@ -44,6 +45,17 @@ export const educationLevelsRouter = router({
           .where(and(eq(educationLevels.name, data.name), sql`${educationLevels.id} != ${id}`))
           .limit(1);
         if (existing) throw new TRPCError({ code: 'CONFLICT', message: 'Уровень образования с таким названием уже существует' });
+      }
+      if (data.isActive === false) {
+        return ctx.db.transaction(async (tx) => {
+          await cascadeDeactivate(tx, "educationLevels", id);
+          const [result] = await tx
+            .update(educationLevels)
+            .set(data)
+            .where(eq(educationLevels.id, id))
+            .returning();
+          return result;
+        });
       }
       return ctx.db.update(educationLevels).set(data).where(eq(educationLevels.id, id)).returning();
     }),

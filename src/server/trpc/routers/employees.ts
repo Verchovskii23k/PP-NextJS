@@ -3,6 +3,7 @@ import { router, adminProcedure } from "../trpc";
 import { employees, employeesDepartments, users, departments, specialties, profiles, disciplineTeachers } from "@/db/schema";
 import { eq, asc, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
+import { cascadeDeactivate } from "@/lib/cascadeDeactivate";
 
 export const employeesRouter = router({
   list: adminProcedure
@@ -114,6 +115,17 @@ export const employeesRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;
+      if (data.isActive === false) {
+        return ctx.db.transaction(async (tx) => {
+          await cascadeDeactivate(tx, "employees", id);
+          const [result] = await tx
+            .update(employees)
+            .set(data)
+            .where(eq(employees.id, id))
+            .returning();
+          return result;
+        });
+      }
       return ctx.db.update(employees).set(data).where(eq(employees.id, id)).returning();
     }),
 delete: adminProcedure

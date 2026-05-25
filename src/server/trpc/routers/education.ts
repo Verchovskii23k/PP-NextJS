@@ -4,6 +4,7 @@ import { education, educationLevels, educationForms } from "@/db/schema";
 import { eq, asc, sql, and } from "drizzle-orm";
 import { safeDelete } from "@/lib/safeDelete";
 import { TRPCError } from "@trpc/server";
+import { cascadeDeactivate } from "@/lib/cascadeDeactivate";
 
 export const educationRouter = router({
   list: adminProcedure.query(async ({ ctx }) => {
@@ -77,6 +78,17 @@ export const educationRouter = router({
           ))
           .limit(1);
         if (duplicate) throw new TRPCError({ code: 'CONFLICT', message: 'Такая комбинация уровня и формы уже существует' });
+      }
+      if (data.isActive === false) {
+        return ctx.db.transaction(async (tx) => {
+          await cascadeDeactivate(tx, "education", id);
+          const [result] = await tx
+            .update(education)
+            .set(data)
+            .where(eq(education.id, id))
+            .returning();
+          return result;
+        });
       }
       return ctx.db.update(education).set(data).where(eq(education.id, id)).returning();
     }),

@@ -4,6 +4,7 @@ import { academicLoadTypes } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { safeDelete } from "@/lib/safeDelete";
 import { TRPCError } from "@trpc/server";
+import { cascadeDeactivate } from "@/lib/cascadeDeactivate";
 
 export const academicLoadTypesRouter = router({
   list: adminProcedure.query(async ({ ctx }) => ctx.db.select().from(academicLoadTypes)),
@@ -44,6 +45,17 @@ export const academicLoadTypesRouter = router({
           .where(and(eq(academicLoadTypes.name, data.name), sql`${academicLoadTypes.id} != ${id}`))
           .limit(1);
         if (existing) throw new TRPCError({ code: 'CONFLICT', message: 'Тип нагрузки с таким названием уже существует' });
+      }
+      if (data.isActive === false) {
+        return ctx.db.transaction(async (tx) => {
+          await cascadeDeactivate(tx, "academicLoadTypes", id);
+          const [result] = await tx
+            .update(academicLoadTypes)
+            .set(data)
+            .where(eq(academicLoadTypes.id, id))
+            .returning();
+          return result;
+        });
       }
       return ctx.db.update(academicLoadTypes).set(data).where(eq(academicLoadTypes.id, id)).returning();
     }),

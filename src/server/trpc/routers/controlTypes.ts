@@ -4,6 +4,7 @@ import { controlTypes } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { safeDelete } from "@/lib/safeDelete";
 import { TRPCError } from "@trpc/server";
+import { cascadeDeactivate } from "@/lib/cascadeDeactivate";
 
 export const controlTypesRouter = router({
   list: adminProcedure.query(async ({ ctx }) => ctx.db.select().from(controlTypes)),
@@ -44,6 +45,17 @@ export const controlTypesRouter = router({
           .where(and(eq(controlTypes.name, data.name), sql`${controlTypes.id} != ${id}`))
           .limit(1);
         if (existing) throw new TRPCError({ code: 'CONFLICT', message: 'Тип контроля с таким названием уже существует' });
+      }
+      if (data.isActive === false) {
+        return ctx.db.transaction(async (tx) => {
+          await cascadeDeactivate(tx, "controlTypes", id);
+          const [result] = await tx
+            .update(controlTypes)
+            .set(data)
+            .where(eq(controlTypes.id, id))
+            .returning();
+          return result;
+        });
       }
       return ctx.db.update(controlTypes).set(data).where(eq(controlTypes.id, id)).returning();
     }),

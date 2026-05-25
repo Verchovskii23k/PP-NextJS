@@ -4,6 +4,7 @@ import { institutes, departments, studyGroups } from "@/db/schema";
 import { eq, sql, and, or } from "drizzle-orm";
 import { safeDelete } from "@/lib/safeDelete";
 import { TRPCError } from "@trpc/server";
+import { cascadeDeactivate } from "@/lib/cascadeDeactivate";
 
 export const institutesRouter = router({
   list: adminProcedure.query(async ({ ctx }) => {
@@ -154,10 +155,15 @@ export const institutesRouter = router({
 
       // Каскадное отключение кафедр
       if (isActive === false) {
-        await ctx.db
-          .update(departments)
-          .set({ isActive: false })
-          .where(eq(departments.instituteId, id));
+        return ctx.db.transaction(async (tx) => {
+          await cascadeDeactivate(tx, "institutes", id);
+          const [result] = await tx
+            .update(institutes)
+            .set({ ...data, directorId, isActive: false })
+            .where(eq(institutes.id, id))
+            .returning();
+          return result;
+        });
       }
 
       return ctx.db

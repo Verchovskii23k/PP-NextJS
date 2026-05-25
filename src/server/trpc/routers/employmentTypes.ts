@@ -4,6 +4,7 @@ import { employmentTypes } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { safeDelete } from "@/lib/safeDelete";
 import { TRPCError } from "@trpc/server";
+import { cascadeDeactivate } from "@/lib/cascadeDeactivate";
 
 export const employmentTypesRouter = router({
   list: adminProcedure.query(async ({ ctx }) => ctx.db.select().from(employmentTypes)),
@@ -35,6 +36,17 @@ export const employmentTypesRouter = router({
           .where(and(eq(employmentTypes.name, data.name), sql`${employmentTypes.id} != ${id}`))
           .limit(1);
         if (existing) throw new TRPCError({ code: 'CONFLICT', message: 'Тип занятости с таким названием уже существует' });
+      }
+      if (data.isActive === false) {
+        return ctx.db.transaction(async (tx) => {
+          await cascadeDeactivate(tx, "employmentTypes", id);
+          const [result] = await tx
+            .update(employmentTypes)
+            .set(data)
+            .where(eq(employmentTypes.id, id))
+            .returning();
+          return result;
+        });
       }
       return ctx.db.update(employmentTypes).set(data).where(eq(employmentTypes.id, id)).returning();
     }),

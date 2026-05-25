@@ -4,6 +4,7 @@ import { profiles, specialties, education, educationLevels, educationForms } fro
 import { eq, asc, sql, and } from "drizzle-orm";
 import { safeDelete } from "@/lib/safeDelete";
 import { TRPCError } from "@trpc/server";
+import { cascadeDeactivate } from "@/lib/cascadeDeactivate";
 
 export const profilesRouter = router({
   list: adminProcedure.query(async ({ ctx }) => {
@@ -92,6 +93,17 @@ export const profilesRouter = router({
           .where(and(...conditions))
           .limit(1);
         if (duplicate) throw new TRPCError({ code: 'CONFLICT', message: 'Профиль с таким буквенным кодом и специальностью уже существует' });
+      }
+      if (data.isActive === false) {
+        return ctx.db.transaction(async (tx) => {
+          await cascadeDeactivate(tx, "profiles", id);
+          const [result] = await tx
+            .update(profiles)
+            .set(data)
+            .where(eq(profiles.id, id))
+            .returning();
+          return result;
+        });
       }
       return ctx.db.update(profiles).set(data).where(eq(profiles.id, id)).returning();
     }),

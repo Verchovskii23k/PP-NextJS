@@ -1,9 +1,10 @@
 import { z } from "zod";
 import { router, adminProcedure } from "../trpc";
-import { disciplines, curriculum, disciplineTeachers } from "@/db/schema";
+import { disciplines } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { safeDelete } from "@/lib/safeDelete";
 import { TRPCError } from "@trpc/server";
+import { cascadeDeactivate } from "@/lib/cascadeDeactivate";
 
 export const disciplinesRouter = router({
   list: adminProcedure
@@ -54,8 +55,15 @@ export const disciplinesRouter = router({
         if (duplicate) throw new TRPCError({ code: 'CONFLICT', message: 'Дисциплина с таким названием уже существует' });
       }
       if (isActive === false) {
-        await ctx.db.update(curriculum).set({ isActive: false }).where(eq(curriculum.disciplineId, id));
-        await ctx.db.update(disciplineTeachers).set({ isActive: false }).where(eq(disciplineTeachers.disciplineId, id));
+        return ctx.db.transaction(async (tx) => {
+          await cascadeDeactivate(tx, "disciplines", id);
+          const [result] = await tx
+            .update(disciplines)
+            .set({ ...data, isActive: false })
+            .where(eq(disciplines.id, id))
+            .returning();
+          return result;
+        });
       }
       return ctx.db.update(disciplines).set({ ...data, isActive }).where(eq(disciplines.id, id)).returning();
     }),

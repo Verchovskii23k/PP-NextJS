@@ -4,6 +4,7 @@ import { positions } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { safeDelete } from "@/lib/safeDelete";
 import { TRPCError } from "@trpc/server";
+import { cascadeDeactivate } from "@/lib/cascadeDeactivate";
 
 export const positionsRouter = router({
   list: adminProcedure.query(async ({ ctx }) => ctx.db.select().from(positions)),
@@ -35,6 +36,17 @@ export const positionsRouter = router({
           .where(and(eq(positions.name, data.name), sql`${positions.id} != ${id}`))
           .limit(1);
         if (existing) throw new TRPCError({ code: 'CONFLICT', message: 'Должность с таким названием уже существует' });
+      }
+      if (data.isActive === false) {
+        return ctx.db.transaction(async (tx) => {
+          await cascadeDeactivate(tx, "positions", id);
+          const [result] = await tx
+            .update(positions)
+            .set(data)
+            .where(eq(positions.id, id))
+            .returning();
+          return result;
+        });
       }
       return ctx.db.update(positions).set(data).where(eq(positions.id, id)).returning();
     }),

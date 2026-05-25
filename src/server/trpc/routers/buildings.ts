@@ -4,6 +4,7 @@ import { buildings } from "@/db/schema";
 import { eq, asc, sql, and } from "drizzle-orm";
 import { safeDelete } from "@/lib/safeDelete";
 import { TRPCError } from "@trpc/server";
+import { cascadeDeactivate } from "@/lib/cascadeDeactivate";
 
 export const buildingsRouter = router({
   list: adminProcedure.query(async ({ ctx }) => {
@@ -45,7 +46,19 @@ export const buildingsRouter = router({
           .limit(1);
         if (existing) throw new TRPCError({ code: 'CONFLICT', message: 'Корпус с таким номером уже существует' });
       }
+      if (data.isActive === false) {
+        return ctx.db.transaction(async (tx) => {
+          await cascadeDeactivate(tx, "buildings", id);
+          const [result] = await tx
+            .update(buildings)
+            .set(data)
+            .where(eq(buildings.id, id))
+            .returning();
+          return result;
+        });
+      }
       return ctx.db.update(buildings).set(data).where(eq(buildings.id, id)).returning();
+      
     }),
   delete: adminProcedure
     .input(z.object({ id: z.number() }))

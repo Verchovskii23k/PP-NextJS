@@ -1,9 +1,10 @@
 import { z } from "zod";
 import { router, adminProcedure } from "../trpc";
-import { curriculum, disciplines, curriculumProfiles } from "@/db/schema";
+import { curriculum, disciplines } from "@/db/schema";
 import { eq, asc, sql, and } from "drizzle-orm";
 import { safeDelete } from "@/lib/safeDelete";
 import { TRPCError } from "@trpc/server";
+import { cascadeDeactivate } from "@/lib/cascadeDeactivate";
 
 export const curriculumRouter = router({
   list: adminProcedure.query(async ({ ctx }) => {
@@ -106,7 +107,15 @@ export const curriculumRouter = router({
         if (duplicate) throw new TRPCError({ code: 'CONFLICT', message: 'Учебный план с такой дисциплиной, курсом и семестром уже существует' });
       }
       if (isActive === false) {
-        await ctx.db.update(curriculumProfiles).set({ isActive: false }).where(eq(curriculumProfiles.curriculumId, id));
+        return ctx.db.transaction(async (tx) => {
+          await cascadeDeactivate(tx, "curriculum", id);
+          const [result] = await tx
+            .update(curriculum)
+            .set({ ...data, isActive: false })
+            .where(eq(curriculum.id, id))
+            .returning();
+          return result;
+        });
       }
       return ctx.db.update(curriculum).set({ ...data, isActive }).where(eq(curriculum.id, id)).returning();
     }),

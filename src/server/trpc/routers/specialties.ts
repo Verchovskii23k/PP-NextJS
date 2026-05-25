@@ -1,9 +1,10 @@
 import { z } from "zod";
 import { router, adminProcedure } from "../trpc";
-import { specialties, profiles } from "@/db/schema";
+import { specialties } from "@/db/schema";
 import { eq, asc, sql, and } from "drizzle-orm";
 import { safeDelete } from "@/lib/safeDelete";
 import { TRPCError } from "@trpc/server";
+import { cascadeDeactivate } from "@/lib/cascadeDeactivate";
 
 export const specialtiesRouter = router({
   list: adminProcedure.query(async ({ ctx }) => {
@@ -70,8 +71,16 @@ export const specialtiesRouter = router({
           .limit(1);
         if (duplicate) throw new TRPCError({ code: 'CONFLICT', message: 'Специальность с таким кодом уже существует' });
       }
-      if (isActive === false) {
-        await ctx.db.update(profiles).set({ isActive: false }).where(eq(profiles.specialtyId, id));
+      if (input.isActive === false) {
+        return ctx.db.transaction(async (tx) => {
+          await cascadeDeactivate(tx, "specialties", id);
+          const [result] = await tx
+            .update(specialties)
+            .set({ ...data, isActive: false })
+            .where(eq(specialties.id, id))
+            .returning();
+          return result;
+        });
       }
       return ctx.db.update(specialties).set({ ...data, isActive }).where(eq(specialties.id, id)).returning();
     }),

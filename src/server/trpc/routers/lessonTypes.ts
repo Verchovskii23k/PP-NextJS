@@ -4,6 +4,7 @@ import { lessonTypes } from "@/db/schema";
 import { eq, sql, and } from "drizzle-orm";
 import { safeDelete } from "@/lib/safeDelete";
 import { TRPCError } from "@trpc/server";
+import { cascadeDeactivate } from "@/lib/cascadeDeactivate";
 
 export const lessonTypesRouter = router({
   list: adminProcedure.query(async ({ ctx }) => {
@@ -76,6 +77,17 @@ export const lessonTypesRouter = router({
           .where(and(eq(lessonTypes.name, data.name), sql`${lessonTypes.id} != ${id}`))
           .limit(1);
         if (existing) throw new TRPCError({ code: 'CONFLICT', message: 'Тип занятия с таким системным именем уже существует' });
+      }
+      if (data.isActive === false) {
+        return ctx.db.transaction(async (tx) => {
+          await cascadeDeactivate(tx, "lessonTypes", id);
+          const [result] = await tx
+            .update(lessonTypes)
+            .set(data)
+            .where(eq(lessonTypes.id, id))
+            .returning();
+          return result;
+        });
       }
       return ctx.db.update(lessonTypes).set(data).where(eq(lessonTypes.id, id)).returning();
     }),

@@ -4,6 +4,7 @@ import { educationForms } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { safeDelete } from "@/lib/safeDelete";
 import { TRPCError } from "@trpc/server";
+import { cascadeDeactivate } from "@/lib/cascadeDeactivate";
 
 export const educationFormsRouter = router({
   list: adminProcedure.query(async ({ ctx }) => ctx.db.select().from(educationForms)),
@@ -44,6 +45,17 @@ export const educationFormsRouter = router({
           .where(and(eq(educationForms.name, data.name), sql`${educationForms.id} != ${id}`))
           .limit(1);
         if (existing) throw new TRPCError({ code: 'CONFLICT', message: 'Форма обучения с таким названием уже существует' });
+      }
+      if (data.isActive === false) {
+        return ctx.db.transaction(async (tx) => {
+          await cascadeDeactivate(tx, "educationForms", id);
+          const [result] = await tx
+            .update(educationForms)
+            .set(data)
+            .where(eq(educationForms.id, id))
+            .returning();
+          return result;
+        });
       }
       return ctx.db.update(educationForms).set(data).where(eq(educationForms.id, id)).returning();
     }),

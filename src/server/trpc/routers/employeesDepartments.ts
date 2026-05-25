@@ -4,6 +4,7 @@ import { employeesDepartments, employees, departments, employmentTypes, position
 import { eq, asc, sql, and } from "drizzle-orm";
 import { safeDelete } from "@/lib/safeDelete";
 import { TRPCError } from "@trpc/server";
+import { cascadeDeactivate } from "@/lib/cascadeDeactivate";
 
 export const employeesDepartmentsRouter = router({
   list: adminProcedure
@@ -95,6 +96,17 @@ export const employeesDepartmentsRouter = router({
           ))
           .limit(1);
         if (duplicate) throw new TRPCError({ code: 'CONFLICT', message: 'Этот сотрудник уже привязан к этой кафедре' });
+      }
+      if (data.isActive === false) {
+        return ctx.db.transaction(async (tx) => {
+          await cascadeDeactivate(tx, "employeesDepartments", id);
+          const [result] = await tx
+            .update(employeesDepartments)
+            .set(data)
+            .where(eq(employeesDepartments.id, id))
+            .returning();
+          return result ?? null;
+        });
       }
       return ctx.db.update(employeesDepartments).set(data).where(eq(employeesDepartments.id, id)).returning();
     }),
