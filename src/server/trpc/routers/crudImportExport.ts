@@ -81,8 +81,7 @@ export const crudImportExportRouter = router({
           const snakeKey = key.replace(/[A-Z]/g, l => `_${l.toLowerCase()}`);
           dbRow[snakeKey] = val;
         }
-
-        const {...values } = dbRow;
+        const { id: _rowId, ...values } = dbRow;
 
         // Проверяем, есть ли хоть одно поле для вставки/обновления
         if (Object.keys(values).length === 0) {
@@ -94,7 +93,9 @@ export const crudImportExportRouter = router({
         const validationErrors: string[] = [];
         for (const field of fields) {
           if (field.dbName === "id") continue;
-          const value = values[field.dbName];
+          // Преобразуем camelCase dbName в snake_case для сопоставления с values
+          const snakeFieldName = field.dbName.replace(/[A-Z]/g, l => `_${l.toLowerCase()}`);
+          const value = values[snakeFieldName];
           if (field.required && (value === undefined || value === null || value === "")) {
             validationErrors.push(`Поле ${field.displayName} обязательно`);
           }
@@ -105,14 +106,15 @@ export const crudImportExportRouter = router({
         }
 
         // Проверка существования
-        const [existing] = await ctx.db.execute(
-          sql`SELECT 1 FROM ${sql.identifier(dbTableName)} WHERE id = ${id}`
-        );
+          const [{ count }] = await ctx.db.execute<{ count: number }>(
+            sql`SELECT COUNT(*)::int as count FROM ${sql.identifier(dbTableName)} WHERE id = ${id}`
+          );
+          const exists = count > 0;
 
-        if (!existing) {
-          // INSERT с параметрами
-          const columns = Object.keys(values);
-          const valueLiterals = Object.values(values).map(v => sql`${v}`);
+        if (!exists) {
+          // INSERT: добавляем id в колонки, чтобы сохранить исходный идентификатор
+          const columns = ['id', ...Object.keys(values)];
+          const valueLiterals = [sql`${id}`, ...Object.values(values).map(v => sql`${v}`)];
           await ctx.db.execute(
             sql`INSERT INTO ${sql.identifier(dbTableName)} (${sql.join(columns.map(c => sql.identifier(c)), sql`, `)}) VALUES (${sql.join(valueLiterals, sql`, `)})`
           );

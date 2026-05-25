@@ -383,6 +383,7 @@ src
 │           ├── adminManagement.ts                                       # Повышение/понижение администраторов
 │           ├── auth.ts                                                  # Аутентификация: setup, me, смена пароля/email, сброс
 │           ├── batchDelete.ts                                           # Массовое удаление с проверкой зависимостей
+│           ├── batchUpdateActive.ts                                     # Массовое переключение активности записей
 │           ├── buildings.ts                                             # CRUD "Корпуса"
 │           ├── classRooms.ts                                            # CRUD "Аудитории"
 │           ├── controlTypes.ts                                          # CRUD "Типы контроля"
@@ -433,10 +434,14 @@ src
 │           │   └── generateUnits.ts                                     # Генерация юнитов (потоки, группы, подгруппы)
 │           └── __tests__/                                                   # Unit‑тесты (Vitest)
 │               ├── academicLoadTypes.test.ts
+│               ├── adminManagement.test.ts
 │               ├── auth.test.ts
+│               ├── batchDelete.test.ts
+|               ├── batchUpdateActive.test.ts
 │               ├── buildings.test.ts
 │               ├── classRooms.test.ts
 │               ├── controlTypes.test.ts
+│               ├── crudImportExport.test.ts
 │               ├── curriculum.test.ts
 │               ├── curriculumProfiles.test.ts
 │               ├── daysOfWeek.test.ts
@@ -451,6 +456,7 @@ src
 │               ├── employmentTypes.test.ts
 │               ├── generators-logic.test.ts
 │               ├── generators.test.ts
+│               ├── globalImportExport.test.ts
 │               ├── hourTypeMapping.test.ts
 │               ├── institutes.test.ts
 │               ├── lessons.test.ts

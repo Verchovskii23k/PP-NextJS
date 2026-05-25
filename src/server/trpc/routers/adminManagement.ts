@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { router, adminProcedure } from '../trpc';
-import { employees, sessions, students, users } from '@/db/schema';
+import { employees, users } from '@/db/schema';
 import { eq, and, or, isNull } from 'drizzle-orm';
 import { TRPCError } from '@trpc/server';
 
@@ -73,23 +73,4 @@ export const adminManagementRouter = router({
 
       return { success: true };
     }),
-
-  clearAllCredentials: adminProcedure.mutation(async ({ ctx }) => {
-    if (ctx.session?.session?.id) {
-      await ctx.db.delete(sessions).where(eq(sessions.id, ctx.session.session.id));
-    }
-
-    await ctx.db.transaction(async (tx) => {
-      await tx.update(employees)
-        .set({ userId: null, isAdmin: false})
-        .where(eq(employees.isActive, true));
-      await tx.update(students)
-        .set({ userId: null })
-        .where(eq(students.isActive, true));
-      await tx.delete(users)
-
-    });
-
-    return { success: true };
-  }),
 });

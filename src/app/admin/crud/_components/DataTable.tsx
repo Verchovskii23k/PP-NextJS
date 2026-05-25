@@ -103,7 +103,16 @@ interface BaseRow extends Record<string, unknown> {
   id: number;
   isActive?: boolean;
 }
+/** Динамические методы tRPC-утилит для работы с кешем */
+interface DynamicListUtils {
+  getData?: () => BaseRow[] | undefined;
+  setData?: (input: undefined, data: BaseRow[]) => void;
+  invalidate?: () => void;
+}
 
+interface DynamicUtils {
+  list?: DynamicListUtils;
+}
 interface CrudRouter {
   list: {
     useQuery: (input?: unknown, opts?: unknown) => {
@@ -179,6 +188,54 @@ export function DataTable({ tableName }: DataTableProps) {
 
   const { confirm } = useConfirmContext();
 
+  const hasActiveToggle = metaExists && meta.fields.some(f => f.dbName === 'isActive' && f.inputType === 'toggle');
+
+  const batchUpdateActiveMutation = trpc.batchUpdateActive.updateMany.useMutation();
+  const handleDeactivateSelected = async () => {
+    if (selectedIds.size === 0) return;
+    const ok = await confirm({
+      title: "Деактивация записей",
+      message: `Перевести в неактивные ${selectedIds.size} записей?`,
+      confirmLabel: "Деактивировать",
+      variant: "danger",
+    });
+    if (!ok) return;
+    try {
+      const result = await batchUpdateActiveMutation.mutateAsync({
+        tableName,
+        ids: Array.from(selectedIds),
+        isActive: false,
+      });
+      toast.success(`Деактивировано ${result.updated} записей из ${selectedIds.size} выбранных`);
+      setSelectedIds(new Set());
+      (utils as unknown as Record<string, DynamicUtils>)[routerKey]?.list?.invalidate?.();
+      } catch (e: unknown) {
+        toast.error("Ошибка: " + (e instanceof Error ? e.message : "Неизвестная ошибка"));
+      }
+  };
+
+  const handleActivateSelected = async () => {
+    if (selectedIds.size === 0) return;
+    const ok = await confirm({
+      title: "Активация записей",
+      message: `Сделать активными ${selectedIds.size} записей?`,
+      confirmLabel: "Активировать",
+      variant: "default",
+    });
+    if (!ok) return;
+    try {
+      const result = await batchUpdateActiveMutation.mutateAsync({
+        tableName,
+        ids: Array.from(selectedIds),
+        isActive: true,
+      });
+      toast.success(`Активировано ${result.updated} записей из ${selectedIds.size} выбранных`);
+      setSelectedIds(new Set());
+      (utils as unknown as Record<string, DynamicUtils>)[routerKey]?.list?.invalidate?.();
+      } catch (e: unknown) {
+        toast.error("Ошибка: " + (e instanceof Error ? e.message : "Неизвестная ошибка"));
+      }
+  };
   React.useEffect(() => {
     setSorting([{ id: 'id', desc: false }]);
     setPagination({ pageIndex: 0, pageSize: 10000 });
@@ -389,11 +446,17 @@ export function DataTable({ tableName }: DataTableProps) {
               if (!ok) return;
               try {
                 await deleteMutation.mutateAsync({ id: row.original.id });
-                (utils as unknown as Record<string, { list?: { invalidate?: () => void } }>)[routerKey]?.list?.invalidate?.()
-              } catch (e: unknown) {
-                toast.error(e instanceof Error ? e.message : "Ошибка");
-                (utils as unknown as Record<string, { list?: { invalidate?: () => void } }>)[routerKey]?.list?.invalidate?.()
-              }
+                const dyn = (utils as unknown as Record<string, DynamicUtils>)[routerKey];
+                const listCache = dyn?.list?.getData?.();
+                if (listCache && Array.isArray(listCache)) {
+                  const newData = listCache.filter((r: BaseRow) => r.id !== row.original.id);
+                  dyn?.list?.setData?.(undefined, newData);
+                } else {
+                  dyn?.list?.invalidate?.();
+                }
+                } catch (e: unknown) {
+                  toast.error("Ошибка: " + (e instanceof Error ? e.message : "Неизвестная ошибка"));
+                }
             }}
           >
             Удалить
@@ -487,6 +550,24 @@ export function DataTable({ tableName }: DataTableProps) {
               ? "Удаление..."
               : `Удалить выбранные (${selectedIds.size})`}
           </button>
+        )}
+        {selectedIds.size > 0 && hasActiveToggle && (
+          <>
+            <button
+              className="rounded bg-orange-600 px-3 py-1.5 text-sm text-white hover:bg-orange-700"
+              onClick={handleDeactivateSelected}
+              disabled={batchUpdateActiveMutation.isPending}
+            >
+              {batchUpdateActiveMutation.isPending ? "..." : `Деактивировать (${selectedIds.size})`}
+            </button>
+            <button
+              className="rounded bg-green-600 px-3 py-1.5 text-sm text-white hover:bg-green-700"
+              onClick={handleActivateSelected}
+              disabled={batchUpdateActiveMutation.isPending}
+            >
+              {batchUpdateActiveMutation.isPending ? "..." : `Активировать (${selectedIds.size})`}
+            </button>
+          </>
         )}
       </div>
 
@@ -598,7 +679,25 @@ export function DataTable({ tableName }: DataTableProps) {
           onClose={() => {
             setShowForm(false);
             setEditId(null);
-            (utils as unknown as Record<string, { list?: { invalidate?: () => void } }>)[routerKey]?.list?.invalidate?.()
+          }}
+          onSaved={(savedRow) => {
+            setShowForm(false);
+            setEditId(null);
+            const dyn = (utils as unknown as Record<string, DynamicUtils>)[routerKey];
+            const listCache = dyn?.list?.getData?.();
+            const row = savedRow as BaseRow;   // <-- приведение
+            if (listCache && Array.isArray(listCache)) {
+              if (editId) {
+                const newData = listCache.map((r: BaseRow) =>
+                  r.id === row.id ? { ...r, ...row } : r
+                );
+                dyn?.list?.setData?.(undefined, newData);
+              } else {
+                dyn?.list?.setData?.(undefined, [...listCache, row]);
+              }
+            } else {
+              dyn?.list?.invalidate?.();
+            }
           }}
         />
       )}

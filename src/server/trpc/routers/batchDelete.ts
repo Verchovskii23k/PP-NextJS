@@ -142,10 +142,12 @@ export const batchDeleteRouter = router({
             }
           }
 
-          await db.execute(
-            sql`DELETE FROM ${sql.identifier(dbTableName)} WHERE id = ${id}`
+          const deleteResult = await db.execute<{ id: number }>(
+            sql`DELETE FROM ${sql.identifier(dbTableName)} WHERE id = ${id} RETURNING id`
           );
-          deleted++;
+          if (Array.isArray(deleteResult) && deleteResult.length > 0) {
+            deleted++;
+          }
         } catch (e: unknown) {
           const message = e instanceof Error ? e.message : "Неизвестная ошибка";
           throw new TRPCError({

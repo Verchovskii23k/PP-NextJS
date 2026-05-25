@@ -111,9 +111,10 @@ interface RecordFormProps {
   tableName: string;
   editId: number | null;
   onClose: () => void;
+  onSaved: (savedRow: Record<string, unknown>) => void;
 }
 
-export function RecordForm({ tableName, editId, onClose }: RecordFormProps) {
+export function RecordForm({ tableName, editId, onClose, onSaved }: RecordFormProps) {
   const meta = tablesMeta[tableName];
 
   const router = meta
@@ -208,12 +209,15 @@ export function RecordForm({ tableName, editId, onClose }: RecordFormProps) {
 
     setErrors({});
     try {
-      if (editId) {
-        await updateMutation?.mutateAsync({ id: editId, ...cleanedValues } as { id: number } & Record<string, unknown>);
-      } else {
-        await createMutation?.mutateAsync(cleanedValues);
-      }
-      onClose();
+        if (editId) {
+          const mutationResult = await updateMutation?.mutateAsync({ id: editId, ...cleanedValues });
+          const savedRow = Array.isArray(mutationResult) ? mutationResult[0] : mutationResult;
+          if (savedRow) onSaved(savedRow as Record<string, unknown>);
+        } else {
+          const mutationResult = await createMutation?.mutateAsync(cleanedValues);
+          const savedRow = Array.isArray(mutationResult) ? mutationResult[0] : mutationResult;
+          if (savedRow) onSaved(savedRow as Record<string, unknown>);
+        }
       } catch (err: unknown) {
         console.log('tRPC error:', err); 
         const message = err instanceof TRPCClientError ? err.message : (err instanceof Error ? err.message : "Неизвестная ошибка");

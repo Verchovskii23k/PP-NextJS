@@ -10,7 +10,7 @@
  * - `institutes`, `departments`, `specialties`, … – CRUD-справочники (описаны в `tablesMeta`).
  * - `generations` – генераторы групп, юнитов, занятий, аудиторий, расписания.
  * - `schedule`, `scheduleDisplay`, `scheduleVersions` – работа с расписанием и версиями.
- * - `batchDelete`, `crudImportExport`, `globalImportExport` – массовые операции.
+ * - `batchDelete`, `batchUpdateActive`, `crudImportExport`, `globalImportExport` – массовые операции.
  * - `e2eTestHelpers` – доступен только в тестовом окружении для сброса данных.
  *
  * ## Экспортируемый тип
@@ -61,6 +61,7 @@ import { globalImportExportRouter } from "./routers/globalImportExport";
 import { batchDeleteRouter } from "./routers/batchDelete"
 import { scheduleVersionsRouter } from './routers/scheduleVersions';
 import { e2eTestHelpersRouter } from "./routers/e2eTestHelpers";
+import { batchUpdateActiveRouter } from "./routers/batchUpdateActive";
 
 export const appRouter = router({
   auth: authRouter,
@@ -107,6 +108,7 @@ export const appRouter = router({
   batchDelete: batchDeleteRouter,
   scheduleVersions: scheduleVersionsRouter,
   e2eTestHelpers: e2eTestHelpersRouter,
+  batchUpdateActive: batchUpdateActiveRouter,
   
 });
 
