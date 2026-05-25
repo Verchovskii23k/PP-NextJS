@@ -17,7 +17,7 @@ beforeAll(async () => {
 describe('units CRUD', () => {
   let unitId: number;
 
-  it('should create a unit', async () => {
+  it('создаёт юнит', async () => {
     const [row] = await caller.units.create({
       code: 'TEST-UNIT',
       unitTypeId,
@@ -26,13 +26,13 @@ describe('units CRUD', () => {
     unitId = row.id;
   });
 
-  it('should reject empty code', async () => {
+  it('отклоняет пустой код', async () => {
     await expect(
       caller.units.create({ code: '', unitTypeId })
     ).rejects.toThrow();
   });
 
-  it('should list units with display field', async () => {
+  it('список юнитов с полем display', async () => {
     const list = await caller.units.list();
     expect(list.some(u => u.id === unitId)).toBe(true);
     const created = list.find(u => u.id === unitId);
@@ -40,42 +40,42 @@ describe('units CRUD', () => {
     expect(created?.display).toContain('TEST-UNIT');
   });
 
-  it('should get existing unit with display', async () => {
+  it('получает существующий юнит с display', async () => {
     const row = await caller.units.get({ id: unitId });
     expect(row).toMatchObject({ code: 'TEST-UNIT', unitTypeId });
     expect(row?.display).toBeDefined();
   });
 
-  it('should return null for non-existent id', async () => {
+  it('возвращает null для несуществующего id', async () => {
     const row = await caller.units.get({ id: 9999 });
     expect(row).toBeNull();
   });
 
-  it('should update code', async () => {
+  it('обновляет код', async () => {
     await caller.units.update({ id: unitId, code: 'UPDATED-UNIT' });
     const row = await caller.units.get({ id: unitId });
     expect(row?.code).toBe('UPDATED-UNIT');
   });
 
-  it('should reject update with empty code', async () => {
+  it('отклоняет обновление с пустым кодом', async () => {
     await expect(
       caller.units.update({ id: unitId, code: '' })
     ).rejects.toThrow();
   });
 
-  it('should not fail on non-existent id update', async () => {
+  it('обновление несуществующего id не вызывает ошибку', async () => {
     await expect(
       caller.units.update({ id: 9999, code: 'GHOST' })
     ).resolves.toBeDefined();
   });
 
-  it('should delete existing unit', async () => {
+  it('удаляет существующий юнит', async () => {
     await caller.units.delete({ id: unitId });
     const row = await caller.units.get({ id: unitId });
     expect(row).toBeNull();
   });
 
-  it('should not fail on non-existent id delete', async () => {
+  it('удаление несуществующего id не вызывает ошибку', async () => {
     await expect(
       caller.units.delete({ id: 9999 })
     ).resolves.toBeDefined();

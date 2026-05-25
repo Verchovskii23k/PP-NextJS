@@ -29,7 +29,7 @@ describe('specialties CRUD', () => {
   let specId: number;
   let spec2Id: number;
 
-  it('should create a specialty', async () => {
+  it('создаёт специальность', async () => {
     const [row] = await caller.specialties.create({
       code: '01.03.05',
       name: 'Тестовая специальность',
@@ -39,7 +39,7 @@ describe('specialties CRUD', () => {
     specId = row.id;
   });
 
-  it('should reject duplicate code', async () => {
+  it('отклоняет дублирование кода', async () => {
     await expect(
       caller.specialties.create({
         code: '01.03.05',
@@ -62,7 +62,7 @@ describe('specialties CRUD', () => {
     }
   });
 
-  it('should reject empty code or name', async () => {
+  it('отклоняет пустой код или название', async () => {
     await expect(
       caller.specialties.create({ code: '', name: 'Имя', departmentId: deptId })
     ).rejects.toThrow();
@@ -71,7 +71,7 @@ describe('specialties CRUD', () => {
     ).rejects.toThrow();
   });
 
-  it('should list and contain created specialty', async () => {
+  it('список содержит созданную специальность', async () => {
     const list = await caller.specialties.list();
     expect(list.some(s => s.id === specId)).toBe(true);
     // Проверим display
@@ -80,7 +80,7 @@ describe('specialties CRUD', () => {
     expect(created?.display).toContain('01.03.05');
   });
 
-  it('should get existing specialty with display', async () => {
+  it('получает существующую специальность с display', async () => {
     const row = await caller.specialties.get({ id: specId });
     expect(row).toMatchObject({
       code: '01.03.05',
@@ -90,18 +90,18 @@ describe('specialties CRUD', () => {
     expect(row?.display).toBeDefined();
   });
 
-  it('should return null for non-existent id', async () => {
+  it('возвращает null для несуществующего id', async () => {
     const row = await caller.specialties.get({ id: 9999 });
     expect(row).toBeNull();
   });
 
-  it('should update name', async () => {
+  it('обновляет название', async () => {
     await caller.specialties.update({ id: specId, name: 'Обновлённая специальность' });
     const row = await caller.specialties.get({ id: specId });
     expect(row?.name).toBe('Обновлённая специальность');
   });
 
-  it('should reject update to existing code', async () => {
+  it('отклоняет обновление на существующий код', async () => {
     // Создаём вторую специальность
     const [row2] = await caller.specialties.create({
       code: '01.03.06',
@@ -122,19 +122,19 @@ describe('specialties CRUD', () => {
     }
   });
 
-  it('should reject update with empty code', async () => {
+  it('отклоняет обновление с пустым кодом', async () => {
     await expect(
       caller.specialties.update({ id: specId, code: '' })
     ).rejects.toThrow();
   });
 
-  it('should not fail on non-existent id update', async () => {
+  it('обновление несуществующего id не вызывает ошибку', async () => {
     await expect(
       caller.specialties.update({ id: 9999, name: 'Ghost' })
     ).resolves.toBeDefined();
   });
 
-  it('should deactivate specialty and cascade to profiles', async () => {
+  it('деактивирует специальность и каскадно отключает профили', async () => {
     // Создаём профиль, привязанный к spec2Id
     const [prof] = await db.insert(profiles).values({
       name: 'Профиль для каскада',
@@ -160,7 +160,7 @@ describe('specialties CRUD', () => {
     expect(updatedProf?.isActive).toBe(false);
   });
 
-  it('should delete existing specialty', async () => {
+  it('удаляет существующую специальность', async () => {
     // Удаляем профиль, который был создан в предыдущем тесте (spec2Id)
     await db.delete(profiles).where(eq(profiles.specialtyId, spec2Id));
     // Теперь специальность свободна
@@ -169,13 +169,13 @@ describe('specialties CRUD', () => {
     expect(row).toBeNull();
   });
 
-  it('should not fail on non-existent id delete', async () => {
+  it('удаление несуществующего id не вызывает ошибку', async () => {
     await expect(
       caller.specialties.delete({ id: 9999 })
     ).resolves.toBeDefined();
   });
 
-  it('should reject deletion if linked to profiles', async () => {
+  it('отклоняет удаление, если специальность связана с профилями', async () => {
     const [spec] = await caller.specialties.create({
       code: '01.03.07',
       name: 'Связанная',

@@ -627,7 +627,7 @@ erDiagram
   profiles {
     serial id PK
     text name
-    text abbrevation
+    text abbreviation
     integer specialty_id FK
     text letter_code
     integer education_id FK

@@ -15,13 +15,13 @@ describe('weeks CRUD', () => {
   let weekId: number;
   let secondWeekId: number;
 
-  it('should create a week', async () => {
+  it('создаёт неделю', async () => {
     const [row] = await caller.weeks.create({ type: 'custom' });
     expect(row).toHaveProperty('id');
     weekId = row.id;
   });
 
-  it('should reject duplicate type', async () => {
+  it('отклоняет дублирование типа', async () => {
     await expect(
       caller.weeks.create({ type: 'custom' })
     ).rejects.toThrow(TRPCError);
@@ -36,34 +36,34 @@ describe('weeks CRUD', () => {
     }
   });
 
-  it('should reject empty type', async () => {
+  it('отклоняет пустой тип', async () => {
     await expect(
       caller.weeks.create({ type: '' })
     ).rejects.toThrow();
   });
 
-  it('should list weeks', async () => {
+  it('список недель', async () => {
     const list = await caller.weeks.list();
     expect(list.some(w => w.id === weekId)).toBe(true);
   });
 
-  it('should get existing week', async () => {
+  it('получает существующую неделю', async () => {
     const row = await caller.weeks.get({ id: weekId });
     expect(row?.type).toBe('custom');
   });
 
-  it('should return null for non-existent id', async () => {
+  it('возвращает null для несуществующего id', async () => {
     const row = await caller.weeks.get({ id: 9999 });
     expect(row).toBeNull();
   });
 
-  it('should update type', async () => {
+  it('обновляет тип', async () => {
     await caller.weeks.update({ id: weekId, type: 'updated' });
     const row = await caller.weeks.get({ id: weekId });
     expect(row?.type).toBe('updated');
   });
 
-  it('should reject update to existing type', async () => {
+  it('отклоняет обновление на существующий тип', async () => {
     const [row2] = await caller.weeks.create({ type: 'second' });
     secondWeekId = row2.id;
 
@@ -79,25 +79,25 @@ describe('weeks CRUD', () => {
     }
   });
 
-  it('should reject update with empty type', async () => {
+  it('отклоняет обновление с пустым типом', async () => {
     await expect(
       caller.weeks.update({ id: weekId, type: '' })
     ).rejects.toThrow();
   });
 
-  it('should not fail on non-existent id update', async () => {
+  it('обновление несуществующего id не вызывает ошибку', async () => {
     await expect(
       caller.weeks.update({ id: 9999, type: 'ghost' })
     ).resolves.toBeDefined();
   });
 
-  it('should delete existing week', async () => {
+  it('удаляет существующую неделю', async () => {
     await caller.weeks.delete({ id: secondWeekId });
     const row = await caller.weeks.get({ id: secondWeekId });
     expect(row).toBeNull();
   });
 
-  it('should not fail on non-existent id delete', async () => {
+  it('удаление несуществующего id не вызывает ошибку', async () => {
     await expect(
       caller.weeks.delete({ id: 9999 })
     ).resolves.toBeDefined();

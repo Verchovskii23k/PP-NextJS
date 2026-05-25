@@ -24,7 +24,7 @@ describe('departments CRUD', () => {
   let deptId: number;
   let secondDeptId: number;
 
-  it('should create a department', async () => {
+  it('создаёт кафедру', async () => {
     const [dept] = await caller.departments.create({
       name: 'Тестовая кафедра',
       abbreviation: 'ТК',
@@ -35,7 +35,7 @@ describe('departments CRUD', () => {
     deptId = dept.id;
   });
 
-  it('should reject duplicate departmentCode', async () => {
+  it('отклоняет дублирование departmentCode', async () => {
     await expect(
       caller.departments.create({
         name: 'Другая',
@@ -60,7 +60,7 @@ describe('departments CRUD', () => {
     }
   });
 
-  it('should reject empty name or abbreviation', async () => {
+  it('отклоняет пустые name или abbreviation', async () => {
     await expect(
       caller.departments.create({
         name: '',
@@ -79,12 +79,12 @@ describe('departments CRUD', () => {
     ).rejects.toThrow();
   });
 
-  it('should list and contain created department', async () => {
+  it('список содержит созданную кафедру', async () => {
     const list = await caller.departments.list();
     expect(list.some(d => d.id === deptId)).toBe(true);
   });
 
-  it('should get existing department', async () => {
+  it('получает существующую кафедру', async () => {
     const dept = await caller.departments.get({ id: deptId });
     expect(dept).toMatchObject({
       name: 'Тестовая кафедра',
@@ -93,18 +93,18 @@ describe('departments CRUD', () => {
     });
   });
 
-  it('should return null for non-existent id', async () => {
+  it('возвращает null для несуществующего id', async () => {
     const dept = await caller.departments.get({ id: 9999 });
     expect(dept).toBeNull();
   });
 
-  it('should update fields', async () => {
+  it('обновляет поля', async () => {
     await caller.departments.update({ id: deptId, name: 'Обновлённая' });
     const dept = await caller.departments.get({ id: deptId });
     expect(dept?.name).toBe('Обновлённая');
   });
 
-  it('should reject update to duplicate departmentCode', async () => {
+  it('отклоняет обновление на дублирующий departmentCode', async () => {
     // Создаём вторую кафедру
     const [dept2] = await caller.departments.create({
       name: 'Вторая',
@@ -126,13 +126,13 @@ describe('departments CRUD', () => {
     }
   });
 
-  it('should reject update with empty name', async () => {
+  it('отклоняет обновление с пустым name', async () => {
     await expect(
       caller.departments.update({ id: deptId, name: '' })
     ).rejects.toThrow();
   });
 
-  it('should reject assigning a head who is already a director', async () => {
+  it('отклоняет назначение заведующим, если сотрудник уже директор', async () => {
     // Создаём сотрудника и делаем его директором института
     const empId = await createTestEmployee();
     await caller.institutes.update({ id: instituteId, directorId: empId });
@@ -148,7 +148,7 @@ describe('departments CRUD', () => {
     ).rejects.toThrow(/Этот сотрудник уже является директором института/);
   });
 
-  it('should reject assigning a head who is already a curator', async () => {
+  it('отклоняет назначение заведующим, если сотрудник уже куратор', async () => {
     // Создаём сотрудника и группу, назначаем куратора
     const empId = await createTestEmployee();
     const eduId = await createTestEducation();
@@ -167,7 +167,7 @@ describe('departments CRUD', () => {
     ).rejects.toThrow(/Этот сотрудник уже является куратором/);
   });
 
-  it('should reject assigning a head who is already head of another department', async () => {
+  it('отклоняет назначение заведующим, если сотрудник уже заведует другой кафедрой', async () => {
     // Создаём сотрудника, назначаем заведующим второй кафедры
     const empId = await createTestEmployee();
     await caller.departments.update({ id: deptId, headId: empId });
@@ -183,13 +183,13 @@ describe('departments CRUD', () => {
     ).rejects.toThrow(/Этот сотрудник уже является заведующим другой кафедрой/);
   });
 
-  it('should delete existing department', async () => {
+  it('удаляет существующую кафедру', async () => {
     await caller.departments.delete({ id: secondDeptId });
     const dept = await caller.departments.get({ id: secondDeptId });
     expect(dept).toBeNull();
   });
 
-  it('should not fail on non-existent id delete', async () => {
+  it('удаление несуществующего id не вызывает ошибку', async () => {
     await expect(
       caller.departments.delete({ id: 9999 })
     ).resolves.toBeDefined();

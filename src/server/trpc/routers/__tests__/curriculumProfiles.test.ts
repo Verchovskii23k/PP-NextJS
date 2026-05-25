@@ -43,7 +43,7 @@ beforeAll(async () => {
 describe('curriculumProfiles CRUD', () => {
   let cpId: number;
 
-  it('should create a link', async () => {
+  it('создаёт связь', async () => {
     const [row] = await caller.curriculumProfiles.create({
       curriculumId,
       profileId,
@@ -52,7 +52,7 @@ describe('curriculumProfiles CRUD', () => {
     cpId = row.id;
   });
 
-  it('should reject duplicate link', async () => {
+  it('отклоняет дубликат связи', async () => {
     await expect(
       caller.curriculumProfiles.create({ curriculumId, profileId })
     ).rejects.toThrow(TRPCError);
@@ -67,7 +67,7 @@ describe('curriculumProfiles CRUD', () => {
     }
   });
 
-  it('should reject missing fields', async () => {
+  it('отклоняет отсутствие обязательных полей', async () => {
     await expect(
       (caller.curriculumProfiles.create as unknown as (data: Record<string, unknown>) => Promise<unknown>)({ curriculumId })
     ).rejects.toThrow();
@@ -76,28 +76,28 @@ describe('curriculumProfiles CRUD', () => {
     ).rejects.toThrow();
   });
 
-  it('should list and contain created link', async () => {
+  it('список содержит созданную связь', async () => {
     const list = await caller.curriculumProfiles.list();
     expect(list.some(r => r.id === cpId)).toBe(true);
   });
 
-  it('should get existing link', async () => {
+  it('получает существующую связь', async () => {
     const row = await caller.curriculumProfiles.get({ id: cpId });
     expect(row).toMatchObject({ curriculumId, profileId });
   });
 
-  it('should return null for non-existent id', async () => {
+  it('возвращает null для несуществующего id', async () => {
     const row = await caller.curriculumProfiles.get({ id: 9999 });
     expect(row).toBeNull();
   });
 
-  it('should update isActive', async () => {
+  it('обновляет isActive', async () => {
     await caller.curriculumProfiles.update({ id: cpId, isActive: false });
     const row = await caller.curriculumProfiles.get({ id: cpId });
     expect(row?.isActive).toBe(false);
   });
 
-  it('should reject update to duplicate pair', async () => {
+  it('отклоняет обновление на дублирующую пару', async () => {
     // Создаём второй curriculum
     const disc2Id = await createTestDiscipline(deptId);
     const [curr2] = await caller.curriculum.create({
@@ -124,19 +124,19 @@ describe('curriculumProfiles CRUD', () => {
     }
   });
 
-  it('should not fail on non-existent id update', async () => {
+  it('обновление несуществующего id не вызывает ошибку', async () => {
     await expect(
       caller.curriculumProfiles.update({ id: 9999, isActive: false })
     ).resolves.toBeDefined();
   });
 
-  it('should delete existing link', async () => {
+  it('удаляет существующую связь', async () => {
     await caller.curriculumProfiles.delete({ id: cpId });
     const row = await caller.curriculumProfiles.get({ id: cpId });
     expect(row).toBeNull();
   });
 
-  it('should not fail on non-existent id delete', async () => {
+  it('удаление несуществующего id не вызывает ошибку', async () => {
     await expect(
       caller.curriculumProfiles.delete({ id: 9999 })
     ).resolves.toBeDefined();

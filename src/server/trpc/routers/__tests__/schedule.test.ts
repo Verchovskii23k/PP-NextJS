@@ -104,20 +104,20 @@ beforeAll(async () => {
 });
 
 describe('schedule', () => {
-  it('getSchedule returns entries', async () => {
+  it('возвращает записи расписания', async () => {
     const result = await caller.schedule.getSchedule({});
     expect(result.length).toBeGreaterThan(0);
     expect(result[0]).toHaveProperty('scheduleId');
     expect(result[0].unitCode).toBe('13м');
   });
 
-  it('getSchedule filters by weekNumber', async () => {
+  it('фильтрует записи по weekNumber', async () => {
     const result = await caller.schedule.getSchedule({ weekNumber: 1 });
     expect(result.length).toBeGreaterThan(0);
     result.forEach(e => expect(e.weekNumber).toBe(1));
   });
 
-  it('filters returns auxiliary data', async () => {
+  it('возвращает вспомогательные данные для фильтров', async () => {
     const filters = await caller.schedule.filters({});
     expect(filters.days.length).toBeGreaterThan(0);
     expect(filters.pairs.length).toBeGreaterThan(0);

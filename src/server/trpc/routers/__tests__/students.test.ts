@@ -37,7 +37,7 @@ describe('students CRUD', () => {
   let studentId: number;
   let studentWithUserId: number;
 
-  it('should create a student', async () => {
+  it('создаёт студента', async () => {
     const [row] = await caller.students.create({
       surname: 'Тестов',
       name: 'Студент',
@@ -48,7 +48,7 @@ describe('students CRUD', () => {
     studentId = row.id;
   });
 
-  it('should reject empty surname or name', async () => {
+  it('отклоняет пустые фамилию или имя', async () => {
     await expect(
       caller.students.create({
         surname: '',
@@ -67,7 +67,7 @@ describe('students CRUD', () => {
     ).rejects.toThrow();
   });
 
-  it('should reject missing profileId', async () => {
+  it('отклоняет отсутствие profileId', async () => {
     await expect(
       (caller.students.create as unknown as (data: Record<string, unknown>) => Promise<unknown>)({
         surname: 'Ф',
@@ -77,12 +77,12 @@ describe('students CRUD', () => {
     ).rejects.toThrow();
   });
 
-  it('should list students', async () => {
+  it('список студентов', async () => {
     const list = await caller.students.list();
     expect(list.some(s => s.id === studentId)).toBe(true);
   });
 
-  it('should get existing student', async () => {
+  it('получает существующего студента', async () => {
     const row = await caller.students.get({ id: studentId });
     expect(row).toMatchObject({
       surname: 'Тестов',
@@ -92,37 +92,37 @@ describe('students CRUD', () => {
     });
   });
 
-  it('should return null for non-existent id', async () => {
+  it('возвращает null для несуществующего id', async () => {
     const row = await caller.students.get({ id: 9999 });
     expect(row).toBeNull();
   });
 
-  it('should update a student', async () => {
+  it('обновляет студента', async () => {
     await caller.students.update({ id: studentId, name: 'Обновлённый' });
     const row = await caller.students.get({ id: studentId });
     expect(row?.name).toBe('Обновлённый');
   });
 
-  it('should reject update with empty surname', async () => {
+  it('отклоняет обновление с пустой фамилией', async () => {
     await expect(
       caller.students.update({ id: studentId, surname: '' })
     ).rejects.toThrow();
   });
 
-  it('should not fail on non-existent id update', async () => {
+  it('обновление несуществующего id не вызывает ошибку', async () => {
     await expect(
       caller.students.update({ id: 9999, name: 'Ghost' })
     ).resolves.toBeDefined();
   });
 
-  it('should delete a student without user', async () => {
+  it('удаляет студента без учётной записи', async () => {
     // Удаляем первого студента (без учётной записи)
     await caller.students.delete({ id: studentId });
     const row = await caller.students.get({ id: studentId });
     expect(row).toBeNull();
   });
 
-  it('should reject deleting yourself (student with same userId)', async () => {
+  it('отклоняет удаление самого себя (студент с тем же userId)', async () => {
     // Создаём студента, привязанного к текущему пользователю
     const [row] = await db
       .insert(students)
@@ -151,7 +151,7 @@ describe('students CRUD', () => {
     }
   });
 
-  it('should delete a student with user (unlink + remove user)', async () => {
+  it('удаляет студента с учётной записью (отвязывает и удаляет пользователя)', async () => {
     // Используем того же студента, но с другим userId (не текущим)
     const otherUserId = await createTestUser({ email: 'other@test.local', role: 'student' });
     await db.update(students)
@@ -172,7 +172,7 @@ describe('students CRUD', () => {
     expect(deletedUser).toBeUndefined();
   });
 
-  it('should reject deleting non-existent student', async () => {
+  it('отклоняет удаление несуществующего студента', async () => {
     await expect(
       caller.students.delete({ id: 9999 })
     ).rejects.toThrow(TRPCError);

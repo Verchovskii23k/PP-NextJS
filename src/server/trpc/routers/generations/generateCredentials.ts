@@ -74,7 +74,7 @@
  */
 import { z } from "zod";
 import { router, adminProcedure } from "../../trpc";
-import { users, employees, students } from "@/db/schema";
+import { users, employees, students, sessions } from "@/db/schema";
 import { eq, and, isNull } from "drizzle-orm";
 import { accounts } from "@/db/schema";
 import { makeEmail, generateRandomPassword, hashPassword } from '@/lib/password';
@@ -170,4 +170,23 @@ export const generateCredentialsRouter = router({
 
       return { count: newCredentials.length, credentials: newCredentials };
     }),
+    clearAllCredentials: adminProcedure.mutation(async ({ ctx }) => {
+    // Принудительно завершаем сессию текущего администратора
+    if (ctx.session?.session?.id) {
+      await ctx.db.delete(sessions).where(eq(sessions.id, ctx.session.session.id));
+    }
+
+    await ctx.db.transaction(async (tx) => {
+      await tx.update(employees)
+        .set({ userId: null, isAdmin: false})
+        .where(eq(employees.isActive, true));
+      await tx.update(students)
+        .set({ userId: null })
+        .where(eq(students.isActive, true));
+      await tx.delete(users)
+
+    });
+
+    return { success: true };
+  }),
 });

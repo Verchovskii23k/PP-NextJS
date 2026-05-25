@@ -38,7 +38,7 @@ beforeAll(async () => {
 });
 
 describe('auth', () => {
-  it('me should return current user', async () => {
+  it('me возвращает текущего пользователя', async () => {
     const me = await caller.auth.me();
     expect(me).not.toBeNull();
     expect(me?.email).toBe(adminEmail);
@@ -46,7 +46,7 @@ describe('auth', () => {
     expect(me?.fullName).toContain('Администратор');
   });
 
-  it('forgotPassword should return message (user with email)', async () => {
+  it('forgotPassword возвращает сообщение (пользователь с email)', async () => {
     const result = await caller.auth.forgotPassword({ email: adminEmail });
     expect(result).toHaveProperty('message');
   }, 15000);

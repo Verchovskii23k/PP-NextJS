@@ -11,10 +11,10 @@ beforeAll(async () => {
   caller = await createTestCaller({ id: 1, role: 'admin' });
 });
 
-describe('academicLoadTypes CRUD', () => {
+describe('CRUD "Типы нагрузки', () => {
   let id: number;
 
-  it('create a new type', async () => {
+  it('создаёт новый тип', async () => {
     const [row] = await caller.academicLoadTypes.create({
       name: 'Test',
       abbreviation: 'T',
@@ -23,7 +23,7 @@ describe('academicLoadTypes CRUD', () => {
     id = row.id;
   });
 
-  it('reject duplicate name', async () => {
+  it('отклоняет дублирование названия', async () => {
     await expect(
       caller.academicLoadTypes.create({ name: 'Test', abbreviation: 'T2' })
     ).rejects.toThrow(TRPCError);
@@ -39,34 +39,34 @@ describe('academicLoadTypes CRUD', () => {
     }
   });
 
-  it('reject empty name', async () => {
+  it('отклоняет пустое название', async () => {
     await expect(
       caller.academicLoadTypes.create({ name: '', abbreviation: 'E' })
     ).rejects.toThrow();
   });
 
-  it('list should contain created item', async () => {
+  it('список содержит созданную запись', async () => {
     const list = await caller.academicLoadTypes.list();
     expect(list.some((r) => r.id === id)).toBe(true);
   });
 
-  it('get returns correct item', async () => {
+  it('получение возвращает корректную запись', async () => {
     const row = await caller.academicLoadTypes.get({ id });
     expect(row).toMatchObject({ name: 'Test', abbreviation: 'T' });
   });
 
-  it('get non-existent returns null', async () => {
+  it('получение несуществующей записи возвращает null', async () => {
     const row = await caller.academicLoadTypes.get({ id: 9999 });
     expect(row).toBeNull();
   });
 
-  it('update name', async () => {
+  it('обновляет название', async () => {
     await caller.academicLoadTypes.update({ id, name: 'Updated' });
     const row = await caller.academicLoadTypes.get({ id });
     expect(row?.name).toBe('Updated');
   });
 
-  it('reject update to existing name', async () => {
+  it('отклоняет обновление на существующее название', async () => {
     // Создаём вторую запись
     await caller.academicLoadTypes.create({
       name: 'Another',
@@ -86,13 +86,13 @@ describe('academicLoadTypes CRUD', () => {
     }
   });
 
-  it('reject update with empty name', async () => {
+  it('отклоняет обновление с пустым названием', async () => {
     await expect(
       caller.academicLoadTypes.update({ id, name: '' })
     ).rejects.toThrow();
   });
 
-  it('update non-existent id does nothing', async () => {
+  it('обновление несуществующего id ничего не делает', async () => {
     // Не должно бросать ошибку
     const result = await caller.academicLoadTypes.update({
       id: 9999,
@@ -104,13 +104,13 @@ describe('academicLoadTypes CRUD', () => {
     expect(row).toBeNull();
   });
 
-  it('delete existing item', async () => {
+  it('удаляет существующую запись', async () => {
     await caller.academicLoadTypes.delete({ id });
     const row = await caller.academicLoadTypes.get({ id });
     expect(row).toBeNull(); // safeDelete делает запись неактивной
   });
 
-  it('delete non-existent item does not fail', async () => {
+  it('удаление несуществующей записи не вызывает ошибку', async () => {
     await expect(
       caller.academicLoadTypes.delete({ id: 9999 })
     ).resolves.toBeDefined();

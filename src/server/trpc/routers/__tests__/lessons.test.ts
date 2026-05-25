@@ -89,7 +89,7 @@ beforeAll(async () => {
 describe('lessons CRUD', () => {
   let lessonId: number;
 
-  it('should create a lesson', async () => {
+  it('создаёт занятие', async () => {
     const [row] = await caller.lessons.create({
       curriculumId,
       unitId,
@@ -102,7 +102,7 @@ describe('lessons CRUD', () => {
     lessonId = row.id;
   });
 
-  it('should reject missing required fields', async () => {
+  it('отклоняет отсутствие обязательных полей', async () => {
     await expect(
       (caller.lessons.create as unknown as (data: Record<string, unknown>) => Promise<unknown>)({ curriculumId, unitId, lessonTypeId, countPerSemester: 10 })
     ).rejects.toThrow();
@@ -111,7 +111,7 @@ describe('lessons CRUD', () => {
     ).rejects.toThrow();
   });
 
-  it('should list lessons and contain created one', async () => {
+  it('список занятий содержит созданное', async () => {
     const list = await caller.lessons.list();
     expect(list.some(l => l.id === lessonId)).toBe(true);
     // Проверим наличие display
@@ -120,7 +120,7 @@ describe('lessons CRUD', () => {
     expect(created?.display).toContain('TEST-UNIT');
   });
 
-  it('should get existing lesson with display', async () => {
+  it('получает существующее занятие с display', async () => {
     const row = await caller.lessons.get({ id: lessonId });
     expect(row).toMatchObject({
       curriculumId,
@@ -133,36 +133,36 @@ describe('lessons CRUD', () => {
     expect(row?.display).toBeDefined();
   });
 
-  it('should return null for non-existent id', async () => {
+  it('возвращает null для несуществующего id', async () => {
     const row = await caller.lessons.get({ id: 9999 });
     expect(row).toBeNull();
   });
 
-  it('should update countPerSemester', async () => {
+  it('обновляет countPerSemester', async () => {
     await caller.lessons.update({ id: lessonId, countPerSemester: 20 });
     const row = await caller.lessons.get({ id: lessonId });
     expect(row?.countPerSemester).toBe(20);
   });
 
-  it('should reject update with invalid data', async () => {
+  it('отклоняет обновление с некорректными данными', async () => {
     await expect(
       caller.lessons.update({ id: lessonId, countPerSemester: -1 })
     ).rejects.toThrow();
   });
 
-  it('should not fail on non-existent id update', async () => {
+  it('обновление несуществующего id не вызывает ошибку', async () => {
     await expect(
       caller.lessons.update({ id: 9999, countPerSemester: 5 })
     ).resolves.toBeDefined();
   });
 
-  it('should delete existing lesson', async () => {
+  it('удаляет существующее занятие', async () => {
     await caller.lessons.delete({ id: lessonId });
     const row = await caller.lessons.get({ id: lessonId });
     expect(row).toBeNull();
   });
 
-  it('should not fail on non-existent id delete', async () => {
+  it('удаление несуществующего id не вызывает ошибку', async () => {
     await expect(
       caller.lessons.delete({ id: 9999 })
     ).resolves.toBeDefined();

@@ -43,7 +43,7 @@ describe('disciplines CRUD', () => {
   let discId: number;
   let disc2Id: number;
 
-  it('should create a discipline', async () => {
+  it('создаёт дисциплину', async () => {
     const [row] = await caller.disciplines.create({
       name: 'Тестовая дисциплина',
       abbreviation: 'ТД',
@@ -53,7 +53,7 @@ describe('disciplines CRUD', () => {
     discId = row.id;
   });
 
-  it('should reject duplicate name', async () => {
+  it('отклоняет дублирование названия', async () => {
     await expect(
       caller.disciplines.create({
         name: 'Тестовая дисциплина',
@@ -76,7 +76,7 @@ describe('disciplines CRUD', () => {
     }
   });
 
-  it('should reject empty name or abbreviation', async () => {
+  it('отклоняет пустые name или abbreviation', async () => {
     await expect(
       caller.disciplines.create({
         name: '',
@@ -93,7 +93,7 @@ describe('disciplines CRUD', () => {
     ).rejects.toThrow();
   });
 
-  it('should list disciplines (all and filtered by department)', async () => {
+  it('список дисциплин (все и с фильтром по кафедре)', async () => {
     const list = await caller.disciplines.list();
     expect(list.some(d => d.id === discId)).toBe(true);
 
@@ -105,7 +105,7 @@ describe('disciplines CRUD', () => {
     expect(filteredOther.some(d => d.id === discId)).toBe(false);
   });
 
-  it('should get existing discipline', async () => {
+  it('получает существующую дисциплину', async () => {
     const row = await caller.disciplines.get({ id: discId });
     expect(row).toMatchObject({
       name: 'Тестовая дисциплина',
@@ -114,18 +114,18 @@ describe('disciplines CRUD', () => {
     });
   });
 
-  it('should return null for non-existent id', async () => {
+  it('возвращает null для несуществующего id', async () => {
     const row = await caller.disciplines.get({ id: 9999 });
     expect(row).toBeNull();
   });
 
-  it('should update name', async () => {
+  it('обновляет название', async () => {
     await caller.disciplines.update({ id: discId, name: 'Обновлённая' });
     const row = await caller.disciplines.get({ id: discId });
     expect(row?.name).toBe('Обновлённая');
   });
 
-  it('should reject update to existing name', async () => {
+  it('отклоняет обновление на существующее название', async () => {
     const [row2] = await caller.disciplines.create({
       name: 'Вторая дисциплина',
       abbreviation: 'ВД',
@@ -145,13 +145,13 @@ describe('disciplines CRUD', () => {
     }
   });
 
-  it('should reject update with empty name', async () => {
+  it('отклоняет обновление с пустым названием', async () => {
     await expect(
       caller.disciplines.update({ id: discId, name: '' })
     ).rejects.toThrow();
   });
 
-  it('should deactivate discipline and cascade to curriculum and disciplineTeachers', async () => {
+  it('деактивирует дисциплину и каскадно отключает учебные планы и преподавателей дисциплин', async () => {
     // создаём учебный план
     const [cur] = await caller.curriculum.create({
       course: 1,
@@ -190,13 +190,13 @@ describe('disciplines CRUD', () => {
     expect(dtRow?.isActive).toBe(false);
   });
 
-  it('should delete existing discipline', async () => {
+  it('удаляет существующую дисциплину', async () => {
     await caller.disciplines.delete({ id: discId });
     const row = await caller.disciplines.get({ id: discId });
     expect(row).toBeNull();
   });
 
-  it('should not fail on non-existent id delete', async () => {
+  it('удаление несуществующего id не вызывает ошибку', async () => {
     await expect(
       caller.disciplines.delete({ id: 9999 })
     ).resolves.toBeDefined();

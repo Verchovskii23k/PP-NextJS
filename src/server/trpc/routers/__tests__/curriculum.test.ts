@@ -19,7 +19,7 @@ beforeAll(async () => {
 describe('curriculum CRUD', () => {
   let curriculumId: number;
 
-  it('should create a curriculum entry', async () => {
+  it('создаёт запись учебного плана', async () => {
     const [row] = await caller.curriculum.create({
       course: 1,
       semester: 1,
@@ -31,7 +31,7 @@ describe('curriculum CRUD', () => {
     curriculumId = row.id;
   });
 
-  it('should reject duplicate course+semester+discipline', async () => {
+  it('отклоняет дублирование курса, семестра и дисциплины', async () => {
     await expect(
       caller.curriculum.create({
         course: 1,
@@ -55,19 +55,43 @@ describe('curriculum CRUD', () => {
       }
     }
   });
-
-  it('should reject missing disciplineId', async () => {
+  it('отклоняет полный дубликат записи учебного плана', async () => {
+    await expect(
+      caller.curriculum.create({
+        course: 1,
+        semester: 1,
+        disciplineId,
+        hoursLecture: 30,
+        hoursLab: 15,
+      })
+    ).rejects.toThrow(TRPCError);
+    try {
+      await caller.curriculum.create({
+        course: 1,
+        semester: 1,
+        disciplineId,
+        hoursLecture: 30,
+        hoursLab: 15,
+      });
+    } catch (e) {
+      expect(e).toBeInstanceOf(TRPCError);
+      if (e instanceof TRPCError) {
+        expect(e.code).toBe('CONFLICT');
+      }
+    }
+  });
+  it('отклоняет отсутствие disciplineId', async () => {
     await expect(
       (caller.curriculum.create as unknown as (data: Record<string, unknown>) => Promise<unknown>)({ course: 2, semester: 1 })
     ).rejects.toThrow();
   });
 
-  it('should list and contain created entry', async () => {
+  it('список содержит созданную запись', async () => {
     const list = await caller.curriculum.list();
     expect(list.some((r) => r.id === curriculumId)).toBe(true);
   });
 
-  it('should get existing entry', async () => {
+  it('получает существующую запись', async () => {
     const row = await caller.curriculum.get({ id: curriculumId });
     expect(row).toMatchObject({
       hoursLecture: 30,
@@ -75,18 +99,18 @@ describe('curriculum CRUD', () => {
     });
   });
 
-  it('should return null for non-existent id', async () => {
+  it('возвращает null для несуществующего id', async () => {
     const row = await caller.curriculum.get({ id: 9999 });
     expect(row).toBeNull();
   });
 
-  it('should update a field', async () => {
+  it('обновляет поле', async () => {
     await caller.curriculum.update({ id: curriculumId, hoursLecture: 40 });
     const row = await caller.curriculum.get({ id: curriculumId });
     expect(row?.hoursLecture).toBe(40);
   });
 
-  it('should reject update to duplicate combination', async () => {
+  it('отклоняет обновление на дублирующую комбинацию', async () => {
     // Создаём второй план с другой дисциплиной
     const disc2Id = await createTestDiscipline(
       (await db.select({ id: departments.id }).from(departments).limit(1))[0].id
@@ -111,19 +135,19 @@ describe('curriculum CRUD', () => {
     }
   });
 
-  it('should not fail on non-existent id update', async () => {
+  it('обновление несуществующего id не вызывает ошибку', async () => {
     await expect(
       caller.curriculum.update({ id: 9999, hoursLecture: 10 })
     ).resolves.toBeDefined();
   });
 
-  it('should delete an entry', async () => {
+  it('удаляет запись', async () => {
     await caller.curriculum.delete({ id: curriculumId });
     const row = await caller.curriculum.get({ id: curriculumId });
     expect(row).toBeNull();
   });
 
-  it('should not fail on non-existent id delete', async () => {
+  it('удаление несуществующего id не вызывает ошибку', async () => {
     await expect(
       caller.curriculum.delete({ id: 9999 })
     ).resolves.toBeDefined();

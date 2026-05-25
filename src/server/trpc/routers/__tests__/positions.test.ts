@@ -14,7 +14,7 @@ describe('positions CRUD', () => {
   let posId: number;
   let secondPosId: number;
 
-  it('should create a position', async () => {
+  it('создаёт должность', async () => {
     const [row] = await caller.positions.create({
       name: 'Доцент',
       abbreviation: 'доц',
@@ -23,7 +23,7 @@ describe('positions CRUD', () => {
     posId = row.id;
   });
 
-  it('should reject duplicate name', async () => {
+  it('отклоняет дублирование названия', async () => {
     await expect(
       caller.positions.create({ name: 'Доцент' })
     ).rejects.toThrow(TRPCError);
@@ -38,34 +38,34 @@ describe('positions CRUD', () => {
     }
   });
 
-  it('should reject empty name', async () => {
+  it('отклоняет пустое название', async () => {
     await expect(
       caller.positions.create({ name: '' })
     ).rejects.toThrow();
   });
 
-  it('should list and contain created position', async () => {
+  it('список содержит созданную должность', async () => {
     const list = await caller.positions.list();
     expect(list.some(p => p.id === posId)).toBe(true);
   });
 
-  it('should get existing position', async () => {
+  it('получает существующую должность', async () => {
     const row = await caller.positions.get({ id: posId });
     expect(row).toMatchObject({ name: 'Доцент', abbreviation: 'доц' });
   });
 
-  it('should return null for non-existent id', async () => {
+  it('возвращает null для несуществующего id', async () => {
     const row = await caller.positions.get({ id: 9999 });
     expect(row).toBeNull();
   });
 
-  it('should update name', async () => {
+  it('обновляет название', async () => {
     await caller.positions.update({ id: posId, name: 'Профессор' });
     const row = await caller.positions.get({ id: posId });
     expect(row?.name).toBe('Профессор');
   });
 
-  it('should reject update to existing name', async () => {
+  it('отклоняет обновление на существующее название', async () => {
     const [row2] = await caller.positions.create({ name: 'Старший преподаватель' });
     secondPosId = row2.id;
 
@@ -81,25 +81,25 @@ describe('positions CRUD', () => {
     }
   });
 
-  it('should reject update with empty name', async () => {
+  it('отклоняет обновление с пустым названием', async () => {
     await expect(
       caller.positions.update({ id: posId, name: '' })
     ).rejects.toThrow();
   });
 
-  it('should not fail on non-existent id update', async () => {
+  it('обновление несуществующего id не вызывает ошибку', async () => {
     await expect(
       caller.positions.update({ id: 9999, name: 'Несуществующий' })
     ).resolves.toBeDefined();
   });
 
-  it('should delete existing position', async () => {
+  it('удаляет существующую должность', async () => {
     await caller.positions.delete({ id: secondPosId });
     const row = await caller.positions.get({ id: secondPosId });
     expect(row).toBeNull();
   });
 
-  it('should not fail on non-existent id delete', async () => {
+  it('удаление несуществующего id не вызывает ошибку', async () => {
     await expect(
       caller.positions.delete({ id: 9999 })
     ).resolves.toBeDefined();

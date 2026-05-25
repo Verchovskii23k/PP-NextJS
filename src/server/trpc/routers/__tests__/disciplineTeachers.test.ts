@@ -42,7 +42,6 @@ beforeAll(async () => {
   // Дисциплины
   discAId = await createTestDiscipline(deptAId, { name: 'Дисциплина А', abbreviation: 'ДА' });
 
-
   // Типы занятий
   const [lecture] = await db.insert(lessonTypes).values({ name: 'lecture', abbreviation: 'ЛК' }).returning({ id: lessonTypes.id });
   const [workshop] = await db.insert(lessonTypes).values({ name: 'workshop', abbreviation: 'ПР' }).returning({ id: lessonTypes.id });
@@ -56,7 +55,7 @@ describe('disciplineTeachers CRUD', () => {
   let linkId: number;
   let link2Id: number;
 
-  it('should create a valid link', async () => {
+  it('создаёт корректную связь', async () => {
     const [row] = await caller.disciplineTeachers.create({
       lessonTypeId: ltLecture,
       disciplineId: discAId,
@@ -66,7 +65,7 @@ describe('disciplineTeachers CRUD', () => {
     linkId = row.id;
   });
 
-  it('should reject mismatched departments', async () => {
+  it('отклоняет связь с несовпадающими кафедрами', async () => {
     // дисциплина A (кафедра A), преподаватель B (кафедра B)
     await expect(
       caller.disciplineTeachers.create({
@@ -90,7 +89,7 @@ describe('disciplineTeachers CRUD', () => {
     }
   });
 
-  it('should reject duplicate combination', async () => {
+  it('отклоняет дублирующую комбинацию', async () => {
     await expect(
       caller.disciplineTeachers.create({
         lessonTypeId: ltLecture,
@@ -113,18 +112,18 @@ describe('disciplineTeachers CRUD', () => {
     }
   });
 
-  it('should reject missing required fields', async () => {
+  it('отклоняет отсутствие обязательных полей', async () => {
     await expect(
       (caller.disciplineTeachers.create as unknown as (data: Record<string, unknown>) => Promise<unknown>)({ lessonTypeId: ltLecture, disciplineId: discAId })
     ).rejects.toThrow();
   });
 
-  it('should list and contain created link', async () => {
+  it('список содержит созданную связь', async () => {
     const list = await caller.disciplineTeachers.list();
     expect(list.some(r => r.id === linkId)).toBe(true);
   });
 
-  it('should get existing link', async () => {
+  it('получает существующую связь', async () => {
     const row = await caller.disciplineTeachers.get({ id: linkId });
     expect(row).toMatchObject({
       lessonTypeId: ltLecture,
@@ -133,18 +132,18 @@ describe('disciplineTeachers CRUD', () => {
     });
   });
 
-  it('should return null for non-existent id', async () => {
+  it('возвращает null для несуществующего id', async () => {
     const row = await caller.disciplineTeachers.get({ id: 9999 });
     expect(row).toBeNull();
   });
 
-  it('should update isActive', async () => {
+  it('обновляет isActive', async () => {
     await caller.disciplineTeachers.update({ id: linkId, isActive: false });
     const row = await caller.disciplineTeachers.get({ id: linkId });
     expect(row?.isActive).toBe(false);
   });
 
-  it('should reject update to mismatched departments', async () => {
+  it('отклоняет обновление на связь с несовпадающими кафедрами', async () => {
     // Передаём teacherDepartmentId и disciplineId, но из разных кафедр
     await expect(
       caller.disciplineTeachers.update({
@@ -154,7 +153,7 @@ describe('disciplineTeachers CRUD', () => {
       })
     ).rejects.toThrow(TRPCError);
     try {
-      await caller.disciplineTeachers.update({
+        await caller.disciplineTeachers.update({
         id: linkId,
         disciplineId: discAId,
         teacherDepartmentId: empBDeptId,
@@ -166,7 +165,7 @@ describe('disciplineTeachers CRUD', () => {
     }
   });
 
-  it('should reject update to duplicate combination', async () => {
+  it('отклоняет обновление на дублирующую комбинацию', async () => {
     // Создадим вторую валидную связку (другой тип занятия)
     const [row2] = await caller.disciplineTeachers.create({
       lessonTypeId: ltWorkshop,
@@ -198,13 +197,13 @@ describe('disciplineTeachers CRUD', () => {
     }
   });
 
-  it('should delete existing link', async () => {
+  it('удаляет существующую связь', async () => {
     await caller.disciplineTeachers.delete({ id: link2Id });
     const row = await caller.disciplineTeachers.get({ id: link2Id });
     expect(row).toBeNull();
   });
 
-  it('should not fail on non-existent id delete', async () => {
+  it('удаление несуществующего id не вызывает ошибку', async () => {
     await expect(
       caller.disciplineTeachers.delete({ id: 9999 })
     ).resolves.toBeDefined();

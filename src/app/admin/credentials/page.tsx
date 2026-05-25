@@ -23,7 +23,7 @@ export default function CredentialsPage() {
     onError: (e) => setError(e.message),
   });
 
-  const clearAllMut = trpc.adminManagement.clearAllCredentials.useMutation({
+  const clearAllMut = trpc.generations.clearAllCredentials.useMutation({
     onSuccess: () => {
       window.location.href = '/';
     },

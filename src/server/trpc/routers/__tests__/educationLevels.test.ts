@@ -14,7 +14,7 @@ describe('educationLevels CRUD', () => {
   let levelId: number;
   let secondLevelId: number;
 
-  it('should create a level', async () => {
+  it('создаёт уровень образования', async () => {
     const [row] = await caller.educationLevels.create({
       name: 'Бакалавриат',
       abbreviation: 'БАК',
@@ -23,7 +23,7 @@ describe('educationLevels CRUD', () => {
     levelId = row.id;
   });
 
-  it('should reject duplicate name', async () => {
+  it('отклоняет дублирование названия', async () => {
     await expect(
       caller.educationLevels.create({ name: 'Бакалавриат' })
     ).rejects.toThrow(TRPCError);
@@ -38,34 +38,34 @@ describe('educationLevels CRUD', () => {
     }
   });
 
-  it('should reject empty name', async () => {
+  it('отклоняет пустое название', async () => {
     await expect(
       caller.educationLevels.create({ name: '' })
     ).rejects.toThrow();
   });
 
-  it('should list and contain created level', async () => {
+  it('список содержит созданный уровень', async () => {
     const list = await caller.educationLevels.list();
     expect(list.some(l => l.id === levelId)).toBe(true);
   });
 
-  it('should get existing level', async () => {
+  it('получает существующий уровень', async () => {
     const row = await caller.educationLevels.get({ id: levelId });
     expect(row).toMatchObject({ name: 'Бакалавриат', abbreviation: 'БАК' });
   });
 
-  it('should return null for non-existent id', async () => {
+  it('возвращает null для несуществующего id', async () => {
     const row = await caller.educationLevels.get({ id: 9999 });
     expect(row).toBeNull();
   });
 
-  it('should update name', async () => {
+  it('обновляет название', async () => {
     await caller.educationLevels.update({ id: levelId, name: 'Магистратура' });
     const row = await caller.educationLevels.get({ id: levelId });
     expect(row?.name).toBe('Магистратура');
   });
 
-  it('should reject update to existing name', async () => {
+  it('отклоняет обновление на существующее название', async () => {
     const [row2] = await caller.educationLevels.create({ name: 'Специалитет' });
     secondLevelId = row2.id;
 
@@ -81,25 +81,25 @@ describe('educationLevels CRUD', () => {
     }
   });
 
-  it('should reject update with empty name', async () => {
+  it('отклоняет обновление с пустым названием', async () => {
     await expect(
       caller.educationLevels.update({ id: levelId, name: '' })
     ).rejects.toThrow();
   });
 
-  it('should not fail on non-existent id update', async () => {
+  it('обновление несуществующего id не вызывает ошибку', async () => {
     await expect(
       caller.educationLevels.update({ id: 9999, name: 'Несуществующий' })
     ).resolves.toBeDefined();
   });
 
-  it('should delete existing level', async () => {
+  it('удаляет существующий уровень', async () => {
     await caller.educationLevels.delete({ id: secondLevelId });
     const row = await caller.educationLevels.get({ id: secondLevelId });
     expect(row).toBeNull();
   });
 
-  it('should not fail on non-existent id delete', async () => {
+  it('удаление несуществующего id не вызывает ошибку', async () => {
     await expect(
       caller.educationLevels.delete({ id: 9999 })
     ).resolves.toBeDefined();

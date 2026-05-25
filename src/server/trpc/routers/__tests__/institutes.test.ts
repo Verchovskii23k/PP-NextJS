@@ -26,7 +26,7 @@ describe('institutes CRUD', () => {
   let secondInstituteId: number;
   let deptId: number;
 
-  it('should create an institute', async () => {
+  it('создаёт институт', async () => {
     const [row] = await caller.institutes.create({
       name: 'Тестовый институт',
       universityCode: 100,
@@ -35,7 +35,7 @@ describe('institutes CRUD', () => {
     instituteId = row.id;
   });
 
-  it('should reject duplicate code or name', async () => {
+  it('отклоняет дублирование кода или названия', async () => {
     await expect(
       caller.institutes.create({
         name: 'Другой',
@@ -61,7 +61,7 @@ describe('institutes CRUD', () => {
     }
   });
 
-  it('should reject empty name or invalid code', async () => {
+  it('отклоняет пустое название или некорректный код', async () => {
     await expect(
       caller.institutes.create({ name: '', universityCode: 300 })
     ).rejects.toThrow();
@@ -70,7 +70,7 @@ describe('institutes CRUD', () => {
     ).rejects.toThrow();
   });
 
-  it('should reject director who is a head of department', async () => {
+  it('отклоняет директора, который уже заведует кафедрой', async () => {
     // Создаём сотрудника и делаем его завкафедрой
     const empId = await createTestEmployee();
     await createTestDepartment(instituteId, { headId: empId, departmentCode: 500 });
@@ -84,7 +84,7 @@ describe('institutes CRUD', () => {
     ).rejects.toThrow(/Этот сотрудник уже является заведующим кафедрой/);
   });
 
-  it('should reject director who is a curator', async () => {
+  it('отклоняет директора, который уже является куратором', async () => {
     // Создаём сотрудника, кафедру, специальность, профиль, группу с куратором
     const empId = await createTestEmployee();
     const specDeptId = await createTestDepartment(instituteId, { departmentCode: 600 });
@@ -102,28 +102,28 @@ describe('institutes CRUD', () => {
     ).rejects.toThrow(/Этот сотрудник уже является куратором/);
   });
 
-  it('should list and contain created institute', async () => {
+  it('список содержит созданный институт', async () => {
     const list = await caller.institutes.list();
     expect(list.some(i => i.id === instituteId)).toBe(true);
   });
 
-  it('should get existing institute', async () => {
+  it('получает существующий институт', async () => {
     const inst = await caller.institutes.get({ id: instituteId });
     expect(inst).toMatchObject({ name: 'Тестовый институт', universityCode: 100 });
   });
 
-  it('should return null for non-existent id', async () => {
+  it('возвращает null для несуществующего id', async () => {
     const inst = await caller.institutes.get({ id: 9999 });
     expect(inst).toBeNull();
   });
 
-  it('should update name', async () => {
+  it('обновляет название', async () => {
     await caller.institutes.update({ id: instituteId, name: 'Обновлённый институт' });
     const inst = await caller.institutes.get({ id: instituteId });
     expect(inst?.name).toBe('Обновлённый институт');
   });
 
-  it('should reject update to existing code or name', async () => {
+  it('отклоняет обновление на существующий код или название', async () => {
     // Создаём второй институт
     const [inst2] = await caller.institutes.create({
       name: 'Второй институт',
@@ -139,7 +139,7 @@ describe('institutes CRUD', () => {
     ).rejects.toThrow(TRPCError);
   });
 
-  it('should reject assigning director who is already director of another institute', async () => {
+  it('отклоняет назначение директора, который уже директор другого института', async () => {
     // Назначаем сотрудника директором первого института
     const empId = await createTestEmployee();
     await caller.institutes.update({ id: instituteId, directorId: empId });
@@ -150,7 +150,7 @@ describe('institutes CRUD', () => {
     ).rejects.toThrow(/Этот сотрудник уже является директором другого института/);
   });
 
-  it('should cascade deactivation to departments', async () => {
+  it('каскадно деактивирует кафедры при отключении института', async () => {
     // Создаём кафедру, привязанную к instituteId
     deptId = await createTestDepartment(instituteId, { departmentCode: 900 });
 
@@ -169,13 +169,13 @@ describe('institutes CRUD', () => {
     expect(dept?.isActive).toBe(false);
   });
 
-  it('should delete existing institute', async () => {
+  it('удаляет существующий институт', async () => {
     await caller.institutes.delete({ id: secondInstituteId });
     const inst = await caller.institutes.get({ id: secondInstituteId });
     expect(inst).toBeNull();
   });
 
-  it('should not fail on non-existent id delete', async () => {
+  it('удаление несуществующего id не вызывает ошибку', async () => {
     await expect(
       caller.institutes.delete({ id: 9999 })
     ).resolves.toBeDefined();

@@ -18,13 +18,13 @@ describe('buildings CRUD', () => {
   let buildingId: number;
   let secondBuildingId: number;
 
-  it('create a building', async () => {
+  it('создаёт здание', async () => {
     const [bld] = await caller.buildings.create({ number: 99 });
     expect(bld).toHaveProperty('id');
     buildingId = bld.id;
   });
 
-  it('reject duplicate number', async () => {
+  it('отклоняет дубликат номера', async () => {
     await expect(
       caller.buildings.create({ number: 99 })
     ).rejects.toThrow(TRPCError);
@@ -39,7 +39,7 @@ describe('buildings CRUD', () => {
     }
   });
 
-  it('reject zero or negative number', async () => {
+  it('отклоняет нулевой или отрицательный номер', async () => {
     await expect(
       caller.buildings.create({ number: 0 })
     ).rejects.toThrow();
@@ -48,28 +48,28 @@ describe('buildings CRUD', () => {
     ).rejects.toThrow();
   });
 
-  it('list should include created building', async () => {
+  it('список содержит созданное здание', async () => {
     const list = await caller.buildings.list();
     expect(list.some((b) => b.id === buildingId)).toBe(true);
   });
 
-  it('get existing building', async () => {
+  it('получает существующее здание', async () => {
     const bld = await caller.buildings.get({ id: buildingId });
     expect(bld).toMatchObject({ number: 99 });
   });
 
-  it('get non-existent returns null', async () => {
+  it('получение несуществующего возвращает null', async () => {
     const bld = await caller.buildings.get({ id: 9999 });
     expect(bld).toBeNull();
   });
 
-  it('update number', async () => {
+  it('обновляет номер', async () => {
     await caller.buildings.update({ id: buildingId, number: 100 });
     const bld = await caller.buildings.get({ id: buildingId });
     expect(bld?.number).toBe(100);
   });
 
-  it('reject update to existing number', async () => {
+  it('отклоняет обновление на существующий номер', async () => {
     // Создаём второе здание
     const [bld2] = await caller.buildings.create({ number: 200 });
     secondBuildingId = bld2.id;
@@ -87,7 +87,7 @@ describe('buildings CRUD', () => {
     }
   });
 
-  it('reject update with invalid number', async () => {
+  it('отклоняет обновление с некорректным номером', async () => {
     await expect(
       caller.buildings.update({ id: buildingId, number: 0 })
     ).rejects.toThrow();
@@ -96,7 +96,7 @@ describe('buildings CRUD', () => {
     ).rejects.toThrow();
   });
 
-  it('update non-existent id does nothing', async () => {
+  it('обновление несуществующего id ничего не делает', async () => {
     const result = await caller.buildings.update({
       id: 9999,
       number: 300,
@@ -106,20 +106,20 @@ describe('buildings CRUD', () => {
     expect(bld).toBeNull();
   });
 
-  it('delete existing building', async () => {
+  it('удаляет существующее здание', async () => {
     // Удаляем второе здание (неиспользуемое)
     await caller.buildings.delete({ id: secondBuildingId });
     const bld = await caller.buildings.get({ id: secondBuildingId });
     expect(bld).toBeNull();
   });
 
-  it('delete non-existent does not fail', async () => {
+  it('удаление несуществующего не вызывает ошибку', async () => {
     await expect(
       caller.buildings.delete({ id: 9999 })
     ).resolves.toBeDefined();
   });
 
-  it('reject deletion of used building (with classrooms)', async () => {
+  it('отклоняет удаление используемого здания (с аудиториями)', async () => {
     // Создаём здание и аудиторию, привязанную к нему
     const [bld] = await caller.buildings.create({ number: 400 });
     await db.insert(classrooms).values({

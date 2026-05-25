@@ -14,13 +14,13 @@ describe('pairs CRUD', () => {
   let pairId: number;
   let secondPairId: number;
 
-  it('should create a pair', async () => {
+  it('создаёт пару', async () => {
     const [row] = await caller.pairs.create({ number: 1 });
     expect(row).toHaveProperty('id');
     pairId = row.id;
   });
 
-  it('should reject duplicate number', async () => {
+  it('отклоняет дублирование номера', async () => {
     await expect(
       caller.pairs.create({ number: 1 })
     ).rejects.toThrow(TRPCError);
@@ -35,7 +35,7 @@ describe('pairs CRUD', () => {
     }
   });
 
-  it('should reject zero or negative number', async () => {
+  it('отклоняет нулевой или отрицательный номер', async () => {
     await expect(
       caller.pairs.create({ number: 0 })
     ).rejects.toThrow();
@@ -44,28 +44,28 @@ describe('pairs CRUD', () => {
     ).rejects.toThrow();
   });
 
-  it('should list and contain created pair', async () => {
+  it('список содержит созданную пару', async () => {
     const list = await caller.pairs.list();
     expect(list.some(p => p.id === pairId)).toBe(true);
   });
 
-  it('should get existing pair', async () => {
+  it('получает существующую пару', async () => {
     const row = await caller.pairs.get({ id: pairId });
     expect(row?.number).toBe(1);
   });
 
-  it('should return null for non-existent id', async () => {
+  it('возвращает null для несуществующего id', async () => {
     const row = await caller.pairs.get({ id: 9999 });
     expect(row).toBeNull();
   });
 
-  it('should update number', async () => {
+  it('обновляет номер', async () => {
     await caller.pairs.update({ id: pairId, number: 5 });
     const row = await caller.pairs.get({ id: pairId });
     expect(row?.number).toBe(5);
   });
 
-  it('should reject update to existing number', async () => {
+  it('отклоняет обновление на существующий номер', async () => {
     const [row2] = await caller.pairs.create({ number: 10 });
     secondPairId = row2.id;
 
@@ -81,7 +81,7 @@ describe('pairs CRUD', () => {
     }
   });
 
-  it('should reject update with invalid number', async () => {
+  it('отклоняет обновление с некорректным номером', async () => {
     await expect(
       caller.pairs.update({ id: pairId, number: 0 })
     ).rejects.toThrow();
@@ -90,19 +90,19 @@ describe('pairs CRUD', () => {
     ).rejects.toThrow();
   });
 
-  it('should not fail on non-existent id update', async () => {
+  it('обновление несуществующего id не вызывает ошибку', async () => {
     await expect(
       caller.pairs.update({ id: 9999, number: 8 })
     ).resolves.toBeDefined();
   });
 
-  it('should delete existing pair', async () => {
+  it('удаляет существующую пару', async () => {
     await caller.pairs.delete({ id: secondPairId });
     const row = await caller.pairs.get({ id: secondPairId });
     expect(row).toBeNull();
   });
 
-  it('should not fail on non-existent id delete', async () => {
+  it('удаление несуществующего id не вызывает ошибку', async () => {
     await expect(
       caller.pairs.delete({ id: 9999 })
     ).resolves.toBeDefined();

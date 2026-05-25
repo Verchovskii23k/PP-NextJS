@@ -14,26 +14,25 @@ beforeAll(async () => {
 });
 
 describe('lookup', () => {
-  it('should return a row for a valid table and id', async () => {
+  it('возвращает строку для существующей таблицы и id', async () => {
     const result = await caller.lookup.getRow({ tableName: 'buildings', id: 1 });
     expect(result).not.toBeNull();
     expect(result).toHaveProperty('number');
-    // Проверяем camelCase: в схеме колонка 'number', но в camelCase остаётся 'number' (не меняется)
     expect(result).toHaveProperty('number');
   });
 
-  it('should return null for non-existent id', async () => {
+  it('возвращает null для несуществующего id', async () => {
     const result = await caller.lookup.getRow({ tableName: 'buildings', id: 99999 });
     expect(result).toBeNull();
   });
 
-  it('should reject disallowed table', async () => {
+  it('отклоняет запрещённую таблицу', async () => {
     await expect(
       caller.lookup.getRow({ tableName: 'users', id: 1 })
     ).rejects.toThrow(/не разрешена/);
   });
 
-  it('should reject missing table name', async () => {
+  it('отклоняет отсутствие имени таблицы', async () => {
     await expect(
       (caller.lookup.getRow as unknown as (data: Record<string, unknown>) => Promise<unknown>)({ id: 1 })
     ).rejects.toThrow();

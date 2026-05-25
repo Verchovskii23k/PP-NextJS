@@ -14,7 +14,7 @@ describe('employmentTypes CRUD', () => {
   let typeId: number;
   let secondTypeId: number;
 
-  it('should create an employment type', async () => {
+  it('создаёт тип занятости', async () => {
     const [row] = await caller.employmentTypes.create({
       name: 'Ставка',
       abbreviation: 'СТ',
@@ -23,7 +23,7 @@ describe('employmentTypes CRUD', () => {
     typeId = row.id;
   });
 
-  it('should reject duplicate name', async () => {
+  it('отклоняет дублирование названия', async () => {
     await expect(
       caller.employmentTypes.create({ name: 'Ставка' })
     ).rejects.toThrow(TRPCError);
@@ -38,34 +38,34 @@ describe('employmentTypes CRUD', () => {
     }
   });
 
-  it('should reject empty name', async () => {
+  it('отклоняет пустое название', async () => {
     await expect(
       caller.employmentTypes.create({ name: '' })
     ).rejects.toThrow();
   });
 
-  it('should list and contain created type', async () => {
+  it('список содержит созданный тип', async () => {
     const list = await caller.employmentTypes.list();
     expect(list.some(t => t.id === typeId)).toBe(true);
   });
 
-  it('should get existing type', async () => {
+  it('получает существующий тип', async () => {
     const row = await caller.employmentTypes.get({ id: typeId });
     expect(row).toMatchObject({ name: 'Ставка', abbreviation: 'СТ' });
   });
 
-  it('should return null for non-existent id', async () => {
+  it('возвращает null для несуществующего id', async () => {
     const row = await caller.employmentTypes.get({ id: 9999 });
     expect(row).toBeNull();
   });
 
-  it('should update name', async () => {
+  it('обновляет название', async () => {
     await caller.employmentTypes.update({ id: typeId, name: '0.5 ставки' });
     const row = await caller.employmentTypes.get({ id: typeId });
     expect(row?.name).toBe('0.5 ставки');
   });
 
-  it('should reject update to existing name', async () => {
+  it('отклоняет обновление на существующее название', async () => {
     const [row2] = await caller.employmentTypes.create({ name: 'Совместительство' });
     secondTypeId = row2.id;
 
@@ -81,25 +81,25 @@ describe('employmentTypes CRUD', () => {
     }
   });
 
-  it('should reject update with empty name', async () => {
+  it('отклоняет обновление с пустым названием', async () => {
     await expect(
       caller.employmentTypes.update({ id: typeId, name: '' })
     ).rejects.toThrow();
   });
 
-  it('should not fail on non-existent id update', async () => {
+  it('обновление несуществующего id не вызывает ошибку', async () => {
     await expect(
       caller.employmentTypes.update({ id: 9999, name: 'Несуществующий' })
     ).resolves.toBeDefined();
   });
 
-  it('should delete existing type', async () => {
+  it('удаляет существующий тип', async () => {
     await caller.employmentTypes.delete({ id: secondTypeId });
     const row = await caller.employmentTypes.get({ id: secondTypeId });
     expect(row).toBeNull();
   });
 
-  it('should not fail on non-existent id delete', async () => {
+  it('удаление несуществующего id не вызывает ошибку', async () => {
     await expect(
       caller.employmentTypes.delete({ id: 9999 })
     ).resolves.toBeDefined();

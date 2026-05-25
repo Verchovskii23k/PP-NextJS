@@ -25,7 +25,7 @@ describe('hourTypeMapping CRUD', () => {
   let mappingId: number;
   let secondMappingId: number;
 
-  it('should create a mapping', async () => {
+  it('создаёт маппинг', async () => {
     const [row] = await caller.hourTypeMapping.create({
       planHourColumn: 'hours_test',
       priorityColumn: 'priorityTest',
@@ -35,7 +35,7 @@ describe('hourTypeMapping CRUD', () => {
     mappingId = row.id;
   });
 
-  it('should reject duplicate planHourColumn', async () => {
+  it('отклоняет дублирование planHourColumn', async () => {
     await expect(
       caller.hourTypeMapping.create({
         planHourColumn: 'hours_test',
@@ -58,7 +58,7 @@ describe('hourTypeMapping CRUD', () => {
     }
   });
 
-  it('should reject empty planHourColumn or priorityColumn', async () => {
+  it('отклоняет пустые planHourColumn или priorityColumn', async () => {
     await expect(
       caller.hourTypeMapping.create({
         planHourColumn: '',
@@ -75,7 +75,7 @@ describe('hourTypeMapping CRUD', () => {
     ).rejects.toThrow();
   });
 
-  it('should reject missing lessonTypeId', async () => {
+  it('отклоняет отсутствие lessonTypeId', async () => {
     await expect(
       (caller.hourTypeMapping.create as unknown as (data: Record<string, unknown>) => Promise<unknown>)({
         planHourColumn: 'hours_x',
@@ -84,12 +84,12 @@ describe('hourTypeMapping CRUD', () => {
     ).rejects.toThrow();
   });
 
-  it('should list and contain created mapping', async () => {
+  it('список содержит созданный маппинг', async () => {
     const list = await caller.hourTypeMapping.list();
     expect(list.some(m => m.id === mappingId)).toBe(true);
   });
 
-  it('should get existing mapping', async () => {
+  it('получает существующий маппинг', async () => {
     const row = await caller.hourTypeMapping.get({ id: mappingId });
     expect(row).toMatchObject({
       planHourColumn: 'hours_test',
@@ -98,12 +98,12 @@ describe('hourTypeMapping CRUD', () => {
     });
   });
 
-  it('should return null for non-existent id', async () => {
+  it('возвращает null для несуществующего id', async () => {
     const row = await caller.hourTypeMapping.get({ id: 9999 });
     expect(row).toBeNull();
   });
 
-  it('should update planHourColumn', async () => {
+  it('обновляет planHourColumn', async () => {
     await caller.hourTypeMapping.update({
       id: mappingId,
       planHourColumn: 'hours_updated',
@@ -112,7 +112,7 @@ describe('hourTypeMapping CRUD', () => {
     expect(row?.planHourColumn).toBe('hours_updated');
   });
 
-  it('should reject update to existing planHourColumn', async () => {
+  it('отклоняет обновление на существующий planHourColumn', async () => {
     // Создаём второй маппинг
     const [row2] = await caller.hourTypeMapping.create({
       planHourColumn: 'hours_second',
@@ -139,13 +139,13 @@ describe('hourTypeMapping CRUD', () => {
     }
   });
 
-  it('should reject update with empty planHourColumn', async () => {
+  it('отклоняет обновление с пустым planHourColumn', async () => {
     await expect(
       caller.hourTypeMapping.update({ id: mappingId, planHourColumn: '' })
     ).rejects.toThrow();
   });
 
-  it('should not fail on non-existent id update', async () => {
+  it('обновление несуществующего id не вызывает ошибку', async () => {
     await expect(
       caller.hourTypeMapping.update({
         id: 9999,
@@ -154,13 +154,13 @@ describe('hourTypeMapping CRUD', () => {
     ).resolves.toBeDefined();
   });
 
-  it('should delete existing mapping', async () => {
+  it('удаляет существующий маппинг', async () => {
     await caller.hourTypeMapping.delete({ id: secondMappingId });
     const row = await caller.hourTypeMapping.get({ id: secondMappingId });
     expect(row).toBeNull();
   });
 
-  it('should not fail on non-existent id delete', async () => {
+  it('удаление несуществующего id не вызывает ошибку', async () => {
     await expect(
       caller.hourTypeMapping.delete({ id: 9999 })
     ).resolves.toBeDefined();

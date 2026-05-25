@@ -46,7 +46,7 @@ describe('classrooms CRUD', () => {
     priorityLab: 3,
   };
 
-  it('should create a classroom', async () => {
+  it('создаёт аудиторию', async () => {
     const [room] = await caller.classrooms.create({
       ...mandatoryFields,
       buildingId, // гарантируем, что берётся актуальное значение
@@ -56,7 +56,7 @@ describe('classrooms CRUD', () => {
     roomId = room.id;
   });
 
-  it('should reject duplicate building + roomNumber', async () => {
+  it('отклоняет дублирование номера аудитории в корпусе', async () => {
     await expect(
       caller.classrooms.create({
         ...mandatoryFields,
@@ -85,7 +85,7 @@ describe('classrooms CRUD', () => {
     }
   });
 
-  it('should reject empty roomNumber', async () => {
+  it('отклоняет пустой номер аудитории', async () => {
     await expect(
       caller.classrooms.create({
         ...mandatoryFields,
@@ -97,14 +97,14 @@ describe('classrooms CRUD', () => {
     ).rejects.toThrow();
   });
 
-  it('should reject missing buildingId', async () => {
+  it('отклоняет отсутствие buildingId', async () => {
     const { buildingId, ...rest } = mandatoryFields;
     await expect(
       (caller.classrooms.create as unknown as (data: Record<string, unknown>) => Promise<unknown>)({ ...rest, departmentId: deptId })
     ).rejects.toThrow();
   });
 
-  it('should reject invalid priority values', async () => {
+  it('отклоняет некорректные значения приоритета', async () => {
     await expect(
       caller.classrooms.create({
         ...mandatoryFields,
@@ -124,13 +124,33 @@ describe('classrooms CRUD', () => {
       })
     ).rejects.toThrow();
   });
+  it('отклоняет создание аудитории с нулевой или отрицательной вместимостью', async () => {
+    await expect(
+      caller.classrooms.create({
+        ...mandatoryFields,
+        buildingId,
+        departmentId: deptId,
+        roomNumber: '300',
+        capacity: 0,
+      })
+    ).rejects.toThrow();
 
-  it('should list classrooms and contain created one', async () => {
+    await expect(
+      caller.classrooms.create({
+        ...mandatoryFields,
+        buildingId,
+        departmentId: deptId,
+        roomNumber: '301',
+        capacity: -5,
+      })
+    ).rejects.toThrow();
+  });
+  it('список аудиторий содержит созданную', async () => {
     const list = await caller.classrooms.list();
     expect(list.some((r) => r.id === roomId)).toBe(true);
   });
 
-  it('should get existing classroom', async () => {
+  it('получает существующую аудиторию', async () => {
     const room = await caller.classrooms.get({ id: roomId });
     expect(room).toMatchObject({
       buildingId,
@@ -139,12 +159,12 @@ describe('classrooms CRUD', () => {
     });
   });
 
-  it('should return null for non-existent id', async () => {
+  it('возвращает null для несуществующего id', async () => {
     const room = await caller.classrooms.get({ id: 9999 });
     expect(room).toBeNull();
   });
 
-  it('should update capacity', async () => {
+  it('обновляет вместимость', async () => {
     await caller.classrooms.update({
       id: roomId,
       ...mandatoryFields,
@@ -156,7 +176,7 @@ describe('classrooms CRUD', () => {
     expect(room?.capacity).toBe(35);
   });
 
-  it('should reject update to duplicate building+room', async () => {
+  it('отклоняет обновление на дублирующийся номер аудитории в корпусе', async () => {
     // Создадим вторую аудиторию в том же здании
     const [room2] = await caller.classrooms.create({
       ...mandatoryFields,
@@ -192,7 +212,7 @@ describe('classrooms CRUD', () => {
     }
   });
 
-  it('should reject update with empty roomNumber', async () => {
+  it('отклоняет обновление с пустым номером аудитории', async () => {
     await expect(
       caller.classrooms.update({
         id: roomId,
@@ -203,8 +223,28 @@ describe('classrooms CRUD', () => {
       })
     ).rejects.toThrow();
   });
+  it('отклоняет обновление вместимости на ноль или отрицательное число', async () => {
+    await expect(
+      caller.classrooms.update({
+        id: roomId,
+        ...mandatoryFields,
+        buildingId,
+        departmentId: deptId,
+        capacity: 0,
+      })
+    ).rejects.toThrow();
 
-  it('should reject update with invalid priority', async () => {
+    await expect(
+      caller.classrooms.update({
+        id: roomId,
+        ...mandatoryFields,
+        buildingId,
+        departmentId: deptId,
+        capacity: -10,
+      })
+    ).rejects.toThrow();
+  });
+  it('отклоняет обновление с некорректным приоритетом', async () => {
     await expect(
       caller.classrooms.update({
         id: roomId,
@@ -216,7 +256,7 @@ describe('classrooms CRUD', () => {
     ).rejects.toThrow();
   });
 
-  it('should reject update for non-existent id', async () => {
+  it('отклоняет обновление несуществующего id', async () => {
     await expect(
       caller.classrooms.update({
         id: 9999,
@@ -242,13 +282,13 @@ describe('classrooms CRUD', () => {
     }
   });
 
-  it('should delete an unused classroom', async () => {
+  it('удаляет неиспользуемую аудиторию', async () => {
     await caller.classrooms.delete({ id: roomId2 });
     const room = await caller.classrooms.get({ id: roomId2 });
     expect(room).toBeNull();
   });
 
-  it('should not fail on non-existent id delete', async () => {
+  it('удаление несуществующего id не вызывает ошибку', async () => {
     await expect(caller.classrooms.delete({ id: 9999 })).resolves.toBeDefined();
   });
 });

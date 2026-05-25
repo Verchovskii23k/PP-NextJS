@@ -14,13 +14,13 @@ beforeAll(async () => {
 describe('daysOfWeek CRUD', () => {
   let id: number;
 
-  it('should create a day', async () => {
+  it('создаёт день недели', async () => {
     const [row] = await caller.daysOfWeek.create({ name: 'ВС' });
     expect(row).toHaveProperty('id');
     id = row.id;
   });
 
-  it('should reject duplicate name', async () => {
+  it('отклоняет дублирование названия', async () => {
     await expect(
       caller.daysOfWeek.create({ name: 'ВС' })
     ).rejects.toThrow(TRPCError);
@@ -35,34 +35,34 @@ describe('daysOfWeek CRUD', () => {
     }
   });
 
-  it('should reject empty name', async () => {
+  it('отклоняет пустое название', async () => {
     await expect(
       caller.daysOfWeek.create({ name: '' })
     ).rejects.toThrow();
   });
 
-  it('should list and contain created day', async () => {
+  it('список содержит созданный день', async () => {
     const list = await caller.daysOfWeek.list();
     expect(list.some(r => r.id === id)).toBe(true);
   });
 
-  it('should get existing day', async () => {
+  it('получает существующий день', async () => {
     const row = await caller.daysOfWeek.get({ id });
     expect(row?.name).toBe('ВС');
   });
 
-  it('should return null for non-existent id', async () => {
+  it('возвращает null для несуществующего id', async () => {
     const row = await caller.daysOfWeek.get({ id: 9999 });
     expect(row).toBeNull();
   });
 
-  it('should update name', async () => {
+  it('обновляет название', async () => {
     await caller.daysOfWeek.update({ id, name: 'Воскресенье' });
     const row = await caller.daysOfWeek.get({ id });
     expect(row?.name).toBe('Воскресенье');
   });
 
-  it('should reject update to existing name', async () => {
+  it('отклоняет обновление на существующее название', async () => {
     await caller.daysOfWeek.create({ name: 'ПН' });
 
     await expect(
@@ -77,25 +77,25 @@ describe('daysOfWeek CRUD', () => {
     }
   });
 
-  it('should reject update with empty name', async () => {
+  it('отклоняет обновление с пустым названием', async () => {
     await expect(
       caller.daysOfWeek.update({ id, name: '' })
     ).rejects.toThrow();
   });
 
-  it('should not fail on non-existent id update', async () => {
+  it('обновление несуществующего id не вызывает ошибку', async () => {
     await expect(
       caller.daysOfWeek.update({ id: 9999, name: 'Несуществующий' })
     ).resolves.toBeDefined();
   });
 
-  it('should delete existing day', async () => {
+  it('удаляет существующий день', async () => {
     await caller.daysOfWeek.delete({ id });
     const row = await caller.daysOfWeek.get({ id });
     expect(row).toBeNull();
   });
 
-  it('should not fail on non-existent id delete', async () => {
+  it('удаление несуществующего id не вызывает ошибку', async () => {
     await expect(
       caller.daysOfWeek.delete({ id: 9999 })
     ).resolves.toBeDefined();

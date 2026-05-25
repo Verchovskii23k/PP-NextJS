@@ -39,7 +39,7 @@ beforeAll(async () => {
 describe('unitRoots CRUD', () => {
   let rootId: number;
 
-  it('should create a unit root', async () => {
+  it('создаёт корень юнита', async () => {
     const [row] = await caller.unitRoots.create({
       unitCode,
       studyGroupId,
@@ -48,7 +48,7 @@ describe('unitRoots CRUD', () => {
     rootId = row.id;
   });
 
-  it('should reject non-existent unit code', async () => {
+  it('отклоняет несуществующий код юнита', async () => {
     await expect(
       caller.unitRoots.create({
         unitCode: 'NON_EXISTENT',
@@ -69,28 +69,28 @@ describe('unitRoots CRUD', () => {
     }
   });
 
-  it('should reject empty unitCode', async () => {
+  it('отклоняет пустой unitCode', async () => {
     await expect(
       caller.unitRoots.create({ unitCode: '', studyGroupId })
     ).rejects.toThrow();
   });
 
-  it('should list unit roots', async () => {
+  it('список корней юнитов', async () => {
     const list = await caller.unitRoots.list();
     expect(list.some(r => r.id === rootId)).toBe(true);
   });
 
-  it('should get existing unit root', async () => {
+  it('получает существующий корень юнита', async () => {
     const row = await caller.unitRoots.get({ id: rootId });
     expect(row).toMatchObject({ unitCode, studyGroupId });
   });
 
-  it('should return null for non-existent id', async () => {
+  it('возвращает null для несуществующего id', async () => {
     const row = await caller.unitRoots.get({ id: 9999 });
     expect(row).toBeNull();
   });
 
-  it('should update studyGroupId', async () => {
+  it('обновляет studyGroupId', async () => {
     // Используем существующие educationId и specId
     const newProfileId = await createTestProfile(specId, educationId, {
       name: 'Другой профиль',
@@ -103,19 +103,19 @@ describe('unitRoots CRUD', () => {
     expect(row?.studyGroupId).toBe(newGroupId);
   });
 
-  it('should not fail on non-existent id update', async () => {
+  it('обновление несуществующего id не вызывает ошибку', async () => {
     await expect(
       caller.unitRoots.update({ id: 9999, studyGroupId })
     ).resolves.toBeDefined();
   });
 
-  it('should delete existing unit root', async () => {
+  it('удаляет существующий корень юнита', async () => {
     await caller.unitRoots.delete({ id: rootId });
     const row = await caller.unitRoots.get({ id: rootId });
     expect(row).toBeNull();
   });
 
-  it('should not fail on non-existent id delete', async () => {
+  it('удаление несуществующего id не вызывает ошибку', async () => {
     await expect(
       caller.unitRoots.delete({ id: 9999 })
     ).resolves.toBeDefined();

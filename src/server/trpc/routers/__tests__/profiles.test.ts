@@ -30,7 +30,7 @@ describe('profiles CRUD', () => {
   let profileId: number;
   let secondProfileId: number;
 
-  it('should create a profile', async () => {
+  it('создаёт профиль', async () => {
     const [row] = await caller.profiles.create({
       name: 'Тестовый профиль',
       specialtyId,
@@ -42,7 +42,7 @@ describe('profiles CRUD', () => {
     profileId = row.id;
   });
 
-  it('should reject duplicate letterCode + specialtyId', async () => {
+  it('отклоняет дублирование letterCode + specialtyId', async () => {
     await expect(
       caller.profiles.create({
         name: 'Другой',
@@ -67,7 +67,7 @@ describe('profiles CRUD', () => {
     }
   });
 
-  it('should reject empty name or letterCode', async () => {
+  it('отклоняет пустые name или letterCode', async () => {
     await expect(
       caller.profiles.create({
         name: '',
@@ -86,7 +86,7 @@ describe('profiles CRUD', () => {
     ).rejects.toThrow();
   });
 
-  it('should list profiles and contain created one', async () => {
+  it('список профилей содержит созданный', async () => {
     const list = await caller.profiles.list();
     expect(list.some(p => p.id === profileId)).toBe(true);
     // Проверим, что display поля заполнены
@@ -97,7 +97,7 @@ describe('profiles CRUD', () => {
     }
   });
 
-  it('should get existing profile', async () => {
+  it('получает существующий профиль', async () => {
     const row = await caller.profiles.get({ id: profileId });
     expect(row).toMatchObject({
       name: 'Тестовый профиль',
@@ -107,18 +107,18 @@ describe('profiles CRUD', () => {
     expect(row?.profileDisplay).toBeDefined();
   });
 
-  it('should return null for non-existent id', async () => {
+  it('возвращает null для несуществующего id', async () => {
     const row = await caller.profiles.get({ id: 9999 });
     expect(row).toBeNull();
   });
 
-  it('should update name', async () => {
+  it('обновляет название', async () => {
     await caller.profiles.update({ id: profileId, name: 'Обновлённый профиль' });
     const row = await caller.profiles.get({ id: profileId });
     expect(row?.name).toBe('Обновлённый профиль');
   });
 
-  it('should reject update to duplicate letterCode+specialty', async () => {
+  it('отклоняет обновление на дублирующий letterCode+specialty', async () => {
     // Создаём второй профиль
     const [row2] = await caller.profiles.create({
       name: 'Второй',
@@ -141,31 +141,31 @@ describe('profiles CRUD', () => {
     }
   });
 
-  it('should reject update with empty name', async () => {
+  it('отклоняет обновление с пустым названием', async () => {
     await expect(
       caller.profiles.update({ id: profileId, name: '' })
     ).rejects.toThrow();
   });
 
-  it('should not fail on non-existent id update', async () => {
+  it('обновление несуществующего id не вызывает ошибку', async () => {
     await expect(
       caller.profiles.update({ id: 9999, name: 'Ghost' })
     ).resolves.toBeDefined();
   });
 
-  it('should delete existing profile', async () => {
+  it('удаляет существующий профиль', async () => {
     await caller.profiles.delete({ id: secondProfileId });
     const row = await caller.profiles.get({ id: secondProfileId });
     expect(row).toBeNull();
   });
 
-  it('should not fail on non-existent id delete', async () => {
+  it('удаление несуществующего id не вызывает ошибку', async () => {
     await expect(
       caller.profiles.delete({ id: 9999 })
     ).resolves.toBeDefined();
   });
 
-  it('should reject deletion if linked to studyGroups or students', async () => {
+  it('отклоняет удаление, если профиль связан с учебными группами или студентами', async () => {
     // Создаём профиль, привязываем к нему студента
     const [prof] = await caller.profiles.create({
       name: 'Связанный профиль',

@@ -29,7 +29,7 @@ describe('education CRUD', () => {
   let eduId: number;
   let edu2Id: number;
 
-  it('should create an education entry', async () => {
+  it('создаёт запись об образовании', async () => {
     const [row] = await caller.education.create({
       levelId,
       formId,
@@ -39,7 +39,7 @@ describe('education CRUD', () => {
     eduId = row.id;
   });
 
-  it('should reject duplicate combination (level + form)', async () => {
+  it('отклоняет дублирование комбинации (уровень + форма)', async () => {
     await expect(
       caller.education.create({ levelId, formId, durationMonths: 36 })
     ).rejects.toThrow(TRPCError);
@@ -54,7 +54,7 @@ describe('education CRUD', () => {
     }
   });
 
-  it('should reject missing required fields', async () => {
+  it('отклоняет отсутствие обязательных полей', async () => {
     await expect(
       (caller.education.create as unknown as (data: Record<string, unknown>) => Promise<unknown>)({ levelId })
     ).rejects.toThrow();
@@ -63,7 +63,7 @@ describe('education CRUD', () => {
     ).rejects.toThrow();
   });
 
-  it('should list and contain created entry', async () => {
+  it('список содержит созданную запись', async () => {
     const list = await caller.education.list();
     expect(list.some(e => e.id === eduId)).toBe(true);
     // Проверим наличие display (формируется через JOIN)
@@ -71,7 +71,7 @@ describe('education CRUD', () => {
     expect(entry?.display).toBeDefined();
   });
 
-  it('should get existing entry', async () => {
+  it('получает существующую запись', async () => {
     const row = await caller.education.get({ id: eduId });
     expect(row).toMatchObject({
       levelId,
@@ -81,18 +81,18 @@ describe('education CRUD', () => {
     expect(row?.display).toBeDefined();
   });
 
-  it('should return null for non-existent id', async () => {
+  it('возвращает null для несуществующего id', async () => {
     const row = await caller.education.get({ id: 9999 });
     expect(row).toBeNull();
   });
 
-  it('should update durationMonths', async () => {
+  it('обновляет durationMonths', async () => {
     await caller.education.update({ id: eduId, durationMonths: 24 });
     const row = await caller.education.get({ id: eduId });
     expect(row?.durationMonths).toBe(24);
   });
 
-  it('should reject update to duplicate combination', async () => {
+  it('отклоняет обновление на дублирующую комбинацию', async () => {
     // Создаём вторую запись с другой парой
     const [row2] = await caller.education.create({
       levelId: level2Id,
@@ -114,19 +114,19 @@ describe('education CRUD', () => {
     }
   });
 
-  it('should not fail on non-existent id update', async () => {
+  it('обновление несуществующего id не вызывает ошибку', async () => {
     await expect(
       caller.education.update({ id: 9999, durationMonths: 10 })
     ).resolves.toBeDefined();
   });
 
-  it('should delete existing entry', async () => {
+  it('удаляет существующую запись', async () => {
     await caller.education.delete({ id: edu2Id });
     const row = await caller.education.get({ id: edu2Id });
     expect(row).toBeNull();
   });
 
-  it('should not fail on non-existent id delete', async () => {
+  it('удаление несуществующего id не вызывает ошибку', async () => {
     await expect(
       caller.education.delete({ id: 9999 })
     ).resolves.toBeDefined();

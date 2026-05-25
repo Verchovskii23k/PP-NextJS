@@ -14,7 +14,7 @@ beforeAll(async () => {
 describe('controlTypes CRUD', () => {
   let ctId: number;
 
-  it('should create a control type', async () => {
+  it('создаёт тип контроля', async () => {
     const [ct] = await caller.controlTypes.create({
       name: 'Зачёт',
       abbreviation: 'ЗЧ',
@@ -23,7 +23,7 @@ describe('controlTypes CRUD', () => {
     ctId = ct.id;
   });
 
-  it('should reject duplicate name', async () => {
+  it('отклоняет дублирование названия', async () => {
     await expect(
       caller.controlTypes.create({ name: 'Зачёт', abbreviation: 'ЗЧ2' })
     ).rejects.toThrow(TRPCError);
@@ -38,34 +38,34 @@ describe('controlTypes CRUD', () => {
     }
   });
 
-  it('should reject empty name', async () => {
+  it('отклоняет пустое название', async () => {
     await expect(
       caller.controlTypes.create({ name: '', abbreviation: 'T' })
     ).rejects.toThrow();
   });
 
-  it('should list control types and contain created one', async () => {
+  it('список типов контроля содержит созданный', async () => {
     const list = await caller.controlTypes.list();
     expect(list.some((c) => c.id === ctId)).toBe(true);
   });
 
-  it('should get existing control type', async () => {
+  it('получает существующий тип контроля', async () => {
     const ct = await caller.controlTypes.get({ id: ctId });
     expect(ct).toMatchObject({ name: 'Зачёт', abbreviation: 'ЗЧ' });
   });
 
-  it('should return null for non-existent id', async () => {
+  it('возвращает null для несуществующего id', async () => {
     const ct = await caller.controlTypes.get({ id: 9999 });
     expect(ct).toBeNull();
   });
 
-  it('should update a control type', async () => {
+  it('обновляет тип контроля', async () => {
     await caller.controlTypes.update({ id: ctId, name: 'Дифф. зачёт' });
     const ct = await caller.controlTypes.get({ id: ctId });
     expect(ct?.name).toBe('Дифф. зачёт');
   });
 
-  it('should reject update to existing name', async () => {
+  it('отклоняет обновление на существующее название', async () => {
     // создаём второй тип
     await caller.controlTypes.create({
       name: 'Экзамен',
@@ -85,25 +85,25 @@ describe('controlTypes CRUD', () => {
     }
   });
 
-  it('should reject update with empty name', async () => {
+  it('отклоняет обновление с пустым названием', async () => {
     await expect(
       caller.controlTypes.update({ id: ctId, name: '' })
     ).rejects.toThrow();
   });
 
-  it('should not fail on non-existent id update', async () => {
+  it('обновление несуществующего id не вызывает ошибку', async () => {
     await expect(
       caller.controlTypes.update({ id: 9999, name: 'Ghost' })
     ).resolves.toBeDefined();
   });
 
-  it('should delete a control type', async () => {
+  it('удаляет тип контроля', async () => {
     await caller.controlTypes.delete({ id: ctId });
     const ct = await caller.controlTypes.get({ id: ctId });
     expect(ct).toBeNull();
   });
 
-  it('should not fail on non-existent id delete', async () => {
+  it('удаление несуществующего id не вызывает ошибку', async () => {
     await expect(
       caller.controlTypes.delete({ id: 9999 })
     ).resolves.toBeDefined();

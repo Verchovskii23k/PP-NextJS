@@ -47,7 +47,7 @@ describe('studyGroups CRUD', () => {
   let groupId: number;
   let secondGroupId: number;
 
-  it('should create a study group without curator', async () => {
+  it('создаёт учебную группу без куратора', async () => {
     const [row] = await caller.studyGroups.create({
       code: 'TEST-1',
       profileId,
@@ -58,7 +58,7 @@ describe('studyGroups CRUD', () => {
     groupId = row.id;
   });
 
-  it('should reject duplicate code', async () => {
+  it('отклоняет дублирование кода', async () => {
     await expect(
       caller.studyGroups.create({
         code: 'TEST-1',
@@ -83,7 +83,7 @@ describe('studyGroups CRUD', () => {
     }
   });
 
-  it('should reject empty code', async () => {
+  it('отклоняет пустой код', async () => {
     await expect(
       caller.studyGroups.create({
         code: '',
@@ -94,7 +94,7 @@ describe('studyGroups CRUD', () => {
     ).rejects.toThrow();
   });
 
-  it('should list groups with display fields', async () => {
+  it('список групп с полями отображения', async () => {
     const list = await caller.studyGroups.list();
     expect(list.some(g => g.id === groupId)).toBe(true);
     const created = list.find(g => g.id === groupId);
@@ -102,7 +102,7 @@ describe('studyGroups CRUD', () => {
     expect(created?.curatorDisplay).toBeNull();
   });
 
-  it('should get existing group with display', async () => {
+  it('получает существующую группу с display', async () => {
     const row = await caller.studyGroups.get({ id: groupId });
     expect(row).toMatchObject({
       code: 'TEST-1',
@@ -114,12 +114,12 @@ describe('studyGroups CRUD', () => {
     expect(row?.curatorDisplay).toBeNull();
   });
 
-  it('should return null for non-existent id', async () => {
+  it('возвращает null для несуществующего id', async () => {
     const row = await caller.studyGroups.get({ id: 9999 });
     expect(row).toBeNull();
   });
 
-  it('should update studentCount (passing all mandatory fields)', async () => {
+  it('обновляет количество студентов (передавая все обязательные поля)', async () => {
     // Теперь все поля кроме куратора обязательны
     await caller.studyGroups.update({
       id: groupId,
@@ -132,14 +132,14 @@ describe('studyGroups CRUD', () => {
     expect(row?.studentCount).toBe(20);
   });
 
-  it('should reject update with missing mandatory fields', async () => {
+  it('отклоняет обновление с отсутствием обязательных полей', async () => {
     // Пытаемся обновить только studentCount, но без кода и профиля – Zod ошибка
     await expect(
       (caller.studyGroups.update as unknown as (data: Record<string, unknown>) => Promise<unknown>)({ id: groupId, studentCount: 5 })
     ).rejects.toThrow();
   });
 
-  it('should reject update to existing code', async () => {
+  it('отклоняет обновление на существующий код', async () => {
     // Создаём вторую группу
     const [row2] = await caller.studyGroups.create({
       code: 'TEST-2',
@@ -161,7 +161,7 @@ describe('studyGroups CRUD', () => {
     ).rejects.toThrow(TRPCError);
   });
 
-  it('should reject curator who is a director', async () => {
+  it('отклоняет куратора, который является директором', async () => {
     const directorId = await createTestEmployee({ surname: 'Директор', name: 'Иван' });
     await db.update(institutes)
       .set({ directorId })
@@ -178,7 +178,7 @@ describe('studyGroups CRUD', () => {
     ).rejects.toThrow(/Этот сотрудник уже является директором института/);
   });
 
-  it('should reject curator who is a head of department', async () => {
+  it('отклоняет куратора, который является заведующим кафедрой', async () => {
     const headId = await createTestEmployee({ surname: 'Зав', name: 'Кафедрой' });
     await db.update(departments)
       .set({ headId })
@@ -195,7 +195,7 @@ describe('studyGroups CRUD', () => {
     ).rejects.toThrow(/Этот сотрудник уже является заведующим кафедрой/);
   });
 
-  it('should reject curator not working at profile department', async () => {
+  it('отклоняет куратора, не работающего на кафедре профиля', async () => {
     await expect(
       caller.studyGroups.create({
         code: 'TEST-WRONG',
@@ -207,7 +207,7 @@ describe('studyGroups CRUD', () => {
     ).rejects.toThrow(/Выбранный куратор не работает на кафедре этого профиля/);
   });
 
-  it('should reject curator who is already curator of another group', async () => {
+  it('отклоняет куратора, который уже является куратором другой группы', async () => {
     // Создаём группу с куратором empId
     await caller.studyGroups.create({
       code: 'TEST-CUR1',
@@ -229,13 +229,13 @@ describe('studyGroups CRUD', () => {
     ).rejects.toThrow(/Этот сотрудник уже является куратором другой группы/);
   });
 
-  it('should delete existing group', async () => {
+  it('удаляет существующую группу', async () => {
     await caller.studyGroups.delete({ id: secondGroupId });
     const row = await caller.studyGroups.get({ id: secondGroupId });
     expect(row).toBeNull();
   });
 
-  it('should not fail on non-existent id delete', async () => {
+  it('удаление несуществующего id не вызывает ошибку', async () => {
     await expect(
       caller.studyGroups.delete({ id: 9999 })
     ).resolves.toBeDefined();

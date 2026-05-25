@@ -36,7 +36,7 @@ describe('employeesDepartments CRUD', () => {
   let linkId: number;
   let link2Id: number;
 
-  it('should create a link', async () => {
+  it('создаёт связь', async () => {
     const [row] = await caller.employeesDepartments.create({
       employeeId: empAId,
       departmentId: deptAId,
@@ -47,7 +47,7 @@ describe('employeesDepartments CRUD', () => {
     linkId = row.id;
   });
 
-  it('should reject duplicate employee+department', async () => {
+  it('отклоняет дублирование пары сотрудник+кафедра', async () => {
     await expect(
       caller.employeesDepartments.create({
         employeeId: empAId,
@@ -68,7 +68,7 @@ describe('employeesDepartments CRUD', () => {
     }
   });
 
-  it('should reject missing required fields', async () => {
+  it('отклоняет отсутствие обязательных полей', async () => {
     await expect(
       (caller.employeesDepartments.create as unknown as (data: Record<string, unknown>) => Promise<unknown>)({ employeeId: empAId })
     ).rejects.toThrow();
@@ -77,7 +77,7 @@ describe('employeesDepartments CRUD', () => {
     ).rejects.toThrow();
   });
 
-  it('should list all links (and filtered by departmentId/instituteId)', async () => {
+  it('список всех связей (и фильтрация по departmentId/instituteId)', async () => {
     const list = await caller.employeesDepartments.list();
     expect(list.some(l => l.id === linkId)).toBe(true);
 
@@ -90,7 +90,7 @@ describe('employeesDepartments CRUD', () => {
     expect(byInst.some(l => l.id === linkId)).toBe(true);
   });
 
-  it('should get existing link with display fields', async () => {
+  it('получает существующую связь с полями отображения', async () => {
     const row = await caller.employeesDepartments.get({ id: linkId });
     expect(row).toMatchObject({
       employeeId: empAId,
@@ -103,19 +103,19 @@ describe('employeesDepartments CRUD', () => {
     expect(row?.positionDisplay).toBe('Доцент');
   });
 
-  it('should return null for non-existent id', async () => {
+  it('возвращает null для несуществующего id', async () => {
     const row = await caller.employeesDepartments.get({ id: 9999 });
     expect(row).toBeNull();
   });
 
-  it('should update employmentTypeId', async () => {
+  it('обновляет employmentTypeId', async () => {
     const newTypeId = await createTestEmploymentType({ name: 'Совместитель', abbreviation: 'СОВМ' });
     await caller.employeesDepartments.update({ id: linkId, employmentTypeId: newTypeId });
     const row = await caller.employeesDepartments.get({ id: linkId });
     expect(row?.employmentTypeId).toBe(newTypeId);
   });
 
-  it('should reject update to duplicate pair', async () => {
+  it('отклоняет обновление на дублирующую пару', async () => {
     // Создадим вторую связь
     const [row2] = await caller.employeesDepartments.create({
       employeeId: empBId,
@@ -144,19 +144,19 @@ describe('employeesDepartments CRUD', () => {
     }
   });
 
-  it('should not fail on non-existent id update', async () => {
+  it('обновление несуществующего id не вызывает ошибку', async () => {
     await expect(
       caller.employeesDepartments.update({ id: 9999, isActive: false })
     ).resolves.toBeDefined();
   });
 
-  it('should delete existing link', async () => {
+  it('удаляет существующую связь', async () => {
     await caller.employeesDepartments.delete({ id: link2Id });
     const row = await caller.employeesDepartments.get({ id: link2Id });
     expect(row).toBeNull();
   });
 
-  it('should not fail on non-existent id delete', async () => {
+  it('удаление несуществующего id не вызывает ошибку', async () => {
     await expect(
       caller.employeesDepartments.delete({ id: 9999 })
     ).resolves.toBeDefined();

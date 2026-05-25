@@ -17,8 +17,6 @@ import {
 } from '@/db/schema';
 import { TRPCError } from '@trpc/server';
 
-
-
 let caller: Awaited<ReturnType<typeof createTestCaller>>;
 let deptId: number;
 let lessonTypeId: number;
@@ -46,7 +44,7 @@ describe('employees CRUD', () => {
   let empId: number;          // обычный сотрудник
   let empWithUserId: number; // сотрудник, привязанный к adminUserId (для теста "нельзя удалить себя")
 
-  it('should create an employee', async () => {
+  it('создаёт сотрудника', async () => {
     const [row] = await caller.employees.create({
       surname: 'Новый',
       name: 'Сотрудник',
@@ -55,7 +53,7 @@ describe('employees CRUD', () => {
     empId = row.id;
   });
 
-  it('should reject empty surname or name', async () => {
+  it('отклоняет пустые surname или name', async () => {
     await expect(
       caller.employees.create({ surname: '', name: 'Имя' })
     ).rejects.toThrow();
@@ -64,12 +62,12 @@ describe('employees CRUD', () => {
     ).rejects.toThrow();
   });
 
-  it('should list all employees', async () => {
+  it('список всех сотрудников', async () => {
     const list = await caller.employees.list();
     expect(list.some(e => e.id === empId)).toBe(true);
   });
 
-  it('should filter list by departmentId', async () => {
+  it('фильтрует список по departmentId', async () => {
     // Привяжем сотрудника к кафедре
     await createTestEmployeeDepartment(empId, deptId);
 
@@ -77,51 +75,51 @@ describe('employees CRUD', () => {
     expect(list.some(e => e.id === empId)).toBe(true);
   });
 
-  it('should filter list by instituteId', async () => {
+  it('фильтрует список по instituteId', async () => {
     const list = await caller.employees.list({ instituteId: 1 });
     expect(list.some(e => e.id === empId)).toBe(true);
   });
 
-  it('should return empty array for non-existent profileId filter', async () => {
+  it('возвращает пустой массив для несуществующего profileId', async () => {
     const list = await caller.employees.list({ profileId: 9999 });
     expect(list).toEqual([]);
   });
 
-  it('should get existing employee', async () => {
+  it('получает существующего сотрудника', async () => {
     const row = await caller.employees.get({ id: empId });
     expect(row).toMatchObject({ surname: 'Новый', name: 'Сотрудник' });
   });
 
-  it('should return null for non-existent id', async () => {
+  it('возвращает null для несуществующего id', async () => {
     const row = await caller.employees.get({ id: 9999 });
     expect(row).toBeNull();
   });
 
-  it('should update surname', async () => {
+  it('обновляет фамилию', async () => {
     await caller.employees.update({ id: empId, surname: 'Обновлённый' });
     const row = await caller.employees.get({ id: empId });
     expect(row?.surname).toBe('Обновлённый');
   });
 
-  it('should reject update with empty surname', async () => {
+  it('отклоняет обновление с пустой фамилией', async () => {
     await expect(
       caller.employees.update({ id: empId, surname: '' })
     ).rejects.toThrow();
   });
 
-  it('should not fail on non-existent id update', async () => {
+  it('обновление несуществующего id не вызывает ошибку', async () => {
     await expect(
       caller.employees.update({ id: 9999, surname: 'Ghost' })
     ).resolves.toBeDefined();
   });
 
-  it('should delete employee without conflicts', async () => {
+  it('удаляет сотрудника без конфликтов', async () => {
     await caller.employees.delete({ id: empId });
     const row = await caller.employees.get({ id: empId });
     expect(row).toBeNull();
   });
 
-  it('should reject deleting yourself', async () => {
+  it('отклоняет удаление самого себя', async () => {
     // Создаём сотрудника, привязанного к текущему пользователю
     const [row] = await db
       .insert(employees)
@@ -148,7 +146,7 @@ describe('employees CRUD', () => {
     }
   });
 
-  it('should reject deleting employee assigned as teacher', async () => {
+  it('отклоняет удаление сотрудника, назначенного преподавателем', async () => {
     // Создаём сотрудника, привязываем к кафедре, создаём дисциплину и связь disciplineTeachers
     const empId2 = await createTestEmployee({ surname: 'Преподаватель', name: 'Тестовый' });
     const empDeptId = await createTestEmployeeDepartment(empId2, deptId);
@@ -179,7 +177,7 @@ describe('employees CRUD', () => {
     }
   });
 
-  it('should reject deleting non-existent employee', async () => {
+  it('отклоняет удаление несуществующего сотрудника', async () => {
     await expect(
       caller.employees.delete({ id: 9999 })
     ).rejects.toThrow(TRPCError);

@@ -14,7 +14,7 @@ describe('lessonTypes CRUD', () => {
   let typeId: number;
   let secondTypeId: number;
 
-  it('should create a lesson type', async () => {
+  it('создаёт тип занятия', async () => {
     const [row] = await caller.lessonTypes.create({
       name: 'custom',
       abbreviation: 'CUST',
@@ -23,7 +23,7 @@ describe('lessonTypes CRUD', () => {
     typeId = row.id;
   });
 
-  it('should reject duplicate name', async () => {
+  it('отклоняет дублирование названия', async () => {
     await expect(
       caller.lessonTypes.create({ name: 'custom', abbreviation: 'C2' })
     ).rejects.toThrow(TRPCError);
@@ -38,7 +38,7 @@ describe('lessonTypes CRUD', () => {
     }
   });
 
-  it('should reject empty name or abbreviation', async () => {
+  it('отклоняет пустые name или abbreviation', async () => {
     await expect(
       caller.lessonTypes.create({ name: '', abbreviation: 'A' })
     ).rejects.toThrow();
@@ -47,7 +47,7 @@ describe('lessonTypes CRUD', () => {
     ).rejects.toThrow();
   });
 
-  it('should list lesson types with display field', async () => {
+  it('список типов занятий с полем display', async () => {
     const list = await caller.lessonTypes.list();
     expect(list.some(t => t.id === typeId)).toBe(true);
     // Проверим наличие поля display (оно не пустое)
@@ -56,7 +56,7 @@ describe('lessonTypes CRUD', () => {
     expect(created?.display).toBeTruthy();
   });
 
-  it('should get existing lesson type with display', async () => {
+  it('получает существующий тип занятия с display', async () => {
     const row = await caller.lessonTypes.get({ id: typeId });
     expect(row).toMatchObject({
       name: 'custom',
@@ -68,18 +68,18 @@ describe('lessonTypes CRUD', () => {
     expect(row?.display).toBe('custom');
   });
 
-  it('should return null for non-existent id', async () => {
+  it('возвращает null для несуществующего id', async () => {
     const row = await caller.lessonTypes.get({ id: 9999 });
     expect(row).toBeNull();
   });
 
-  it('should update abbreviation', async () => {
+  it('обновляет abbreviation', async () => {
     await caller.lessonTypes.update({ id: typeId, abbreviation: 'CST' });
     const row = await caller.lessonTypes.get({ id: typeId });
     expect(row?.abbreviation).toBe('CST');
   });
 
-  it('should reject update to existing name', async () => {
+  it('отклоняет обновление на существующее название', async () => {
     // Создаём второй тип
     const [row2] = await caller.lessonTypes.create({
       name: 'workshop_new',
@@ -100,25 +100,25 @@ describe('lessonTypes CRUD', () => {
     }
   });
 
-  it('should reject update with empty name', async () => {
+  it('отклоняет обновление с пустым названием', async () => {
     await expect(
       caller.lessonTypes.update({ id: typeId, name: '' })
     ).rejects.toThrow();
   });
 
-  it('should not fail on non-existent id update', async () => {
+  it('обновление несуществующего id не вызывает ошибку', async () => {
     await expect(
       caller.lessonTypes.update({ id: 9999, abbreviation: 'NONE' })
     ).resolves.toBeDefined();
   });
 
-  it('should delete existing type', async () => {
+  it('удаляет существующий тип', async () => {
     await caller.lessonTypes.delete({ id: secondTypeId });
     const row = await caller.lessonTypes.get({ id: secondTypeId });
     expect(row).toBeNull();
   });
 
-  it('should not fail on non-existent id delete', async () => {
+  it('удаление несуществующего id не вызывает ошибку', async () => {
     await expect(
       caller.lessonTypes.delete({ id: 9999 })
     ).resolves.toBeDefined();

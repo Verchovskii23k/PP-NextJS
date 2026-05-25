@@ -14,7 +14,7 @@ describe('unitTypes CRUD', () => {
   let typeId: number;
   let secondTypeId: number;
 
-  it('should create a unit type', async () => {
+  it('создаёт тип юнита', async () => {
     const [row] = await caller.unitTypes.create({
       name: 'Тестовый тип',
       maxSize: 32,
@@ -27,7 +27,7 @@ describe('unitTypes CRUD', () => {
     typeId = row.id;
   });
 
-  it('should reject duplicate name', async () => {
+  it('отклоняет дублирование названия', async () => {
     await expect(
       caller.unitTypes.create({
         name: 'Тестовый тип',
@@ -56,7 +56,7 @@ describe('unitTypes CRUD', () => {
     }
   });
 
-  it('should reject empty name', async () => {
+  it('отклоняет пустое название', async () => {
     await expect(
       caller.unitTypes.create({
         name: '',
@@ -69,7 +69,7 @@ describe('unitTypes CRUD', () => {
     ).rejects.toThrow();
   });
 
-  it('should reject zero or negative maxSize', async () => {
+  it('отклоняет нулевой или отрицательный maxSize', async () => {
     await expect(
       caller.unitTypes.create({
         name: 'Нулевой размер',
@@ -92,7 +92,7 @@ describe('unitTypes CRUD', () => {
     ).rejects.toThrow();
   });
 
-  it('should reject missing required fields', async () => {
+  it('отклоняет отсутствие обязательных полей', async () => {
     // Пропущены все приоритеты
     await expect(
       (caller.unitTypes.create as unknown as (data: Record<string, unknown>) => Promise<unknown>)({
@@ -112,12 +112,12 @@ describe('unitTypes CRUD', () => {
     ).rejects.toThrow();
   });
 
-  it('should list unit types', async () => {
+  it('список типов юнитов', async () => {
     const list = await caller.unitTypes.list();
     expect(list.some(t => t.id === typeId)).toBe(true);
   });
 
-  it('should get existing unit type', async () => {
+  it('получает существующий тип юнита', async () => {
     const row = await caller.unitTypes.get({ id: typeId });
     expect(row).toMatchObject({
       name: 'Тестовый тип',
@@ -129,22 +129,22 @@ describe('unitTypes CRUD', () => {
     });
   });
 
-  it('should get unit type by name', async () => {
+  it('получает тип юнита по имени', async () => {
     const row = await caller.unitTypes.getByName({ name: 'Тестовый тип' });
     expect(row).toMatchObject({ id: typeId });
   });
 
-  it('should return null for non-existent name', async () => {
+  it('возвращает null для несуществующего имени', async () => {
     const row = await caller.unitTypes.getByName({ name: 'Несуществующий' });
     expect(row).toBeNull();
   });
 
-  it('should return null for non-existent id', async () => {
+  it('возвращает null для несуществующего id', async () => {
     const row = await caller.unitTypes.get({ id: 9999 });
     expect(row).toBeNull();
   });
 
-  it('should update (passing all mandatory fields)', async () => {
+  it('обновляет (передавая все обязательные поля)', async () => {
     // Теперь все поля обязательны при обновлении
     await caller.unitTypes.update({
       id: typeId,
@@ -159,14 +159,14 @@ describe('unitTypes CRUD', () => {
     expect(row?.maxSize).toBe(64);
   });
 
-  it('should reject update with missing mandatory fields', async () => {
+  it('отклоняет обновление с отсутствием обязательных полей', async () => {
     // Пытаемся обновить только maxSize, но без имени и приоритетов
     await expect(
       (caller.unitTypes.update as unknown as (data: Record<string, unknown>) => Promise<unknown>)({ id: typeId, maxSize: 100 })
     ).rejects.toThrow();
   });
 
-  it('should reject update to existing name', async () => {
+  it('отклоняет обновление на существующее название', async () => {
     // Создаём второй тип
     const [row2] = await caller.unitTypes.create({
       name: 'Второй тип',
@@ -192,7 +192,7 @@ describe('unitTypes CRUD', () => {
     ).rejects.toThrow(TRPCError);
   });
 
-  it('should reject update with empty name', async () => {
+  it('отклоняет обновление с пустым названием', async () => {
     await expect(
       caller.unitTypes.update({
         id: typeId,
@@ -206,7 +206,7 @@ describe('unitTypes CRUD', () => {
     ).rejects.toThrow();
   });
 
-  it('should reject update with zero maxSize', async () => {
+  it('отклоняет обновление с нулевым maxSize', async () => {
     await expect(
       caller.unitTypes.update({
         id: typeId,
@@ -220,7 +220,7 @@ describe('unitTypes CRUD', () => {
     ).rejects.toThrow();
   });
 
-  it('should not fail on non-existent id update', async () => {
+  it('обновление несуществующего id не вызывает ошибку', async () => {
     // Передаём все обязательные поля
     await expect(
       caller.unitTypes.update({
@@ -235,13 +235,13 @@ describe('unitTypes CRUD', () => {
     ).resolves.toBeDefined();
   });
 
-  it('should delete existing type', async () => {
+  it('удаляет существующий тип', async () => {
     await caller.unitTypes.delete({ id: secondTypeId });
     const row = await caller.unitTypes.get({ id: secondTypeId });
     expect(row).toBeNull();
   });
 
-  it('should not fail on non-existent id delete', async () => {
+  it('удаление несуществующего id не вызывает ошибку', async () => {
     await expect(
       caller.unitTypes.delete({ id: 9999 })
     ).resolves.toBeDefined();
