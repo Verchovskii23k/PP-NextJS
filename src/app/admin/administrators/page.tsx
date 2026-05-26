@@ -1,17 +1,18 @@
 "use client";
 import { trpc } from "@/trpc/client";
-import { useState } from "react";
-import { SkeletonTable } from "@/components/ui/skeleton"
+import { useState, useMemo } from "react";
+import { SkeletonTable } from "@/components/ui/skeleton";
 
 export default function AdministratorsPage() {
-    interface ToggleAdminResult {
+  interface ToggleAdminResult {
     success: boolean;
     warning?: string;
   }
+
   const utils = trpc.useUtils();
   const { data, isLoading, error } = trpc.adminManagement.listEmployeesWithAdminFlag.useQuery();
-  
   const { data: me } = trpc.auth.me.useQuery();
+
   const toggleMutation = trpc.adminManagement.toggleAdmin.useMutation({
     onSuccess: (data: ToggleAdminResult) => {
       if (data.warning) {
@@ -20,14 +21,24 @@ export default function AdministratorsPage() {
     },
   });
 
-
   const [mutError, setMutError] = useState<string | null>(null);
   const [mutWarning, setMutWarning] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredData = useMemo(() => {
+    if (!data) return undefined;
+    if (!searchQuery.trim()) return data;
+    const q = searchQuery.toLowerCase();
+    return data.filter((emp) => {
+      const fullName = `${emp.surname} ${emp.name} ${emp.patronymic ?? ""}`.toLowerCase();
+      return fullName.includes(q);
+    });
+  }, [data, searchQuery]);
 
   if (isLoading) return <div className="p-6"><SkeletonTable rows={5} /></div>;
   if (error) return <div className="p-6 text-red-500">Ошибка: {error.message}</div>;
 
- return (
+  return (
     <div className="mx-auto h-full max-w-4xl overflow-y-auto bg-background p-6 text-foreground">
       <h1 className="mb-6 text-2xl font-bold">Управление администраторами</h1>
 
@@ -42,6 +53,16 @@ export default function AdministratorsPage() {
         </div>
       )}
 
+      <div className="mb-4">
+        <input
+          type="text"
+          placeholder="Поиск по ФИО..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full max-w-xs rounded border border-border bg-background px-3 py-1 text-sm"
+        />
+      </div>
+
       <div className="overflow-x-auto rounded-lg border border-border">
         <table className="w-full text-sm">
           <thead className="bg-muted">
@@ -51,7 +72,7 @@ export default function AdministratorsPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {data?.map((emp) => {
+            {filteredData?.map((emp) => {
               const isCurrentUser = me?.id === emp.userId;
               return (
                 <tr key={emp.id} className="hover:bg-muted/50">
@@ -95,10 +116,10 @@ export default function AdministratorsPage() {
                 </tr>
               );
             })}
-            {data?.length === 0 && (
+            {filteredData?.length === 0 && (
               <tr>
-                <td colSpan={3} className="px-4 py-4 text-center text-muted-foreground">
-                  Нет активных сотрудников
+                <td colSpan={2} className="px-4 py-4 text-center text-muted-foreground">
+                  {searchQuery ? "Ничего не найдено" : "Нет активных сотрудников"}
                 </td>
               </tr>
             )}

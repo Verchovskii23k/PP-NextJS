@@ -54,11 +54,11 @@
  * ---
  * ### 🗂️ Связанные модули
  *
- * | Модуль | Назначение |
- * |--------|------------|
- * | `src/lib/password.ts` | `generateRandomPassword()`, `makeEmail()`, `hashPassword()` |
- * | `src/db/schema.ts` | Таблицы `users`, `accounts`, `employees`, `students` |
- * | `src/app/admin/credentials/page.tsx` | Клиентская страница «Логины и пароли» |
+ * | Модуль                               | Назначение                                                  |
+ * |--------------------------------------|-------------------------------------------------------------|
+ * | `src/lib/password.ts`                | `generateRandomPassword()`, `makeEmail()`, `hashPassword()` |
+ * | `src/db/schema.ts`                   | Таблицы `users`, `accounts`, `employees`, `students`        |
+ * | `src/app/admin/credentials/page.tsx` | Клиентская страница «Логины и пароли»                       |
  *
  * ---
  * ### ⚠️ Особенности

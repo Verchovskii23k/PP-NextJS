@@ -7,13 +7,12 @@ import { PageSkeleton } from "@/components/ui/page_skeleton";
 
 export default function UsersPage() {
   const [filterRole, setFilterRole] = useState<"teacher" | "student" | undefined>(undefined);
+  const [searchQuery, setSearchQuery] = useState(""); // <-- новое состояние
   const utils = trpc.useUtils();
 
   const { data, isLoading, error } = trpc.userManagement.getUsers.useQuery({
     role: filterRole,
   });
-  
-
 
   const updateRoleMut = trpc.userManagement.updateRole.useMutation({
     onSuccess: () => {
@@ -24,7 +23,7 @@ export default function UsersPage() {
   });
 
   const sendResetCodeMut = trpc.userManagement.sendResetCode.useMutation({
-    onError: (e) => {toast.error(e.message)},
+    onError: (e) => { toast.error(e.message) },
   });
   const confirmResetCodeMut = trpc.userManagement.confirmResetCode.useMutation({
     onSuccess: (data) => {
@@ -35,24 +34,36 @@ export default function UsersPage() {
       }
       utils.userManagement.getUsers.invalidate();
     },
-    onError: (e) => {toast.error(e.message)},
+    onError: (e) => { toast.error(e.message) },
   });
 
   const [resetDialog, setResetDialog] = useState<{
-  userId: string;
-  email: string;
-  open: boolean;
-} | null>(null);
+    userId: string;
+    email: string;
+    open: boolean;
+  } | null>(null);
 
   const handleRoleChange = (userId: string, newRole: "teacher" | "student") => {
     updateRoleMut.mutate({ userId, newRole });
   };
+
   if (isLoading) return <PageSkeleton />;
+
+  // Локальная фильтрация по поисковому запросу
+  const filteredData = data?.filter((u) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      u.fullName?.toLowerCase().includes(q) ||
+      u.email?.toLowerCase().includes(q)
+    );
+  });
+
   return (
     <div className="mx-auto h-full max-w-5xl overflow-y-auto bg-background p-6 text-foreground">
       <h1 className="mb-6 text-2xl font-bold">Управление пользователями</h1>
 
-      {/* Фильтр */}
+      {/* Фильтр по роли */}
       <div className="mb-4 flex items-center gap-3">
         <label className="text-sm text-muted-foreground">Роль:</label>
         <select
@@ -72,10 +83,20 @@ export default function UsersPage() {
         </select>
       </div>
 
-      {isLoading && <p className="text-muted-foreground">Загрузка...</p>}
+      {/* Строка поиска (новая) */}
+      <div className="mb-4">
+        <input
+          type="text"
+          placeholder="Поиск по ФИО или email..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full max-w-xs rounded border border-border bg-background px-3 py-1 text-sm"
+        />
+      </div>
+
       {error && <p className="text-red-500">Ошибка: {error.message}</p>}
 
-      {data && (
+      {filteredData && (
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead>
@@ -87,7 +108,7 @@ export default function UsersPage() {
               </tr>
             </thead>
             <tbody>
-              {data.map((u) => (
+              {filteredData.map((u) => (
                 <tr key={u.id} className="border-b border-border">
                   <td className="py-2 pr-4">
                     {u.fullName}
@@ -116,7 +137,6 @@ export default function UsersPage() {
                         {u.isSelf ? "Нельзя изменить себе" : "Недоступно"}
                       </span>
                     )}
-                    {/* Кнопка сброса пароля */}
                     {!u.isSelf && u.email && (
                       <button
                         onClick={() => {
@@ -143,7 +163,6 @@ export default function UsersPage() {
         </div>
       )}
 
-      {/* Диалог ввода кода */}
       {resetDialog && (
         <InputDialogReset
           open={resetDialog.open}
