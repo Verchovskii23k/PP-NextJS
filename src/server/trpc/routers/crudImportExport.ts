@@ -46,7 +46,12 @@ export const crudImportExportRouter = router({
     .query(async ({ ctx, input }) => {
       const dbTableName = tablesMeta[input.tableName].dbTableName || input.tableName;
       const rows = await ctx.db.execute(sql`SELECT * FROM ${sql.identifier(dbTableName)}`);
-      return rows;
+      // Удаляем поле user_id из всех строк перед экспортом
+      const sanitizedRows = rows.map((row: Record<string, unknown>) => {
+        const { user_id, ...rest } = row;
+        return rest;
+      });
+      return sanitizedRows;
     }),
 
   importData: adminProcedure
@@ -81,6 +86,10 @@ export const crudImportExportRouter = router({
           const snakeKey = key.replace(/[A-Z]/g, l => `_${l.toLowerCase()}`);
           dbRow[snakeKey] = val;
         }
+
+        // 🔒 Удаляем запрещённые поля (например, user_id)
+        delete dbRow.user_id;
+
         const { id: _rowId, ...values } = dbRow;
 
         // Проверяем, есть ли хоть одно поле для вставки/обновления

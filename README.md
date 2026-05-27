@@ -97,7 +97,8 @@
 - **`useConfirm.ts`** – хук, возвращающий функцию `confirm()` для вызова диалога подтверждения.
 
 #### 📚 `lib/` – бизнес-логика и вспомогательные модули
-- **`clearGeneratedData.ts`** – очистка активных динамических данных (schedule, lessons, …).
+- **`cascadeDeactivate.ts`** – каскадная деактивация записей в справочных таблицах (institutes, specialties, ...).
+- **`clearGeneratedData.ts`** – очистка активных динамических данных (schedule, lessons, ...).
 - **`password.ts`** – генерация паролей, транслитерация, создание email.
 - **`safeDelete.ts`** – удаление записи с предварительной проверкой дочерних таблиц.
 - **`table-meta.ts`** – единый реестр метаданных всех таблиц (поля, связи, названия).
@@ -105,8 +106,6 @@
 - **`auth/`**:
   - `client.ts` – клиент better‑auth для React (`useSession`, `signIn` и т.д.).
   - `config.ts` – серверная конфигурация better‑auth (адаптер, колбэки, стратегии).
-- **`trpc/`**:
-  - `client.ts` – создание tRPC‑клиента для серверных вызовов.
 
 #### ⚙️ `server/` – серверная логика
 - **`email.ts`** – отправка писем через Nodemailer (восстановление пароля, учётные данные).
@@ -117,7 +116,7 @@
 - **`router.ts`** – корневой роутер (объединение всех подроутеров).
 - **`trpc.ts`** – инициализация tRPC, `publicProcedure`, `protectedProcedure`, `adminProcedure`, `errorFormatter`.
 - **`routers/`** – роутеры предметной области (CRUD для каждой таблицы + специализированные):
-  - `auth.ts`, `adminManagement.ts`, `userManagement.ts`, `batchDelete.ts`, `crudImportExport.ts`, `globalImportExport.ts`, `lookup.ts`, `settings.ts`.
+  - `auth.ts`, `adminManagement.ts`, `userManagement.ts`, `batchDelete.ts`, `batchUpdateActive.ts`, `crudImportExport.ts`, `globalImportExport.ts`, `lookup.ts`, `settings.ts`.
   - **Роутеры сущностей:** `academicLoadTypes.ts`, `buildings.ts`, `classRooms.ts`, `controlTypes.ts`, `curriculum.ts`, `curriculumProfiles.ts`, `daysOfWeek.ts`, `departments.ts`, `disciplines.ts`, `disciplineTeachers.ts`, `education.ts`, `educationForms.ts`, `educationLevels.ts`, `employees.ts`, `employeesDepartments.ts`, `employmentTypes.ts`, `hourTypeMapping.ts`, `institutes.ts`, `lessons.ts`, `lessonClassrooms.ts`, `lessonTypes.ts`, `pairs.ts`, `positions.ts`, `profiles.ts`, `specialties.ts`, `students.ts`, `studyGroups.ts`, `units.ts`, `unitRoots.ts`, `unitTypes.ts`, `weeks.ts`.
   - **Расписание:** `schedule.ts` (публичное API), `scheduleDisplay.ts` (drag‑and‑drop, буфер, флаги), `scheduleOptimizer.ts` (имитация отжига), `scheduleVersions.ts` (версионирование).
   - **Генераторы:** `generations/index.ts` (объединение), `generateCredentials.ts`, `generateGroups.ts`, `generateUnits.ts`, `generateLessons.ts`, `assignClassrooms.ts`, `generateSchedule.ts`.
@@ -172,7 +171,7 @@ npm install
 Запустите ```Mailpit``` в отдельном терминале командой:
 ```bash
 # В корне проекта выполните
-.\ваша_папка\mailpit.exe
+.\ваша_папка\mailpit\mailpit.exe
 ```
 Проверьте что вы указали указали конфигурацию почтового сервиса в файле ```.env```:
 ```bash
@@ -365,11 +364,10 @@ src
 │   ├── safeDelete.ts                                                    # Удаление записи с предварительной проверкой дочерних таблиц
 │   ├── table-meta.ts                                                    # Единый реестр метаданных всех таблиц (поля, связи, названия)
 │   ├── usageMetrics.ts                                                  # Пересчёт метрики использования аудиторий (по lessonClassrooms)
-│   ├── auth/
-│   │   ├── client.ts                                                    # Клиент better-auth для React (useSession, signIn и т.д.)
-│   │   └── config.ts                                                    # Серверная конфигурация better-auth (адаптер, колбэки, стратегии)
-│   └── trpc/
-│       └── client.ts                                                    # Создание tRPC-клиента для серверных вызовов (если используется на сервере)
+│   └── auth/
+│       ├── client.ts                                                    # Клиент better-auth для React (useSession, signIn и т.д.)
+│       └── config.ts                                                    # Серверная конфигурация better-auth (адаптер, колбэки, стратегии)
+
 │
 ├── server/                                                              # Серверная логика
 │   ├── email.ts                                                         # Отправка писем через nodemailer (восстановление пароля, учётные данные)

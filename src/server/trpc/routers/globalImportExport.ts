@@ -54,7 +54,10 @@ import { router, adminProcedure } from "../trpc";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { tablesMeta } from "@/lib/table-meta";
-
+interface RowWithUserId {
+  userId?: string;
+  [key: string]: unknown;
+}
 // Таблицы, которые НЕЛЬЗЯ экспортировать/импортировать
 const EXCLUDED_TABLES = new Set([
   "user",                // better-auth
@@ -238,7 +241,14 @@ export const globalImportExportRouter = router({
         );
         // Безопасно преобразуем: если rows – массив, применяем transformKeysToCamel
         if (isArray(rows)) {
-          result[tableName] = rows.map((row) => transformKeysToCamel(row));
+          result[tableName] = rows.map(row => {
+          const camelRow = transformKeysToCamel(row) as RowWithUserId;
+          if (tableName === 'employees' || tableName === 'students') {
+            const { userId, ...rest } = camelRow;
+            return rest;
+          }
+          return camelRow;
+        });
         } else {
           console.error(`Export error: unexpected result for table ${tableName}`, rows);
           result[tableName] = [];
@@ -294,7 +304,9 @@ export const globalImportExportRouter = router({
               stats[tableName].skipped++;
               continue;
             }
-
+            if (tableName === 'employees' || tableName === 'students') {
+              delete dbRow.user_id;
+            }
             remapForeignKeys(tableName, dbRow);
 
             // 2. Сотрудники и студенты – всегда INSERT

@@ -706,7 +706,7 @@ export default function AdminSchedulePage() {
             ];
             for (const code of groupCodes) {
               const entry = groupsData.rows.find(
-                r => r.unitCode === code && r.dayOfWeekId === day.id && r.pairNumberId === pair.id && r.weekId === week.id
+                r => r.studyGroupCode === code && r.dayOfWeekId === day.id && r.pairNumberId === pair.id && r.weekId === week.id
               );
               row.push(entry ? entry.displayText : "—");
             }
@@ -804,7 +804,7 @@ export default function AdminSchedulePage() {
             ];
             for (const code of groupCodes) {
               const entry = groupsData.rows.find(
-                r => r.unitCode === code && r.dayOfWeekId === day.id && r.pairNumberId === pair.id && r.weekId === week.id
+                r => r.studyGroupCode === code && r.dayOfWeekId === day.id && r.pairNumberId === pair.id && r.weekId === week.id
               );
               row.push(entry ? entry.displayText : "—");
             }
