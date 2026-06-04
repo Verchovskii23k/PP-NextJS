@@ -274,8 +274,8 @@ function prepareMergeGroups(
 }
 
 async function buildContext(entries: StrictScheduleEntry[]): Promise<OptimizationContext> {
-  const allLessons = await db.select().from(lessons);
-  const allUnitRoots = await db.select().from(unitRoots);
+  const allLessons = await db.select().from(lessons).where(and(eq(lessons.isActive, true), isNull(lessons.versionId)));
+  const allUnitRoots = await db.select().from(unitRoots).where(and(eq(unitRoots.isActive, true), isNull(unitRoots.versionId)));
   const allDays = await db.select().from(daysOfWeek).orderBy(asc(daysOfWeek.id));
   const allPairs = await db.select().from(pairs).orderBy(asc(pairs.number));
   const allWeeks = await db.select({ id: weeks.id }).from(weeks).where(eq(weeks.isActive, true)).orderBy(asc(weeks.id));
@@ -299,7 +299,7 @@ async function buildContext(entries: StrictScheduleEntry[]): Promise<Optimizatio
     unitGroups.get(ur.unitCode)!.add(ur.studyGroupId);
   }
 
-  const allUnits = await db.select().from(units);
+  const allUnits = await db.select().from(units).where(and(eq(units.isActive, true), isNull(units.versionId)));
   const allUnitTypes = await db.select().from(unitTypes);
   const typeNameByIdUT = new Map<number, string>();
   for (const ut of allUnitTypes) typeNameByIdUT.set(ut.id, ut.name);
@@ -310,7 +310,7 @@ async function buildContext(entries: StrictScheduleEntry[]): Promise<Optimizatio
   }
 
   const studyGroupsMap = new Map<number, number>();
-  const allStudyGroups = await db.select().from(studyGroups);
+  const allStudyGroups = await db.select().from(studyGroups).where(eq(studyGroups.isActive, true));
   for (const sg of allStudyGroups) {
     studyGroupsMap.set(sg.id, sg.studentCount);
   }
@@ -399,7 +399,23 @@ function canMoveToSlot(
   if (teacherId && occ.teacherIds.has(teacherId)) return false;
 
   const groups = ctx.unitGroups.get(entry.unitCode);
-  if (groups && [...groups].some(g => occ.groupIds.has(g))) return false;
+  if (groups) {
+    for (const g of groups) {
+      if (!occ.groupIds.has(g)) continue;
+      // Группа занята, проверяем, занята ли она юнитом, отличным от подгруппы
+      let blocked = false;
+      for (const uc of occ.unitCodes) {
+        const occType = ctx.unitTypeByUnitCode.get(uc) ?? 'ГРУППА';
+        if (occType === 'ПОДГРУППА') continue; // подгруппа не блокирует
+        const occGroups = ctx.unitGroups.get(uc);
+        if (occGroups && occGroups.has(g)) {
+          blocked = true;
+          break;
+        }
+      }
+      if (blocked) return false;
+    }
+  }
 
   const entryType = ctx.unitTypeByUnitCode.get(entry.unitCode) ?? "ГРУППА";
   if (entryType === "ПОДГРУППА" || entryType === "ГРУППА") {
@@ -752,6 +768,20 @@ export async function optimizeSchedule(versionId?: number | null) {
   const versionCondition = versionId !== undefined
     ? (versionId === null ? isNull(sdTable.versionId) : eq(sdTable.versionId, versionId))
     : isNull(sdTable.versionId);
+  // let versionCondition;
+  // if (versionId === undefined || versionId === null) {
+  //   // Активная версия: isActive = true AND versionId IS NULL
+  //   versionCondition = and(
+  //     eq(sdTable.isActive, true),
+  //     isNull(sdTable.versionId)
+  //   );
+  // } else {
+  //   // Архивная версия: isActive = false AND versionId = конкретному ID
+  //   versionCondition = and(
+  //     eq(sdTable.isActive, false),
+  //     eq(sdTable.versionId, versionId)
+  //   );
+  // }
   const allEntries = await db.select().from(sdTable)
   .where(and(
     eq(sdTable.isBuffered, false),
@@ -1066,7 +1096,7 @@ export async function optimizeSchedule(versionId?: number | null) {
         roomNumber: classrooms.roomNumber,
       })
       .from(sdTable)
-      .innerJoin(lessons, eq(sdTable.lessonId, lessons.id))
+      .innerJoin(lessons, and(eq(sdTable.lessonId, lessons.id), eq(lessons.isActive, true), isNull(lessons.versionId)))
       .innerJoin(disciplines, eq(lessons.disciplineId, disciplines.id))
       .innerJoin(lessonTypes, eq(lessons.lessonTypeId, lessonTypes.id))
       .leftJoin(employeesDepartments, eq(lessons.teacherId, employeesDepartments.id))

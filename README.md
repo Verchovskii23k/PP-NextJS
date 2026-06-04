@@ -77,7 +77,7 @@
 - **`Forbidden.tsx`** – ошибка 403 «Доступ запрещён».
 - **`Providers.tsx`** – корневой провайдер: `ThemeProvider`, `TRPCProvider`, шапка (`HeaderContent`), `Toaster`.
 - **`ThemeToggle.tsx`** – кнопка переключения светлой/тёмной темы.
-- **`unauthorized.tsx`** – ошибка 401 «Вы не авторизованы».
+- **`Unauthorized.tsx`** – ошибка 401 «Вы не авторизованы».
 - **`ui/`** – примитивные UI-компоненты:
   - `ConfirmDialog.tsx` – модальное окно подтверждения.
   - `InputDialog.tsx` – диалог ввода строки.
@@ -121,12 +121,12 @@
   - **Роутеры сущностей:** `academicLoadTypes.ts`, `buildings.ts`, `classRooms.ts`, `controlTypes.ts`, `curriculum.ts`, `curriculumProfiles.ts`, `daysOfWeek.ts`, `departments.ts`, `disciplines.ts`, `disciplineTeachers.ts`, `education.ts`, `educationForms.ts`, `educationLevels.ts`, `employees.ts`, `employeesDepartments.ts`, `employmentTypes.ts`, `hourTypeMapping.ts`, `institutes.ts`, `lessons.ts`, `lessonClassrooms.ts`, `lessonTypes.ts`, `pairs.ts`, `positions.ts`, `profiles.ts`, `specialties.ts`, `students.ts`, `studyGroups.ts`, `units.ts`, `unitRoots.ts`, `unitTypes.ts`, `weeks.ts`.
   - **Расписание:** `schedule.ts` (публичное API), `scheduleDisplay.ts` (drag‑and‑drop, буфер, флаги), `scheduleOptimizer.ts` (имитация отжига), `scheduleVersions.ts` (версионирование).
   - **Генераторы:** `generations/index.ts` (объединение), `generateCredentials.ts`, `generateGroups.ts`, `generateUnits.ts`, `generateLessons.ts`, `assignClassrooms.ts`, `generateSchedule.ts`.
-  - **Тесты:** `__tests__/` – **Unit-тесты (Vitest, 143 теста)** покрывают все CRUD-роутеры справочных таблиц,
-роутеры аутентификации и управления пользователями, а также генераторы.
-Отдельные модули (`scheduleOptimizer`, `scheduleVersions`, `scheduleDisplay`,
-`crudImportExport`, `globalImportExport`, `batchDelete`, `adminManagement`)
+  - **Тесты:** `__tests__/` – **Unit-тесты (Vitest, 487 тестов)** покрывают все CRUD-роутеры справочных таблиц, 
+роутеры аутентификации и управления пользователями, а также логику вызова генераторов.
+Роутер `scheduleDisplay` частично покрыт тестами (логика проверки конфликтов drag‑and‑drop).
+Отдельные модули (`scheduleOptimizer`, `scheduleVersions`)
 не покрыты unit-тестами из-за высокой сложности изоляции их логики;
-их корректность проверяется интеграционными E2E-тестами и ручным тестированием.
+их корректность проверяется ручным тестированием.
 
 #### 🧪 `test/` – тестовая инфраструктура
 - **`helpers.ts`** – хелперы: очистка таблиц, создание тестовых сущностей.
@@ -339,7 +339,7 @@ src
 │   ├── Forbidden.tsx                                                    # Компонент ошибки 403 "Доступ запрещён" с кнопкой "Вернуться на главную"
 │   ├── Providers.tsx                                                    # Корневой провайдер: ThemeProvider, TRPCProvider, шапка (HeaderContent), Toaster
 │   ├── ThemeToggle.tsx                                                  # Кнопка переключения светлой/тёмной темы
-│   ├── unauthorized.tsx                                                 # Компонент ошибки 401 "Вы не авторизованы" с кнопкой "Войти"
+│   ├── Unauthorized.tsx                                                 # Компонент ошибки 401 "Вы не авторизованы" с кнопкой "Войти"
 │   └── ui/                                                              # Примитивные UI-компоненты
 │       ├── ConfirmDialog.tsx                                            # Модальное окно подтверждения (удалить, сбросить и т.д.)
 │       ├── InputDialog.tsx                                              # Диалог ввода строки (название версии)
@@ -433,48 +433,49 @@ src
 │           │   ├── generateSchedule.ts                                  # Генерация расписания (жадный алгоритм)
 │           │   └── generateUnits.ts                                     # Генерация юнитов (потоки, группы, подгруппы)
 │           └── __tests__/                                                   # Unit‑тесты (Vitest)
-│               ├── academicLoadTypes.test.ts
-│               ├── adminManagement.test.ts
-│               ├── auth.test.ts
-│               ├── batchDelete.test.ts
-|               ├── batchUpdateActive.test.ts
-│               ├── buildings.test.ts
-│               ├── classRooms.test.ts
-│               ├── controlTypes.test.ts
-│               ├── crudImportExport.test.ts
-│               ├── curriculum.test.ts
-│               ├── curriculumProfiles.test.ts
-│               ├── daysOfWeek.test.ts
-│               ├── departments.test.ts
-│               ├── disciplines.test.ts
-│               ├── disciplineTeachers.test.ts
-│               ├── education.test.ts
-│               ├── educationForms.test.ts
-│               ├── educationLevels.test.ts
-│               ├── employees.test.ts
-│               ├── employeesDepartments.test.ts
-│               ├── employmentTypes.test.ts
-│               ├── generators-logic.test.ts
-│               ├── generators.test.ts
-│               ├── globalImportExport.test.ts
-│               ├── hourTypeMapping.test.ts
-│               ├── institutes.test.ts
-│               ├── lessons.test.ts
-│               ├── lessonTypes.test.ts
-│               ├── lookup.test.ts
-│               ├── pairs.test.ts
-│               ├── positions.test.ts
-│               ├── profiles.test.ts
-│               ├── schedule.test.ts
-│               ├── settings.test.ts
-│               ├── specialties.test.ts
-│               ├── students.test.ts
-│               ├── studyGroups.test.ts
-│               ├── unitRoots.test.ts
-│               ├── units.test.ts
-│               ├── unitTypes.test.ts
-│               ├── userManagement.test.ts
-│               └── weeks.test.ts
+│               ├── academicLoadTypes.test.ts                                # CRUD "Типы нагрузки"
+│               ├── adminManagement.test.ts                                  # Назначение/снятие администраторов
+│               ├── auth.test.ts                                             # Аутентификация (me, forgotPassword, changeEmail)
+│               ├── batchDelete.test.ts                                      # Массовое удаление с проверкой зависимостей
+│               ├── batchUpdateActive.test.ts                                # Массовое переключение активности
+│               ├── buildings.test.ts                                        # CRUD "Корпуса"
+│               ├── checkSlots.test.ts                                       # Проверка конфликтов drag‑and‑drop
+│               ├── classRooms.test.ts                                       # CRUD "Аудитории"
+│               ├── controlTypes.test.ts                                     # CRUD "Типы контроля"
+│               ├── crudImportExport.test.ts                                 # Импорт/экспорт одной таблицы (JSON)
+│               ├── curriculum.test.ts                                       # CRUD "Учебные планы"
+│               ├── curriculumProfiles.test.ts                               # CRUD "Профили учебных планов"
+│               ├── daysOfWeek.test.ts                                       # CRUD "Дни недели"
+│               ├── departments.test.ts                                      # CRUD "Кафедры"
+│               ├── disciplines.test.ts                                      # CRUD "Дисциплины"
+│               ├── disciplineTeachers.test.ts                               # CRUD "Преподаватели дисциплин"
+│               ├── education.test.ts                                        # CRUD "Образование"
+│               ├── educationForms.test.ts                                   # CRUD "Формы обучения"
+│               ├── educationLevels.test.ts                                  # CRUD "Уровни образования"
+│               ├── employees.test.ts                                        # CRUD "Сотрудники"
+│               ├── employeesDepartments.test.ts                             # CRUD "Сотрудники кафедр"
+│               ├── employmentTypes.test.ts                                  # CRUD "Типы занятости"
+│               ├── generators-logic.test.ts                                 # Логика работы генераторов (групп, юнитов, занятий)
+│               ├── generators.test.ts                                       # Последовательный вызов генераторов
+│               ├── globalImportExport.test.ts                               # Глобальный импорт/экспорт всей БД
+│               ├── hourTypeMapping.test.ts                                  # CRUD "Соответствие типов часов"
+│               ├── institutes.test.ts                                       # CRUD "Институты"
+│               ├── lessons.test.ts                                          # CRUD "Занятия"
+│               ├── lessonTypes.test.ts                                      # CRUD "Типы занятий"
+│               ├── lookup.test.ts                                           # Получение записи по ID (EntityTooltip)
+│               ├── pairs.test.ts                                            # CRUD "Пары"
+│               ├── positions.test.ts                                        # CRUD "Должности"
+│               ├── profiles.test.ts                                         # CRUD "Профили"
+│               ├── schedule.test.ts                                         # Публичное API расписания
+│               ├── settings.test.ts                                         # Управление настройками (ключ-значение)
+│               ├── specialties.test.ts                                      # CRUD "Специальности"
+│               ├── students.test.ts                                         # CRUD "Студенты"
+│               ├── studyGroups.test.ts                                      # CRUD "Учебные группы"
+│               ├── unitRoots.test.ts                                        # CRUD "Корни юнитов"
+│               ├── units.test.ts                                            # CRUD "Юниты"
+│               ├── unitTypes.test.ts                                        # CRUD "Типы юнитов"
+│               ├── userManagement.test.ts                                   # Управление пользователями (роли, сброс пароля)
+│               └── weeks.test.ts                                            # CRUD "Недели"
 │
 ├── test/                                                                # Тестовая инфраструктура
 │   ├── helpers.ts                                                       # Хелперы: очистка таблиц, создание тестовых сущностей

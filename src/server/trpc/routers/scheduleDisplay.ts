@@ -80,10 +80,13 @@ import {
   weeks,
   lessons,
   lessonClassrooms,
+  unitTypes,
+  units,
 } from "@/db/schema";
 import { eq, inArray, asc, and, isNull, isNotNull } from "drizzle-orm";
 import { optimizeSchedule } from "./scheduleOptimizer";
 import { TRPCError } from "@trpc/server";
+import { Context } from '@/server/trpc'
 
 // Вспомогательная функция для построения условия на scheduleDisplay
 function scheduleVersionCondition(
@@ -488,6 +491,21 @@ export const scheduleDisplayRouter = router({
       if (!moving.length) throw new TRPCError({ code: 'NOT_FOUND', message: 'Занятие не найдено' });
       const m = moving[0];
 
+      // Вспомогательная функция для получения типа юнита по unitCode (с кэшированием)
+      const unitTypeCache = new Map<string, string>();
+      const getUnitType = async (code: string, ctx: Context) => {
+        if (unitTypeCache.has(code)) return unitTypeCache.get(code)!;
+        const [unit] = await ctx.db
+          .select({ name: unitTypes.name })
+          .from(units)
+          .innerJoin(unitTypes, eq(units.unitTypeId, unitTypes.id))
+          .where(and(eq(units.code, code), eq(units.isActive, true), isNull(units.versionId)))
+          .limit(1);
+        const typeName = unit?.name ?? 'ГРУППА';
+        unitTypeCache.set(code, typeName);
+        return typeName;
+      };
+
       // Группы перемещаемого юнита
       const movingUnitRoots = await ctx.db
         .select({ studyGroupId: unitRoots.studyGroupId })
@@ -612,15 +630,27 @@ export const scheduleDisplayRouter = router({
             oClassroomId = otherClassroom[0]?.classroomId ?? null;
           }
 
-          if (
-            [...movingGroupIds].some((g) => otherGroupIds.has(g)) ||
-            (mTeacherId && oTeacherId && mTeacherId === oTeacherId) ||
-            (mClassroomId &&
-              oClassroomId &&
-              mClassroomId === oClassroomId)
-          ) {
-            directConflict = true;
-            break;
+          // Проверка общих групп, но исключаем случай двух подгрупп
+          const sharedGroups = [...movingGroupIds].filter(g => otherGroupIds.has(g));
+          const conflictByGroup = sharedGroups.length > 0;
+          // Если есть общие группы, проверим типы юнитов
+          if (conflictByGroup) {
+            // Определяем типы юнитов для moving и other
+            const mUnitType = await getUnitType(m.unitCode, ctx);
+            const oUnitType = await getUnitType(other.unitCode, ctx);
+            // Конфликт по группам отменяется, только если оба юнита — подгруппы
+            if (!(mUnitType === 'ПОДГРУППА' && oUnitType === 'ПОДГРУППА')) {
+              directConflict = true;
+              break;
+            }
+          }
+          // Если конфликт по группам не обнаружен или отменён, проверяем преподавателя и аудиторию
+          if (!directConflict) {
+            if ((mTeacherId && oTeacherId && mTeacherId === oTeacherId) ||
+                (mClassroomId && oClassroomId && mClassroomId === oClassroomId)) {
+              directConflict = true;
+              break;
+            }
           }
         }
 
@@ -770,16 +800,34 @@ export const scheduleDisplayRouter = router({
                 ooCId = oldOtherClassroom[0]?.classroomId ?? null;
               }
 
-              if (
-                [...sameGroupIds].some((g) => oldOtherGroupIds.has(g)) ||
-                (sTeacherId && ooTId && sTeacherId === ooTId) ||
-                (sClassroomId && ooCId && sClassroomId === ooCId)
-              ) {
-                reverseConflict = true;
-                break;
+              const sharedGroupsOld = [...sameGroupIds].filter(g => oldOtherGroupIds.has(g));
+              const conflictByGroupOld = sharedGroupsOld.length > 0;
+              if (conflictByGroupOld) {
+                const sType = await getUnitType(sameUnitEntry.unitCode, ctx);
+                const ooType = await getUnitType(oldOther.unitCode, ctx);
+                if (!(sType === 'ПОДГРУППА' && ooType === 'ПОДГРУППА')) {
+                  reverseConflict = true;
+                  break;
+                }
+              }
+              if (!reverseConflict) {
+                if ((sTeacherId && ooTId && sTeacherId === ooTId) ||
+                    (sClassroomId && ooCId && sClassroomId === ooCId)) {
+                  reverseConflict = true;
+                  break;
+                }
               }
             }
-
+if (key === 'week-1-1-1-23м1') { // интересующий слот
+  console.log('Slot', key, {
+    directConflict,
+    sameUnitEntry: !!sameUnitEntry,
+    mUnitType: await getUnitType(m.unitCode, ctx),
+    oUnitTypes: await Promise.all(differentUnitEntries.map(e => getUnitType(e.unitCode, ctx))),
+    mTeacherId, mClassroomId,
+    differentEntries: differentUnitEntries.map(e => ({ id: e.id, code: e.unitCode }))
+  });
+}
             results[key] = reverseConflict
               ? { status: "conflict" }
               : { status: "swap", swapId: sameUnitEntry.id };

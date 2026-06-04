@@ -81,32 +81,36 @@ export default function GenerationsPage() {
       if (data.createdGroups === 0) {
         toast.warning("Групп не создано. Возможно, все студенты уже распределены или нет активных профилей.");
       } else {
-        toast.success(`Групп: ${data.createdGroups}, студентов: ${data.assignedStudents}`);
+        toast.success(`Создано групп: ${data.createdGroups}, распределено студентов: ${data.assignedStudents}`);
       }
     },
     onError: (e) => { toast.error(e.message); },
   });
 
   const units = trpc.generations.generateUnits.useMutation({
-    onSuccess: (data) => {
-      if (data.createdUnits === 0) {
-        toast.warning("Юнитов не создано. Проверьте наличие учебных групп.");
-      } else {
-        toast.success(`Создано юнитов: ${data.createdUnits}`);
-      }
-    },
+  onSuccess: (data) => {
+    if (data.createdUnits === 0) {
+      toast.warning("Юнитов не создано. Проверьте наличие учебных групп.");
+    } else {
+      toast.success(
+        `Создано юнитов: ${data.createdUnits} (групп: ${data.groups}, подгрупп: ${data.subgroups}, потоков: ${data.streams})`
+      );
+    }
+  },
     onError: (e) => { toast.error(e.message); },
   });
 
   const lessons = trpc.generations.generateLessons.useMutation({
-    onSuccess: (data) => {
-      const created = Number(data.lessonsCreated);
-      if (created === 0) {
-        toast.warning("Занятий не создано. Проверьте учебные планы, юниты и типы часов.");
-      } else {
-        toast.success(`Создано занятий: ${created}`);
-      }
-    },
+  onSuccess: (data) => {
+    const created = Number(data.lessonsCreated);
+    if (created === 0) {
+      toast.warning("Занятий не создано. Проверьте учебные планы, юниты и типы часов.");
+    } else {
+      toast.success(
+        `Создано занятий: ${created} (преподавателей: ${data.uniqueTeachers}, планов: ${data.uniquePlans})`
+      );
+    }
+  },
     onError: (e) => { toast.error(e.message); },
   });
 
@@ -122,8 +126,8 @@ export default function GenerationsPage() {
   });
 
   const schedule = trpc.generations.generateSchedule.useMutation({
-    onSuccess: () => {
-      toast.success("Расписание сгенерировано");
+    onSuccess: (data) => {
+      toast.success(`Расписание сгенерировано: занято слотов ${data.totalSlots}, уникальных занятий ${data.placedLessons}`);
     },
     onError: (e) => { toast.error(e.message); },
   });

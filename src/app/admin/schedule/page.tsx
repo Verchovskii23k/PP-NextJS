@@ -381,20 +381,27 @@ export default function AdminSchedulePage() {
       setVersionsList(utils.scheduleVersions.list.getData() ?? []);
       setSelectedVersionId(null);
       setRestoredVersionId(null);
+      setRestoredVersionName(null);
       refreshData();
     },
     onError: (e) => { toast.error(e.message); },
   });
 
   const deleteVersionMut = trpc.scheduleVersions.delete.useMutation({
+    onSuccess: async (_, variables) => {
+      // Удаляем из списка сразу же
+      setVersionsList(prev => prev.filter(v => v.id !== variables.versionId));
+      toast.success("Версия удалена");
+    },
     onError: (e) => { toast.error(e.message); },
   });
 
   const restoreAsActiveMut = trpc.scheduleVersions.restoreAsActive.useMutation({
-    onSuccess: async () => {
+    onSuccess: async (_, variables) => {
       toast.success("Версия восстановлена как активная");
       await utils.scheduleVersions.list.refetch();
-      setVersionsList(utils.scheduleVersions.list.getData() ?? []);
+      const updatedList = utils.scheduleVersions.list.getData() ?? [];
+      setVersionsList(updatedList.filter(v => v.id !== variables.versionId));
       setSelectedVersionId(null);
       refreshData();
     },
@@ -852,6 +859,7 @@ export default function AdminSchedulePage() {
 
   const { confirm } = useConfirmContext();
 
+  // Удаление версии
   const handleDeleteVersion = async () => {
     const versionId = restoredVersionId ?? selectedVersionId;
     if (versionId === null) return;
@@ -865,9 +873,13 @@ export default function AdminSchedulePage() {
 
     try {
       await deleteVersionMut.mutateAsync({ versionId });
+      // Немедленно удаляем из списка
       setVersionsList(prev => prev.filter(v => v.id !== versionId));
-      setRestoredVersionId(null);
-      setRestoredVersionName(null);
+      // Если удалялась текущая активная версия, сбрасываем состояние
+      if (versionId === restoredVersionId) {
+        setRestoredVersionId(null);
+        setRestoredVersionName(null);
+      }
       setSelectedVersionId(null);
       refreshData();
       toast.success("Версия удалена");
@@ -876,17 +888,17 @@ export default function AdminSchedulePage() {
     }
   };
 
-  const handleVersionChange = (val: string) => {
-    if (val === "active") {
-      setSelectedVersionId(null);
-      setRestoredVersionName(null);
-      setRestoredVersionId(null);
-      return;
-    }
-    const versionId = Number(val);
-    const versionName = versionsList.find((v) => v.id === versionId)?.name ?? "";
-    setRestoreDialog({ show: true, versionId, versionName });
-  };
+  // const handleVersionChange = (val: string) => {
+  //   if (val === "active") {
+  //     setSelectedVersionId(null);
+  //     setRestoredVersionName(null);
+  //     setRestoredVersionId(null);
+  //     return;
+  //   }
+  //   const versionId = Number(val);
+  //   const versionName = versionsList.find((v) => v.id === versionId)?.name ?? "";
+  //   setRestoreDialog({ show: true, versionId, versionName });
+  // };
 
   const [inputDialog, setInputDialog] = useState<{
     show: boolean;
@@ -900,7 +912,7 @@ export default function AdminSchedulePage() {
     setInputDialog({
       show: true,
       title: "Сохранить текущее расписание как",
-      defaultValue: `Автосохранение ${new Date().toLocaleDateString()}`,
+      defaultValue: `Версия от ${new Date().toLocaleDateString()}`,
       onConfirm: async (name) => {
         try {
           await saveActiveMut.mutateAsync({ name });
@@ -910,6 +922,7 @@ export default function AdminSchedulePage() {
         }
         try {
           await restoreAsActiveMut.mutateAsync({ versionId: restoreDialog.versionId });
+          setVersionsList(prev => prev.filter(v => v.id !== restoreDialog.versionId));
           setRestoredVersionName(restoreDialog.versionName);
           setRestoredVersionId(restoreDialog.versionId);
           setSelectedVersionId(null);
@@ -922,13 +935,24 @@ export default function AdminSchedulePage() {
     });
   };
 
+  // Восстановление версии без сохранения текущей
   const handleRestoreProceedWithoutSave = async () => {
+    const previousRestoredId = restoredVersionId; // запоминаем id предыдущей активной версии
     setRestoreDialog({ show: false, versionId: 0, versionName: "" });
     try {
       await restoreAsActiveMut.mutateAsync({ versionId: restoreDialog.versionId });
+      // Если была активная сохранённая версия, удаляем её полностью (она стала пустой)
+      if (previousRestoredId !== null) {
+        await deleteVersionMut.mutateAsync({ versionId: previousRestoredId });
+        setVersionsList(prev => prev.filter(v => v.id !== previousRestoredId));
+        // Принудительно сбрасываем кэш, чтобы список обновился на сервере
+        await utils.scheduleVersions.list.invalidate();
+      }
+      // Восстановленная версия становится текущей и удаляется из списка архивов
       setRestoredVersionName(restoreDialog.versionName);
       setRestoredVersionId(restoreDialog.versionId);
       setSelectedVersionId(null);
+      setVersionsList(prev => prev.filter(v => v.id !== restoreDialog.versionId));
       refreshData();
     } catch (e) {
       toast.error("Ошибка восстановления: " + (e instanceof Error ? e.message : ""));
@@ -967,108 +991,88 @@ export default function AdminSchedulePage() {
   return (
     <div className="flex h-full flex-col bg-background p-4 text-foreground">
       <h1 className="mb-4 text-xl font-bold">Расписание</h1>
-
-      {/* Панель версионирования */}
-      <div className="mb-4 flex items-center gap-3">
-        <select
-          className="rounded border border-border bg-background px-2 py-1 text-sm"
-          value={
-            restoredVersionName
-              ? "restored"
-              : selectedVersionId ?? "active"
-          }
-          onChange={(e) => {
-            const val = e.target.value;
-            if (val === "active") {
-              setSelectedVersionId(null);
-              setRestoredVersionName(null);
-              setRestoredVersionId(null);
-            } else if (val === "restored") {
-
-            } else {
-              setRestoredVersionName(null);
-              setRestoredVersionId(null);
-              handleVersionChange(val);
+        {/* Панель версионирования */}
+        <div className="mb-4 flex items-center gap-3">
+          <select
+            className="rounded border border-border bg-background px-2 py-1 text-sm"
+            value={
+              restoredVersionId !== null
+                ? "restored"
+                : "active"
             }
-          }}
-        >
-          <option value="active">Активное расписание</option>
-          {restoredVersionName && (
-            <option value="restored">{restoredVersionName} (текущая)</option>
-          )}
-          {versionsList.map((v) => (
-            <option key={v.id} value={v.id}>
-              {v.name} ({new Date(v.createdAt).toLocaleDateString()})
-            </option>
-          ))}
-        </select>
-        {isActiveVersion && restoredVersionId === null && (
-          <>
-            <button
-              onClick={handleSaveVersion}
-              disabled={saveActiveMut.isPending}
-              aria-label="Сохранить как версию"
-              className="rounded bg-green-600 px-3 py-1 text-sm text-white hover:bg-green-700"
-            >
-              {saveActiveMut.isPending ? "Сохранение..." : "Сохранить как версию"}
-            </button>
-            <button
-              onClick={async () => {
-                const ok = await confirm({
-                  title: "Удаление активного расписания",
-                  
-                  message:
-                    "Будут полностью удалены все активные данные (расписание, занятия, юниты, группы). Действие нельзя отменить. Продолжить?",
-                  confirmLabel: "Удалить",
-                  variant: "danger",
-                });
-                if (!ok) return;
-                try {
-                  await resetGeneratedMut.mutateAsync();
-                  setRestoredVersionName(null);
-                  setRestoredVersionId(null);
-                  toast.success("Активные данные удалены");
-                } catch (e) {
-                }
-              }}
-              disabled={resetGeneratedMut.isPending}
-              className="rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
-            >
-              {resetGeneratedMut.isPending ? "Удаление..." : "Удалить активное"}
-            </button>
-          </>
-        )}
-        {isActiveVersion && restoredVersionId !== null && (
-          <>
-            <button
-              onClick={handleSaveVersion}
-              disabled={saveActiveMut.isPending}
-              aria-label="Сохранить как весрию"
-              className="rounded bg-green-600 px-3 py-1 text-sm text-white hover:bg-green-700"
-            >
-              {saveActiveMut.isPending ? "Сохранение..." : "Сохранить как версию"}
-            </button>
-            <button
-              onClick={handleDeleteVersion}
-              disabled={deleteVersionMut.isPending}
-              aria-label="Удалить версию"
-              className="rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
-            >
-              {deleteVersionMut.isPending ? "Удаление..." : "Удалить версию"}
-            </button>
-          </>
-        )}
-        {!isActiveVersion && (
-          <button
-            onClick={handleDeleteVersion}
-            disabled={deleteVersionMut.isPending}
-            aria-label="Удалить версию"
-            className="rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
+            onChange={(e) => {
+              const val = e.target.value;
+              if (val === "active") {
+                // Пользователь выбрал пункт "Текущее (не сохранено)" – ничего не меняем
+                return;
+              }
+              // Выбрана архивная версия – открываем диалог восстановления
+              const versionId = Number(val);
+              const versionName = versionsList.find((v) => v.id === versionId)?.name ?? "";
+              setRestoreDialog({ show: true, versionId, versionName });
+            }}
           >
-            {deleteVersionMut.isPending ? "Удаление..." : "Удалить версию"}
-          </button>
-        )}
-      </div>
+            {/* Динамический заголовок текущего состояния */}
+            {restoredVersionId === null ? (
+              <option value="active">Текущее (не сохранено)</option>
+            ) : (
+              <option value="restored">{restoredVersionName} (текущее)</option>
+            )}
+            {/* Список архивных версий */}
+            {versionsList.map((v) => (
+              <option key={v.id} value={v.id}>
+                {v.name} ({new Date(v.createdAt).toLocaleDateString()})
+              </option>
+            ))}
+          </select>
+
+          {/* Кнопки управления */}
+          {restoredVersionId === null ? (
+            <>
+              <button
+                onClick={handleSaveVersion}
+                disabled={saveActiveMut.isPending}
+                aria-label="Сохранить как версию"
+                className="rounded bg-green-600 px-3 py-1 text-sm text-white hover:bg-green-700"
+              >
+                {saveActiveMut.isPending ? "Сохранение..." : "Сохранить как версию"}
+              </button>
+              <button
+                onClick={async () => {
+                  const ok = await confirm({
+                    title: "Удаление активного расписания",
+                    message:
+                      "Будут полностью удалены все активные данные (расписание, занятия, юниты, группы). Действие нельзя отменить. Продолжить?",
+                    confirmLabel: "Удалить",
+                    variant: "danger",
+                  });
+                  if (!ok) return;
+                  try {
+                    await resetGeneratedMut.mutateAsync();
+                    setRestoredVersionName(null);
+                    setRestoredVersionId(null);
+                    toast.success("Активные данные удалены");
+                  } catch (e) {}
+                }}
+                disabled={resetGeneratedMut.isPending}
+                className="rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
+              >
+                {resetGeneratedMut.isPending ? "Удаление..." : "Удалить активное"}
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={handleDeleteVersion}
+                disabled={deleteVersionMut.isPending}
+                aria-label="Удалить версию"
+                className="rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
+              >
+                {deleteVersionMut.isPending ? "Удаление..." : "Удалить версию"}
+              </button>
+            </>
+          )}
+        </div>
       <InputDialog
         open={inputDialog.show}
         title={inputDialog.title}

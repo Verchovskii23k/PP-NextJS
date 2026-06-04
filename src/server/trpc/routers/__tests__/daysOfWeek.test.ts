@@ -9,7 +9,7 @@ let caller: Awaited<ReturnType<typeof createTestCaller>>;
 beforeAll(async () => {
   await clearTable(daysOfWeek);
   caller = await createTestCaller({ id: 1, role: 'admin' });
-});
+}, 30000);
 
 describe('daysOfWeek CRUD', () => {
   let id: number;

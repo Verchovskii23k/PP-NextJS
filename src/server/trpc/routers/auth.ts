@@ -100,7 +100,42 @@ export const authRouter = router({
     .input(z.object({ newEmail: z.string().email() }))
     .mutation(async ({ ctx, input }) => {
       const userId = ctx.user!.id;
-      await ctx.db.update(users).set({ email: input.newEmail }).where(eq(users.id, userId));
+
+      // Получаем текущий email пользователя
+      const [currentUser] = await ctx.db
+        .select({ email: users.email })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+
+      if (!currentUser) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Пользователь не найден' });
+      }
+
+      // Если новый email совпадает с текущим — возвращаем информационное сообщение
+      if (currentUser.email === input.newEmail) {
+        return { success: true, message: 'Это ваш текущий email' };
+      }
+
+      // Проверяем, не занят ли новый email другим пользователем
+      const [existing] = await ctx.db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.email, input.newEmail))
+        .limit(1);
+
+      if (existing) {
+        throw new TRPCError({
+          code: 'CONFLICT',
+          message: 'Пользователь с таким email уже существует',
+        });
+      }
+
+      // Обновляем email
+      await ctx.db.update(users)
+        .set({ email: input.newEmail })
+        .where(eq(users.id, userId));
+
       return { success: true };
     }),
 

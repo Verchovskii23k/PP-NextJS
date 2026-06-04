@@ -72,6 +72,7 @@ const EXCLUDED_TABLES = new Set([
 const IMPORT_ORDER = [
   "employees",
   "students",
+  "schedule_versions",
   "education_levels",
   "education_forms",
   "days_of_week",
@@ -184,6 +185,7 @@ const fkReferences: Record<string, string> = {
   day_of_week_id: "days_of_week",
   pair_number_id: "pairs",
   week_number: "weeks",
+  version_id: "schedule_versions",
 };
 
 function getForeignKeyColumns(tableName: string): string[] {

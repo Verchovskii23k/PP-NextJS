@@ -31,4 +31,5 @@ export const UNIQUE_KEYS: Record<string, string[]> = {
   discipline_teachers: ["lesson_type_id", "discipline_id", "teacher_department_id"],
   study_groups: ["code"],
   unit_roots: ["unit_code", "study_group_id"],
+  schedule_versions: ["name"],
 };

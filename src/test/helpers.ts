@@ -37,7 +37,7 @@
  *   значения для полей, требующих уникальности (коды, сокращения).
  */
 import { db } from '@/db';
-import { sql } from 'drizzle-orm';
+import { sql, eq, asc } from 'drizzle-orm';
 import { PgTable, getTableConfig } from 'drizzle-orm/pg-core';
 import {
   institutes, departments, disciplines, curriculum,
@@ -50,6 +50,8 @@ import {
   specialties, employees, positions, employmentTypes,
   settings, scheduleVersions, accounts, users,
 } from '@/db/schema';
+import { seedTestData } from '@/test/fixtures/fixtures';
+
 
 export async function clearTable(table: PgTable) {
   await db.delete(table);
@@ -334,4 +336,153 @@ export async function createTestUnit(unitTypeId: number, overrides?: Partial<typ
     })
     .returning({ id: units.id, code: units.code });
   return u;
+}
+export async function createCheckSlotsEnvironment() {
+  await clearAllTestData();
+  const seed = await seedTestData();
+
+  // Создаём учебную группу
+  const [group] = await db.insert(studyGroups).values({
+    code: 'TEST',
+    profileId: seed.profiles.A,
+    course: 1,
+    studentCount: 10,
+    isActive: true,
+  }).returning();
+  const groupId = group.id;
+
+  const utFlow = await db.select().from(unitTypes).where(eq(unitTypes.name, 'ПОТОК')).limit(1).then(r => r[0]);
+  const utSub = await db.select().from(unitTypes).where(eq(unitTypes.name, 'ПОДГРУППА')).limit(1).then(r => r[0]);
+
+  const [unitFlow] = await db.insert(units).values({ code: 'FLOW', unitTypeId: utFlow.id, isActive: true }).returning();
+  const [unitSG1] = await db.insert(units).values({ code: 'SG1', unitTypeId: utSub.id, isActive: true }).returning();
+  const [unitSG2] = await db.insert(units).values({ code: 'SG2', unitTypeId: utSub.id, isActive: true }).returning();
+
+  await db.insert(unitRoots).values([
+    { unitCode: 'FLOW', studyGroupId: groupId, isActive: true },
+    { unitCode: 'SG1', studyGroupId: groupId, isActive: true },
+    { unitCode: 'SG2', studyGroupId: groupId, isActive: true },
+  ]);
+
+  // Преподаватели — создаём/добираем трёх, и обязательно создаём employeesDepartments
+  let employeesList = await db.select().from(employees).where(eq(employees.isActive, true)).limit(3);
+  if (employeesList.length < 3) {
+    const need = 3 - employeesList.length;
+    for (let i = 0; i < need; i++) {
+      const [emp] = await db.insert(employees).values({
+        surname: `Преподаватель${employeesList.length + i + 1}`,
+        name: 'Тест',
+        isActive: true,
+      }).returning();
+      employeesList.push(emp);
+    }
+  }
+  const [t1, t2, t3] = employeesList;
+
+  // Привязываем каждого преподавателя к первой кафедре (или к любой существующей)
+  const [dept] = await db.select({ id: departments.id }).from(departments).limit(1);
+  if (!dept) throw new Error('No department');
+  // Создаём записи в employeesDepartments, если их ещё нет
+  for (const t of [t1, t2, t3]) {
+    const existing = await db.select().from(employeesDepartments).where(eq(employeesDepartments.employeeId, t.id)).limit(1);
+    if (existing.length === 0) {
+      await db.insert(employeesDepartments).values({
+        employeeId: t.id,
+        departmentId: dept.id,
+        isActive: true,
+      });
+    }
+  }
+  // Получаем id записей employeesDepartments для использования в lessons
+  const ed1 = await db.select().from(employeesDepartments).where(eq(employeesDepartments.employeeId, t1.id)).limit(1).then(r => r[0]);
+  const ed2 = await db.select().from(employeesDepartments).where(eq(employeesDepartments.employeeId, t2.id)).limit(1).then(r => r[0]);
+  const ed3 = await db.select().from(employeesDepartments).where(eq(employeesDepartments.employeeId, t3.id)).limit(1).then(r => r[0]);
+  if (!ed1 || !ed2 || !ed3) throw new Error('employeesDepartments not created');
+
+  // Аудитории — добираем/создаём три
+  let classroomsList = await db.select().from(classrooms).where(eq(classrooms.isActive, true)).limit(3);
+  if (classroomsList.length < 3) {
+    const need = 3 - classroomsList.length;
+    const buildingId = (await db.select().from(buildings).limit(1))[0]?.id;
+    if (!buildingId) throw new Error('No buildings');
+    for (let i = 0; i < need; i++) {
+      const [c] = await db.insert(classrooms).values({
+        buildingId,
+        roomNumber: `${100 + i}`,
+        capacity: 30,
+        isActive: true,
+      }).returning();
+      classroomsList.push(c);
+    }
+  }
+  const [c1, c2, c3] = classroomsList;
+
+  // Дисциплина и учебный план
+  const [disc] = await db.select().from(disciplines).where(eq(disciplines.isActive, true)).limit(1);
+  if (!disc) throw new Error('No discipline');
+  const [cur] = await db.insert(curriculum).values({
+    course: 1, semester: 1, disciplineId: disc.id, hoursLecture: 0, isActive: true,
+  }).returning();
+
+  // Создаём уроки, используя id employeesDepartments
+  const [lFlow] = await db.insert(lessons).values({
+    curriculumId: cur.id, unitId: unitFlow.id, lessonTypeId: 1, disciplineId: disc.id,
+    countPerSemester: 1, teacherId: ed1.id, isActive: true,
+  }).returning();
+  const [lSG1] = await db.insert(lessons).values({
+    curriculumId: cur.id, unitId: unitSG1.id, lessonTypeId: 1, disciplineId: disc.id,
+    countPerSemester: 1, teacherId: ed2.id, isActive: true,
+  }).returning();
+  const [lSG2] = await db.insert(lessons).values({
+    curriculumId: cur.id, unitId: unitSG2.id, lessonTypeId: 1, disciplineId: disc.id,
+    countPerSemester: 1, teacherId: ed3.id, isActive: true,
+  }).returning();
+
+  // Привязываем аудитории
+  await db.insert(lessonClassrooms).values([
+    { lessonId: lFlow.id, classroomId: c1.id },
+    { lessonId: lSG1.id, classroomId: c2.id },
+    { lessonId: lSG2.id, classroomId: c3.id },
+  ]);
+
+  const daysList = await db.select().from(daysOfWeek).orderBy(asc(daysOfWeek.id));
+  const pairsList = await db.select().from(pairs).orderBy(asc(pairs.number));
+  const weeksList = await db.select().from(weeks).where(eq(weeks.isActive, true)).orderBy(asc(weeks.id));
+  if (weeksList.length === 0) throw new Error('No active weeks');
+
+  const flowEntry = await db.insert(scheduleDisplay).values({
+    lessonId: lFlow.id, weekId: weeksList[0].id, dayOfWeekId: daysList[0].id, pairNumberId: pairsList[0].id,
+    unitCode: 'FLOW', displayText: 'flow', isBuffered: false, isActive: true, versionId: null,
+  }).returning().then(r => r[0]);
+  const sg1Entry = await db.insert(scheduleDisplay).values({
+    lessonId: lSG1.id, weekId: weeksList[0].id, dayOfWeekId: daysList[0].id, pairNumberId: pairsList[1].id,
+    unitCode: 'SG1', displayText: 'sg1', isBuffered: false, isActive: true, versionId: null,
+  }).returning().then(r => r[0]);
+  const sg2Entry = await db.insert(scheduleDisplay).values({
+    lessonId: lSG2.id, weekId: weeksList[0].id, dayOfWeekId: daysList[0].id, pairNumberId: pairsList[2].id,
+    unitCode: 'SG2', displayText: 'sg2', isBuffered: false, isActive: true, versionId: null,
+  }).returning().then(r => r[0]);
+
+return {
+    weeks: weeksList,
+    days: daysList,
+    pairs: pairsList,
+    flowEntryId: flowEntry.id,
+    sg1EntryId: sg1Entry.id,
+    sg2EntryId: sg2Entry.id,
+    flowLessonId: lFlow.id,
+    sg1LessonId: lSG1.id,
+    sg2LessonId: lSG2.id,
+    teacher1Id: t1.id,
+    teacher2Id: t2.id,
+    teacher3Id: t3.id,
+    classroom1Id: c1.id,
+    classroom2Id: c2.id,
+    classroom3Id: c3.id,
+    curriculumId: cur.id,
+    unitSG1Id: unitSG1.id,
+    unitSG2Id: unitSG2.id,
+    unitFlowId: unitFlow.id,
+    disciplineId: disc.id,
+};
 }

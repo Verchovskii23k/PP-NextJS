@@ -3,6 +3,7 @@ import { useState } from "react";
 import { trpc } from "@/trpc/client";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react";
+import { toast } from "sonner";
 
 export default function ResetPasswordForm() {
   const searchParams = useSearchParams();
@@ -15,9 +16,13 @@ export default function ResetPasswordForm() {
 
   const resetMut = trpc.auth.resetPassword.useMutation({
     onSuccess: () => {
+      toast.success('Пароль успешно изменён. Войдите с новыми данными.');
       router.push("/login");
     },
-    onError: (e) => setError(e.message),
+    onError: (e) => {
+      setError(e.message);
+      toast.error(e.message);
+    },
   });
 
   return (

@@ -224,8 +224,8 @@ export const generateScheduleRouter = router({
             let placedInSlot = false;
 
             // Перебираем слоты целевой недели в случайном порядке
-            const shuffledSlots = weekSlots.sort(() => Math.random() - 0.5);
-            for (const { day, pair } of shuffledSlots) {
+            // const shuffledSlots = weekSlots.sort(() => Math.random() - 0.5);
+            for (const { day, pair } of weekSlots) {
               const slotKey = `${targetWeekId}-${day.id}-${pair.id}`;
 
               if (!slotOccupancy.has(slotKey)) {
@@ -325,7 +325,7 @@ export const generateScheduleRouter = router({
             teacherId: lessons.teacherId,
           })
           .from(schedule)
-          .innerJoin(lessons, eq(schedule.lessonId, lessons.id))
+          .innerJoin(lessons, and( eq(schedule.lessonId, lessons.id), eq(lessons.isActive, true), isNull(lessons.versionId)))
           .innerJoin(disciplines, eq(lessons.disciplineId, disciplines.id))
           .innerJoin(lessonTypes, eq(lessons.lessonTypeId, lessonTypes.id))
           .innerJoin(

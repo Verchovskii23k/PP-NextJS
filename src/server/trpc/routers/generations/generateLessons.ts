@@ -23,8 +23,7 @@
  *      к этим профилям.
  *    - Определяются подходящие юниты (`units`), которые через `unitRoots` связаны с
  *      найденными группами и имеют активный тип (`unitTypes`). Юниты фильтруются по
- *      приоритету: сначала `priority = 1`, если нет – `priority = 2`. Юниты с другими
- *      приоритетами или без приоритета игнорируются.
+ *      приоритету: сначала `priority = 1`, если нет – `priority = 2`, в крайнем случае берется `priority = 3`.
  *    - Для каждого подходящего юнита создаётся запись в таблице `lessons` с указанием
  *      `curriculumId`, `disciplineId`, `lessonTypeId`, `unitId` и `countPerSemester`.
  *      Поле `teacherId` пока остаётся пустым.
@@ -304,14 +303,16 @@ export const generateLessonsRouter = router({
           // Фильтр по приоритетам
           const priority1 = unitRows.filter((u) => u.priority === 1);
           const priority2 = unitRows.filter((u) => u.priority === 2);
+          const priority3 = unitRows.filter((u) => u.priority === 3);
           let unitsToUse: typeof unitRows;
           if (priority1.length > 0) {
             unitsToUse = priority1;
           } else if (priority2.length > 0) {
             unitsToUse = priority2;
+          } else if (priority3.length > 0) {
+            unitsToUse = priority3;
           } else {
-            problems.no_valid_priority =
-              (problems.no_valid_priority || 0) + 1;
+            problems.no_valid_priority = (problems.no_valid_priority || 0) + 1;
             continue;
           }
 

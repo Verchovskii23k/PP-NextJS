@@ -158,11 +158,12 @@ export const userManagementRouter = router({
 
       await ctx.db.delete(verificationTokens).where(eq(verificationTokens.identifier, user.id));
 
-      if (user.email) {
-        await sendNewCredentialsEmail(user.email, newPassword);
-        return { success: true, newPassword: null, message: 'Новый пароль отправлен на email' };
+      if (!user.email) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'У пользователя нет email' });
       }
-      return { success: true, newPassword, message: null };
+
+      await sendNewCredentialsEmail(user.email, newPassword);
+      return { success: true, newPassword: null, message: 'Новый пароль отправлен на email' };
     }),
 
   resetUserPassword: adminProcedure

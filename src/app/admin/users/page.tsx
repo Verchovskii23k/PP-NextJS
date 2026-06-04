@@ -7,7 +7,7 @@ import { PageSkeleton } from "@/components/ui/page_skeleton";
 
 export default function UsersPage() {
   const [filterRole, setFilterRole] = useState<"teacher" | "student" | undefined>(undefined);
-  const [searchQuery, setSearchQuery] = useState(""); // <-- новое состояние
+  const [searchQuery, setSearchQuery] = useState("");
   const utils = trpc.useUtils();
 
   const { data, isLoading, error } = trpc.userManagement.getUsers.useQuery({

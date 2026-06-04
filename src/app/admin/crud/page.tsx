@@ -123,7 +123,7 @@ function CategorySection({
   selectedTable: string | null;
   onSelectTable: (key: string) => void;
 }) {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
   const storageKey = `crud_order_${category}`;
 
   const [order, setOrder] = useState<string[]>(() => {

@@ -15,12 +15,16 @@ export default function AccountPage() {
   const [showEmail, setShowEmail] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null);
   const changeEmailMut = trpc.auth.changeEmail.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
       setNewEmail('');
       setEmailError(null);
-      toast('Email успешно изменён');
+      // Показываем тост с сообщением от сервера, если оно есть
+      toast(data.message || 'Email успешно изменён');
     },
-    onError: (e) => setEmailError(e.message),
+    onError: (e) => {
+      setEmailError(e.message);
+      toast.error(e.message); // дублируем для заметности
+    },
   });
 
   // Валидация email на клиенте

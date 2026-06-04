@@ -2,7 +2,7 @@ import { router, adminProcedure } from "../../trpc";
 import { generateGroupsRouter } from "./generateGroups";
 import { generateUnitsRouter } from "./generateUnits";
 import { generateLessonsRouter } from "./generateLessons";
-import {assignClassroomsRouter} from "./assignClassrooms"
+import { assignClassroomsRouter } from "./assignClassrooms"
 import { generateScheduleRouter } from "./generateSchedule";
 import { clearGeneratedData } from "../../../../lib/clearGeneratedData";
 import { generateCredentialsRouter } from "./generateCredentials";
