@@ -2,6 +2,7 @@ import Providers from "@/components/Providers";
 import "./globals.css";
 import { ConfirmProvider } from "@/contexts/ConfirmContext";
 import { Metadata } from "next/types";
+import { VersionProvider } from "@/contexts/VersionContext";
 
 
 export const metadata: Metadata = {
@@ -15,9 +16,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="ru" suppressHydrationWarning>
       <body>
         <ConfirmProvider>
-          <Providers>
-            {children}
-          </Providers>
+          <VersionProvider>
+            <Providers>
+              {children}
+            </Providers>
+          </VersionProvider>
         </ConfirmProvider>
       </body>
     </html>

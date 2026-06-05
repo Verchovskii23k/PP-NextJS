@@ -69,9 +69,11 @@ import {
 } from "@/db/schema";
 import { recalculateUsageMetrics } from "@/lib/usageMetrics";
 import { eq, and, gte, isNull, or, sql, SQL } from "drizzle-orm";
+import { assertCleanSlate } from "./helpers";
 
 export const assignClassroomsRouter = router({
   assignClassroomsAuto: adminProcedure.mutation(async ({ ctx }) => {
+    await assertCleanSlate(ctx);
 
     const allLessons = await ctx.db
       .select()

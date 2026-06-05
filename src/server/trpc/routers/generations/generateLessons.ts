@@ -89,6 +89,7 @@ import {
 } from "@/db/schema";
 import { eq, and, inArray, sql, or, gt, isNull } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
+import { assertCleanSlate } from "./helpers";
 
 export const generateLessonsRouter = router({
   generateLessons: adminProcedure
@@ -100,6 +101,7 @@ export const generateLessonsRouter = router({
         .optional()
     )
     .mutation(async ({ ctx }) => {
+      await assertCleanSlate(ctx);
       // 1. Очистка зависимых таблиц (только активные записи)
       await ctx.db.transaction(async (tx) => {
         await tx

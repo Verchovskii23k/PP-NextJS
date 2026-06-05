@@ -61,9 +61,11 @@ import {
 } from "@/db/schema";
 import { TRPCError } from "@trpc/server";
 import { eq, and, inArray, sql, isNull } from "drizzle-orm";
+import { assertCleanSlate } from "./helpers";
 
 export const generateUnitsRouter = router({
   generateUnits: adminProcedure.mutation(async ({ ctx }) => {
+    await assertCleanSlate(ctx);
     // 1. Удаляем только активные записи во всех динамических таблицах
     await ctx.db.transaction(async (tx) => {
       await tx.delete(scheduleDisplay).where(

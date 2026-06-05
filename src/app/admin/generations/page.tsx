@@ -1,12 +1,50 @@
+/**
+ * ## Страница «Системные генераторы» (администратор)
+ *
+ * Последовательный пайплайн для создания учебных групп, юнитов, занятий,
+ * назначения аудиторий и генерации расписания. Все генераторы запускаются
+ * только на **чистом листе** (отсутствует активная версия расписания).
+ *
+ * ### Возможности
+ * - **Защита от случайного запуска:** если на странице расписания открыта
+ *   какая-либо версия (`selectedVersionId !== null`), кнопки генераторов
+ *   блокируются и отображается предупреждение «Переключитесь на Чистый лист».
+ * - **Настройка порога подгруппы** и **номера текущего семестра** прямо в
+ *   карточке генерации юнитов.
+ * - **Генерация расписания с созданием версии:** при нажатии кнопки
+ *   «Сгенерировать расписание» открывается диалог ввода имени версии
+ *   (по умолчанию «Версия от …»). После подтверждения расписание
+ *   генерируется и сразу сохраняется как именованная версия, которая
+ *   становится активной. Используется мутация `generateAndSaveSchedule`.
+ * - **Обратная связь:** каждый шаг сопровождается тостом с количеством
+ *   созданных/распределённых сущностей.
+ *
+ * ### Используемые состояния и контексты
+ * - `useSelectedVersionId()` – глобальное состояние активной версии.
+ * - `isCleanSlate = selectedVersionId === null` – определяет доступность
+ *   генераторов и необходимость показа предупреждения.
+ * - `scheduleDialog` – управляет диалогом ввода имени версии.
+ *
+ * ### Примечания
+ * - Генераторы не могут быть запущены в произвольном порядке; каждый
+ *   последующий шаг зависит от данных, созданных на предыдущем.
+ * - Серверная защита реализована вызовом `assertCleanSlate` в начале каждой
+ *   мутации генерации (групп, юнитов, занятий, аудиторий, расписания).
+ */
 "use client";
 import { trpc } from "@/trpc/client";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
+import { InputDialog } from "@/components/ui/InputDialog";
+import { useSelectedVersionId } from "@/contexts/VersionContext";
 
 export default function GenerationsPage() {
   const utils = trpc.useUtils();
+  const { selectedVersionId } = useSelectedVersionId();
+  const isCleanSlate = selectedVersionId === null;
 
+  // Порог подгруппы
   const { data: subgroupType, isLoading: thresholdLoading } =
     trpc.unitTypes.getByName.useQuery({ name: "ПОДГРУППА" });
 
@@ -34,6 +72,7 @@ export default function GenerationsPage() {
     });
   };
 
+  // Настройки
   const { data: totalWeeksSetting, isLoading: weeksLoading } =
     trpc.settings.get.useQuery({ key: "total_weeks" });
 
@@ -75,6 +114,7 @@ export default function GenerationsPage() {
     updateSemester.mutate({ key: "current_semester", value: String(semesterInput) });
   };
 
+  // Мутации генераторов (старые, с блокировкой)
   const groups = trpc.generations.generateGroups.useMutation({
     onSuccess: (data) => {
       utils.studyGroups.list.invalidate();
@@ -88,29 +128,29 @@ export default function GenerationsPage() {
   });
 
   const units = trpc.generations.generateUnits.useMutation({
-  onSuccess: (data) => {
-    if (data.createdUnits === 0) {
-      toast.warning("Юнитов не создано. Проверьте наличие учебных групп.");
-    } else {
-      toast.success(
-        `Создано юнитов: ${data.createdUnits} (групп: ${data.groups}, подгрупп: ${data.subgroups}, потоков: ${data.streams})`
-      );
-    }
-  },
+    onSuccess: (data) => {
+      if (data.createdUnits === 0) {
+        toast.warning("Юнитов не создано. Проверьте наличие учебных групп.");
+      } else {
+        toast.success(
+          `Создано юнитов: ${data.createdUnits} (групп: ${data.groups}, подгрупп: ${data.subgroups}, потоков: ${data.streams})`
+        );
+      }
+    },
     onError: (e) => { toast.error(e.message); },
   });
 
   const lessons = trpc.generations.generateLessons.useMutation({
-  onSuccess: (data) => {
-    const created = Number(data.lessonsCreated);
-    if (created === 0) {
-      toast.warning("Занятий не создано. Проверьте учебные планы, юниты и типы часов.");
-    } else {
-      toast.success(
-        `Создано занятий: ${created} (преподавателей: ${data.uniqueTeachers}, планов: ${data.uniquePlans})`
-      );
-    }
-  },
+    onSuccess: (data) => {
+      const created = Number(data.lessonsCreated);
+      if (created === 0) {
+        toast.warning("Занятий не создано. Проверьте учебные планы, юниты и типы часов.");
+      } else {
+        toast.success(
+          `Создано занятий: ${created} (преподавателей: ${data.uniqueTeachers}, планов: ${data.uniquePlans})`
+        );
+      }
+    },
     onError: (e) => { toast.error(e.message); },
   });
 
@@ -125,21 +165,49 @@ export default function GenerationsPage() {
     onError: (e) => { toast.error(e.message); },
   });
 
-  const schedule = trpc.generations.generateSchedule.useMutation({
+  // Новая мутация – генерация и сохранение версии
+  const generateAndSaveSchedule = trpc.generations.generateAndSaveSchedule.useMutation({
     onSuccess: (data) => {
-      toast.success(`Расписание сгенерировано: занято слотов ${data.totalSlots}, уникальных занятий ${data.placedLessons}`);
+      utils.scheduleVersions.list.invalidate();
+      utils.scheduleDisplay.getForWeekPair.invalidate();
+      utils.scheduleDisplay.getByStudyGroups.invalidate();
+      toast.success(
+        `Версия «${data.versionName}» создана. Занято слотов: ${data.totalSlots}, уникальных занятий: ${data.placedLessons}`
+      );
+      setScheduleDialog({ show: false, totalWeeks: 0 });
     },
     onError: (e) => { toast.error(e.message); },
   });
 
-  if (thresholdLoading || weeksLoading) 
-    return <div className="space-y-2 p-6">
-              <Skeleton className="h-4 w-32" /><Skeleton className="h-4 w-24" />
-           </div>;
+  // Диалог ввода имени версии
+  const [scheduleDialog, setScheduleDialog] = useState<{
+    show: boolean;
+    totalWeeks: number;
+  }>({ show: false, totalWeeks: 16 });
+
+  const handleStartScheduleGeneration = () => {
+    const weeks = totalWeeksInput ?? 16;
+    setScheduleDialog({ show: true, totalWeeks: weeks });
+  };
+
+  if (thresholdLoading || weeksLoading)
+    return (
+      <div className="space-y-2 p-6">
+        <Skeleton className="h-4 w-32" />
+        <Skeleton className="h-4 w-24" />
+      </div>
+    );
 
   return (
     <div className="mx-auto h-full max-w-4xl overflow-y-auto bg-background p-6 text-foreground">
       <h1 className="mb-6 text-2xl font-bold">Системные генераторы</h1>
+
+      {/* Предупреждение, если активна версия */}
+      {!isCleanSlate && (
+        <div className="mb-4 rounded border border-yellow-400 bg-yellow-50 p-3 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300">
+          ⚠️ Переключитесь на <strong>Чистый лист</strong> на странице расписания, чтобы запустить генераторы.
+        </div>
+      )}
 
       {/* Карточка: Группы */}
       <div className="mb-4 rounded-lg border border-border bg-background p-4 shadow-sm">
@@ -147,7 +215,7 @@ export default function GenerationsPage() {
         <button
           className="hover:bg-primary/90 rounded bg-primary px-4 py-2 text-white disabled:opacity-50"
           onClick={() => groups.mutate()}
-          disabled={groups.isPending}
+          disabled={groups.isPending || !isCleanSlate}
         >
           {groups.isPending ? "Генерация..." : "Сгенерировать группы"}
         </button>
@@ -175,7 +243,7 @@ export default function GenerationsPage() {
           <button
             className="hover:bg-primary/90 rounded bg-primary px-4 py-2 text-white disabled:opacity-50"
             onClick={() => units.mutate()}
-            disabled={units.isPending}
+            disabled={units.isPending || !isCleanSlate}
           >
             {units.isPending ? "Генерация..." : "Сгенерировать юниты"}
           </button>
@@ -207,7 +275,7 @@ export default function GenerationsPage() {
         <button
           className="hover:bg-primary/90 rounded bg-primary px-4 py-2 text-white disabled:opacity-50"
           onClick={() => lessons.mutate({ currentSemester: semesterInput })}
-          disabled={lessons.isPending}
+          disabled={lessons.isPending || !isCleanSlate}
         >
           {lessons.isPending ? "Генерация..." : "Сгенерировать занятия"}
         </button>
@@ -219,7 +287,7 @@ export default function GenerationsPage() {
         <button
           className="hover:bg-primary/90 rounded bg-primary px-4 py-2 text-white disabled:opacity-50"
           onClick={() => classrooms.mutate()}
-          disabled={classrooms.isPending}
+          disabled={classrooms.isPending || !isCleanSlate}
         >
           {classrooms.isPending ? "Назначение..." : "Назначить аудитории"}
         </button>
@@ -228,7 +296,7 @@ export default function GenerationsPage() {
       {/* Карточка: Расписание + настройки */}
       <div className="mb-4 rounded-lg border border-border bg-background p-4 shadow-sm">
         <h2 className="mb-2 text-lg font-semibold">5. Расписание</h2>
-        <div className="mb-3 flex flex-wrap items-center gap-4" >
+        <div className="mb-3 flex flex-wrap items-center gap-4">
           <div className="flex items-center gap-2">
             <label className="text-sm text-muted-foreground">Всего недель:</label>
             <input
@@ -249,16 +317,28 @@ export default function GenerationsPage() {
         </div>
         <button
           className="hover:bg-primary/90 rounded bg-primary px-4 py-2 text-white disabled:opacity-50"
-          onClick={() =>
-            schedule.mutate({
-              totalWeeks: totalWeeksInput ?? 16,
-            })
-          }
-          disabled={schedule.isPending}
+          onClick={handleStartScheduleGeneration}
+          disabled={generateAndSaveSchedule.isPending || !isCleanSlate}
         >
-          {schedule.isPending ? "Генерация..." : "Сгенерировать расписание"}
+          {generateAndSaveSchedule.isPending ? "Генерация..." : "Сгенерировать расписание"}
         </button>
       </div>
+
+      {/* Диалог ввода имени версии */}
+      {scheduleDialog.show && (
+        <InputDialog
+          open={scheduleDialog.show}
+          title="Название новой версии"
+          defaultValue={`Версия от ${new Date().toLocaleDateString()}`}
+          onConfirm={(name) => {
+            generateAndSaveSchedule.mutate({
+              totalWeeks: scheduleDialog.totalWeeks,
+              versionName: name,
+            });
+          }}
+          onCancel={() => setScheduleDialog({ show: false, totalWeeks: 0 })}
+        />
+      )}
     </div>
   );
 }

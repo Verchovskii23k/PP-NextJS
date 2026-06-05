@@ -6,7 +6,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { createCheckSlotsEnvironment } from '@/test/helpers';
 import { db } from '@/db';
-import { lessons, lessonClassrooms, scheduleDisplay } from '@/db/schema';
+import { lessons, lessonClassrooms, scheduleDisplay, units, unitRoots, unitTypes, studyGroups, profiles } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { createTestCaller } from '@/test/trpc';
 
@@ -233,5 +233,167 @@ describe('checkSlots', () => {
 
     // Убираем временную запись
     await db.delete(scheduleDisplay).where(eq(scheduleDisplay.id, sg1bis.id));
+  });
+    it('подгруппа и группа – conflict (общие группы)', async () => {
+    // создадим группу GRP, которая тоже относится к groupId
+    const utGroup = await db.select().from(unitTypes).where(eq(unitTypes.name, 'ГРУППА')).limit(1).then(r => r[0]);
+    const [unitGRP] = await db.insert(units).values({ code: 'GRP', unitTypeId: utGroup.id, isActive: true }).returning();
+    const groupId = (await db.select({ id: studyGroups.id }).from(studyGroups).limit(1))[0].id;
+      await db.insert(unitRoots).values({ unitCode: 'GRP', studyGroupId: groupId, isActive: true });
+    // создадим lesson и entry для GRP в каком-то слоте
+    const [lGRP] = await db.insert(lessons).values({
+      curriculumId: env.curriculumId, unitId: unitGRP.id, lessonTypeId: 1, disciplineId: env.disciplineId,
+      countPerSemester: 1, teacherId: env.teacher1Id, isActive: true,
+    }).returning();
+    const [grpEntry] = await db.insert(scheduleDisplay).values({
+      lessonId: lGRP.id, weekId: env.weeks[0].id, dayOfWeekId: env.days[0].id, pairNumberId: env.pairs[3].id,
+      unitCode: 'GRP', displayText: 'grp', isBuffered: false, isActive: true, versionId: null,
+    }).returning();
+
+    const { w, d, p, key } = s(0, 0, 3, 'GRP');
+    const res = await caller.scheduleDisplay.checkSlots({
+      movingId: env.sg1EntryId,
+      slots: [{ weekId: w, dayId: d, pairId: p, unitCode: 'GRP' }],
+    });
+    expect(res[key].status).toBe('conflict');
+
+    // очистка
+    await db.delete(scheduleDisplay).where(eq(scheduleDisplay.id, grpEntry.id));
+    await db.delete(lessons).where(eq(lessons.id, lGRP.id));
+    await db.delete(unitRoots).where(eq(unitRoots.unitCode, 'GRP'));
+    await db.delete(units).where(eq(units.id, unitGRP.id));
+  });
+
+  it('поток и группа (общие группы) – conflict', async () => {
+    // используем FLOW и создадим группу GRP, входящую в FLOW (studyGroupId уже общий)
+    const utGroup = await db.select().from(unitTypes).where(eq(unitTypes.name, 'ГРУППА')).limit(1).then(r => r[0]);
+    const [unitGRP] = await db.insert(units).values({ code: 'GRP', unitTypeId: utGroup.id, isActive: true }).returning();
+    const root = await db.select({ studyGroupId: unitRoots.studyGroupId }).from(unitRoots).where(eq(unitRoots.unitCode, 'FLOW')).limit(1);
+    const groupId = root[0]?.studyGroupId;
+    if (!groupId) throw new Error('No group for FLOW');
+    await db.insert(unitRoots).values({ unitCode: 'GRP', studyGroupId: groupId, isActive: true });
+    await db.insert(unitRoots).values({ unitCode: 'GRP', studyGroupId: groupId, isActive: true });
+    const [lGRP] = await db.insert(lessons).values({
+      curriculumId: env.curriculumId, unitId: unitGRP.id, lessonTypeId: 1, disciplineId: env.disciplineId,
+      countPerSemester: 1, teacherId: env.teacher1Id, isActive: true,
+    }).returning();
+    const [grpEntry] = await db.insert(scheduleDisplay).values({
+      lessonId: lGRP.id, weekId: env.weeks[0].id, dayOfWeekId: env.days[0].id, pairNumberId: env.pairs[3].id,
+      unitCode: 'GRP', displayText: 'grp', isBuffered: false, isActive: true, versionId: null,
+    }).returning();
+
+    // пытаемся переместить занятие потока в слот группы
+    const { w, d, p, key } = s(0, 0, 3, 'FLOW');
+    const res = await caller.scheduleDisplay.checkSlots({
+      movingId: env.flowEntryId,
+      slots: [{ weekId: w, dayId: d, pairId: p, unitCode: 'FLOW' }],
+    });
+    expect(res[key].status).toBe('conflict');
+
+    // очистка
+    await db.delete(scheduleDisplay).where(eq(scheduleDisplay.id, grpEntry.id));
+    await db.delete(lessons).where(eq(lessons.id, lGRP.id));
+    await db.delete(unitRoots).where(eq(unitRoots.unitCode, 'GRP'));
+    await db.delete(units).where(eq(units.id, unitGRP.id));
+  });
+    it('группа в слот с потоком (общие группы) – conflict', async () => {
+    // создадим группу GRP, входящую в FLOW, и попробуем переместить GRP в слот FLOW
+    const utGroup = await db.select().from(unitTypes).where(eq(unitTypes.name, 'ГРУППА')).limit(1).then(r => r[0]);
+    const [unitGRP] = await db.insert(units).values({ code: 'GRP2', unitTypeId: utGroup.id, isActive: true }).returning();
+    const flowRoots = await db.select({ studyGroupId: unitRoots.studyGroupId }).from(unitRoots).where(eq(unitRoots.unitCode, 'FLOW'));
+    const groupId = flowRoots[0]?.studyGroupId;
+    if (!groupId) throw new Error('No group for FLOW');
+    await db.insert(unitRoots).values({ unitCode: 'GRP2', studyGroupId: groupId, isActive: true });
+
+    const [lGRP] = await db.insert(lessons).values({
+      curriculumId: env.curriculumId, unitId: unitGRP.id, lessonTypeId: 1, disciplineId: env.disciplineId,
+      countPerSemester: 1, teacherId: env.teacher1Id, isActive: true,
+    }).returning();
+    const [grpEntry] = await db.insert(scheduleDisplay).values({
+      lessonId: lGRP.id, weekId: env.weeks[0].id, dayOfWeekId: env.days[0].id, pairNumberId: env.pairs[3].id,
+      unitCode: 'GRP2', displayText: 'grp2', isBuffered: false, isActive: true, versionId: null,
+    }).returning();
+
+    // перемещаем GRP в слот FLOW
+    const flowSlot = s(0, 0, 0, 'GRP2');
+    const res = await caller.scheduleDisplay.checkSlots({
+      movingId: grpEntry.id,
+      slots: [{ weekId: flowSlot.w, dayId: flowSlot.d, pairId: flowSlot.p, unitCode: 'GRP2' }],
+    });
+    const key = `week-${flowSlot.w}-${flowSlot.d}-${flowSlot.p}-GRP2`;
+    expect(res[key].status).toBe('conflict');
+
+    // очистка
+    await db.delete(scheduleDisplay).where(eq(scheduleDisplay.id, grpEntry.id));
+    await db.delete(lessons).where(eq(lessons.id, lGRP.id));
+    await db.delete(unitRoots).where(eq(unitRoots.unitCode, 'GRP2'));
+    await db.delete(units).where(eq(units.id, unitGRP.id));
+  });
+
+  it('две группы без общих групп – free', async () => {
+    // создадим вторую группу GRP3 с другой группой, никак не связанной с первой
+    const utGroup = await db.select().from(unitTypes).where(eq(unitTypes.name, 'ГРУППА')).limit(1).then(r => r[0]);
+    const [unitGRP3] = await db.insert(units).values({ code: 'GRP3', unitTypeId: utGroup.id, isActive: true }).returning();
+    const anotherGroup = await db.insert(studyGroups).values({
+      code: 'TEST2',
+      profileId: (await db.select({ id: profiles.id }).from(profiles).limit(1))[0].id,
+      course: 1, studentCount: 10, isActive: true,
+    }).returning().then(r => r[0]);
+    await db.insert(unitRoots).values({ unitCode: 'GRP3', studyGroupId: anotherGroup.id, isActive: true });
+
+    const [lGRP3] = await db.insert(lessons).values({
+      curriculumId: env.curriculumId, unitId: unitGRP3.id, lessonTypeId: 1, disciplineId: env.disciplineId,
+      countPerSemester: 1, teacherId: env.teacher1Id, isActive: true,
+    }).returning();
+    const [grp3Entry] = await db.insert(scheduleDisplay).values({
+      lessonId: lGRP3.id, weekId: env.weeks[0].id, dayOfWeekId: env.days[0].id, pairNumberId: env.pairs[4].id,
+      unitCode: 'GRP3', displayText: 'grp3', isBuffered: false, isActive: true, versionId: null,
+    }).returning();
+
+    // перемещаем первую SG1 в слот GRP3 (должен быть free)
+    const { w, d, p, key } = s(0, 0, 4, 'SG1');
+    const res = await caller.scheduleDisplay.checkSlots({
+      movingId: env.sg1EntryId,
+      slots: [{ weekId: w, dayId: d, pairId: p, unitCode: 'SG1' }],
+    });
+    expect(res[key].status).toBe('free');
+
+    // очистка
+    await db.delete(scheduleDisplay).where(eq(scheduleDisplay.id, grp3Entry.id));
+    await db.delete(lessons).where(eq(lessons.id, lGRP3.id));
+    await db.delete(unitRoots).where(eq(unitRoots.unitCode, 'GRP3'));
+    await db.delete(units).where(eq(units.id, unitGRP3.id));
+    await db.delete(studyGroups).where(eq(studyGroups.id, anotherGroup.id));
+  });
+
+  it('два потока с общими группами – conflict', async () => {
+    // создадим второй поток FLOW2 с той же группой, что у FLOW
+    const utFlow = await db.select().from(unitTypes).where(eq(unitTypes.name, 'ПОТОК')).limit(1).then(r => r[0]);
+    const [unitFlow2] = await db.insert(units).values({ code: 'FLOW2', unitTypeId: utFlow.id, isActive: true }).returning();
+    const flowGroupId = (await db.select({ studyGroupId: unitRoots.studyGroupId }).from(unitRoots).where(eq(unitRoots.unitCode, 'FLOW')).limit(1))[0].studyGroupId;
+    await db.insert(unitRoots).values({ unitCode: 'FLOW2', studyGroupId: flowGroupId, isActive: true });
+
+    const [lFlow2] = await db.insert(lessons).values({
+      curriculumId: env.curriculumId, unitId: unitFlow2.id, lessonTypeId: 1, disciplineId: env.disciplineId,
+      countPerSemester: 1, teacherId: env.teacher1Id, isActive: true,
+    }).returning();
+    const [flow2Entry] = await db.insert(scheduleDisplay).values({
+      lessonId: lFlow2.id, weekId: env.weeks[0].id, dayOfWeekId: env.days[0].id, pairNumberId: env.pairs[4].id,
+      unitCode: 'FLOW2', displayText: 'flow2', isBuffered: false, isActive: true, versionId: null,
+    }).returning();
+
+    // пытаемся переместить FLOW в слот FLOW2
+    const { w, d, p, key } = s(0, 0, 4, 'FLOW');
+    const res = await caller.scheduleDisplay.checkSlots({
+      movingId: env.flowEntryId,
+      slots: [{ weekId: w, dayId: d, pairId: p, unitCode: 'FLOW' }],
+    });
+    expect(res[key].status).toBe('conflict');
+
+    // очистка
+    await db.delete(scheduleDisplay).where(eq(scheduleDisplay.id, flow2Entry.id));
+    await db.delete(lessons).where(eq(lessons.id, lFlow2.id));
+    await db.delete(unitRoots).where(eq(unitRoots.unitCode, 'FLOW2'));
+    await db.delete(units).where(eq(units.id, unitFlow2.id));
   });
 });

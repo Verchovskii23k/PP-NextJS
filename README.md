@@ -1,6 +1,6 @@
 # 📅 Информационная система для учета и составления расписания университета
 
-Данный проект представляет собой реализацию системы для создания расписания с минимизацйией конфликтов и максимально возможно близкое к оптимальному. Широкий функционал для настройки должен помочь довести сырой вариант расписания до некоторого оптимизированного варианта.
+Данный проект представляет собой реализацию системы для создания расписания с минимизацией конфликтов и максимально возможно близкое к оптимальному. Широкий функционал для настройки должен помочь довести сырой вариант расписания до некоторого оптимизированного варианта.
 
 Система позволяет вести справочники, генерировать учебные группы, юниты, занятия, назначать аудитории, автоматически генерировать расписание жадным алгоритмом и редактировать его вручную через drag‑and‑drop интерфейс с последующей оптимизацией.
 
@@ -20,7 +20,7 @@
 - **Таблицы:** TanStack React Table
 - **Drag‑and‑Drop:** dnd‑kit
 - **Уведомления:** Sonner (тосты)
-- **Тестирование:** Vitest (143 unit‑теста), Playwright (e2e-тесты)
+- **Тестирование:** Vitest (505 unit‑теста), Playwright (e2e-тесты)
 - **CI/CD:** GitHub Actions (проверка типов, линтера, тестов и сборки)
 - **Почта (dev):** Mailpit (перехватывает письма на localhost:8025)
 
@@ -51,11 +51,11 @@
     - `RecordForm.tsx` – модальная форма создания/редактирования записи.
     - `ForeignKeyCell.tsx` – отображение значения внешнего ключа через запрос к связанной таблице.
     - `ColumnFilterPopover.tsx` – всплывающий фильтр для столбца.
-- **`generations/`** – запуск генераторов данных (групп, юнитов, занятий, расписания) с параметрами.
+- **`generations/`** – запуск генераторов данных (групп, юнитов, занятий, расписания) с параметрами. Генераторы блокируются при активной версии расписания. При генерации расписания запрашивается имя версии, создаётся новая сохранённая версия.
 - **`import-export/`** – глобальный импорт/экспорт всей БД в JSON.
 - **`manual/`** – инструкция пользователя.
 - **`optimization-settings/`** – редактирование весов штрафов и параметров имитации отжига.
-- **`schedule/`** – просмотр, drag‑and‑drop редактирование, оптимизация и версионирование расписания.
+- **`schedule/`** – просмотр, drag‑and‑drop редактирование, оптимизация и версионирование расписания. Поддерживает «Чистый лист» и сохранённые версии, мгновенное переключение между версиями, кнопки «Сохранить как…» и «Удалить версию».
 - **`users/`** – управление пользователями (сброс паролей, изменение ролей).
 
 **`api/`** – API-роуты:
@@ -87,7 +87,7 @@
 
 #### 🗂️ `contexts/` – React-контексты
 - **`ConfirmContext.tsx`** – провайдер для `ConfirmDialog`, предоставляет метод `confirm()`.
-
+- **`VersionContext.tsx`** – контекст версий для расписания.
 #### 🗄️ `db/` – база данных (Drizzle ORM)
 - **`index.ts`** – подключение к PostgreSQL через `drizzle-orm/postgres-js`.
 - **`schema.ts`** – описание всех таблиц (пользователи, институты, …, расписание).
@@ -98,7 +98,6 @@
 
 #### 📚 `lib/` – бизнес-логика и вспомогательные модули
 - **`cascadeDeactivate.ts`** – каскадная деактивация записей в справочных таблицах (institutes, specialties, ...).
-- **`clearGeneratedData.ts`** – очистка активных динамических данных (schedule, lessons, ...).
 - **`password.ts`** – генерация паролей, транслитерация, создание email.
 - **`safeDelete.ts`** – удаление записи с предварительной проверкой дочерних таблиц.
 - **`table-meta.ts`** – единый реестр метаданных всех таблиц (поля, связи, названия).
@@ -120,13 +119,10 @@
   - `auth.ts`, `adminManagement.ts`, `userManagement.ts`, `batchDelete.ts`, `batchUpdateActive.ts`, `crudImportExport.ts`, `globalImportExport.ts`, `lookup.ts`, `settings.ts`.
   - **Роутеры сущностей:** `academicLoadTypes.ts`, `buildings.ts`, `classRooms.ts`, `controlTypes.ts`, `curriculum.ts`, `curriculumProfiles.ts`, `daysOfWeek.ts`, `departments.ts`, `disciplines.ts`, `disciplineTeachers.ts`, `education.ts`, `educationForms.ts`, `educationLevels.ts`, `employees.ts`, `employeesDepartments.ts`, `employmentTypes.ts`, `hourTypeMapping.ts`, `institutes.ts`, `lessons.ts`, `lessonClassrooms.ts`, `lessonTypes.ts`, `pairs.ts`, `positions.ts`, `profiles.ts`, `specialties.ts`, `students.ts`, `studyGroups.ts`, `units.ts`, `unitRoots.ts`, `unitTypes.ts`, `weeks.ts`.
   - **Расписание:** `schedule.ts` (публичное API), `scheduleDisplay.ts` (drag‑and‑drop, буфер, флаги), `scheduleOptimizer.ts` (имитация отжига), `scheduleVersions.ts` (версионирование).
-  - **Генераторы:** `generations/index.ts` (объединение), `generateCredentials.ts`, `generateGroups.ts`, `generateUnits.ts`, `generateLessons.ts`, `assignClassrooms.ts`, `generateSchedule.ts`.
-  - **Тесты:** `__tests__/` – **Unit-тесты (Vitest, 487 тестов)** покрывают все CRUD-роутеры справочных таблиц, 
+  - **Генераторы:** `generations` (объединение), `generateCredentials.ts`, `generateGroups.ts`, `generateUnits.ts`, `generateLessons.ts`, `assignClassrooms.ts`, `generateSchedule.ts` а также `helpers.ts` для проверки открытия чистого листа и `index.ts` для подключения генераторов в один подроутер.
+  - **Тесты:** `__tests__/` – **Unit-тесты (Vitest, 505 тестов)** покрывают все CRUD-роутеры справочных таблиц, 
 роутеры аутентификации и управления пользователями, а также логику вызова генераторов.
-Роутер `scheduleDisplay` частично покрыт тестами (логика проверки конфликтов drag‑and‑drop).
-Отдельные модули (`scheduleOptimizer`, `scheduleVersions`)
-не покрыты unit-тестами из-за высокой сложности изоляции их логики;
-их корректность проверяется ручным тестированием.
+Роутер `scheduleDisplay` и `scheduleOptimizer` частично покрыт тестами (логика проверки конфликтов drag‑and‑drop).  
 
 #### 🧪 `test/` – тестовая инфраструктура
 - **`helpers.ts`** – хелперы: очистка таблиц, создание тестовых сущностей.
@@ -348,7 +344,8 @@ src
 │       └── skeleton.tsx                                                 # Базовый скелетон (прямоугольник) и скелетон таблицы
 │
 ├── contexts/                                                            # React-контексты
-│   └── ConfirmContext.tsx                                               # Провайдер для ConfirmDialog, предоставляет метод confirm()
+│   ├── ConfirmContext.tsx                                               # Провайдер для ConfirmDialog, предоставляет метод confirm()
+│   └── VersionContext.tsx                                               # Контекст версий для расписания
 │
 ├── db/                                                                  # База данных (Drizzle ORM)
 │   ├── index.ts                                                         # Подключение к PostgreSQL через drizzle-orm/postgres-js
@@ -360,7 +357,6 @@ src
 │
 ├── lib/                                                                 # Бизнес-логика и вспомогательные модули
 |   ├── cascadeDeactivate.ts                                             # Каскадная деактивация записей от родителя до последнего потомка. Работает только для таблиц, записи которых имеют атрибут isActive
-│   ├── clearGeneratedData.ts                                            # Очистка активных динамических данных (schedule, lessons, …)
 │   ├── password.ts                                                      # Генерация паролей, транслитерация, создание email
 │   ├── safeDelete.ts                                                    # Удаление записи с предварительной проверкой дочерних таблиц
 │   ├── table-meta.ts                                                    # Единый реестр метаданных всех таблиц (поля, связи, названия)
@@ -414,7 +410,7 @@ src
 │           ├── schedule.ts                                              # Публичное API расписания (фильтры, список занятий)
 │           ├── scheduleDisplay.ts                                       # Работа с отображаемым расписанием (drag-and-drop, буфер, флаги)
 │           ├── scheduleOptimizer.ts                                     # Оптимизация расписания методом имитации отжига
-│           ├── scheduleVersions.ts                                      # Управление версиями расписания (сохранение, восстановление, удаление)
+│           ├── scheduleVersions.ts                                      # Управление версиями расписания (сохранение, переключение, удаление)
 │           ├── settings.ts                                              # Управление настройками (ключ-значение)
 │           ├── specialties.ts                                           # CRUD "Специальности"
 │           ├── students.ts                                              # CRUD "Студенты"
@@ -431,7 +427,8 @@ src
 │           │   ├── generateGroups.ts                                    # Генерация учебных групп
 │           │   ├── generateLessons.ts                                   # Генерация занятий
 │           │   ├── generateSchedule.ts                                  # Генерация расписания (жадный алгоритм)
-│           │   └── generateUnits.ts                                     # Генерация юнитов (потоки, группы, подгруппы)
+│           │   ├── generateUnits.ts                                     # Генерация юнитов (потоки, группы, подгруппы)
+│           │   └── helpers.ts                                            # Проверка открытия чистого листа расписания перед запуском генераторов
 │           └── __tests__/                                                   # Unit‑тесты (Vitest)
 │               ├── academicLoadTypes.test.ts                                # CRUD "Типы нагрузки"
 │               ├── adminManagement.test.ts                                  # Назначение/снятие администраторов
@@ -439,6 +436,7 @@ src
 │               ├── batchDelete.test.ts                                      # Массовое удаление с проверкой зависимостей
 │               ├── batchUpdateActive.test.ts                                # Массовое переключение активности
 │               ├── buildings.test.ts                                        # CRUD "Корпуса"
+│               ├── canMoveToSlot.test.ts                                    # Проверка конфликтов при работе оптимизатора
 │               ├── checkSlots.test.ts                                       # Проверка конфликтов drag‑and‑drop
 │               ├── classRooms.test.ts                                       # CRUD "Аудитории"
 │               ├── controlTypes.test.ts                                     # CRUD "Типы контроля"

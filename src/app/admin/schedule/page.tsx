@@ -1,76 +1,75 @@
 /**
  * ## Страница «Расписание» (администратор)
  *
- * Полнофункциональный интерфейс для просмотра, ручного редактирования (drag-and-drop),
- * тонкой настройки (флаги, слияния) и оптимизации расписания.
+ * Полнофункциональный интерфейс для просмотра, ручного редактирования
+ * (drag‑and‑drop), тонкой настройки (флаги, слияния) и оптимизации
+ * расписания с поддержкой версионирования.
+ *
+ * ### Модель версионирования
+ * - `selectedVersionId === null` – **«Чистый лист»**. Расписание отсутствует,
+ *   редактирование и оптимизация недоступны. Можно только переключаться
+ *   между версиями или запускать генераторы.
+ * - `selectedVersionId !== null` – **активная сохранённая версия**.
+ *   Все изменения автоматически сохраняются в ней. Доступны
+ *   редактирование, оптимизация, сброс флагов, экспорт.
+ * - Выпадающий список всегда содержит «Чистый лист» и все сохранённые
+ *   версии с пометкой «(текущее)» у активной.
+ * - Переключение между версиями мгновенное, без диалогов подтверждения.
+ * - Кнопка «Сохранить как…» создаёт копию текущей версии под новым именем.
+ * - Кнопка «Удалить версию» полностью удаляет активную версию и её данные,
+ *   после чего активируется чистый лист.
  *
  * ### Возможности
- * - **Два режима просмотра:** «По юнитам» (поточные/групповые/подгрупповые коды) и
- *   «По группам» (агрегация по кодам учебных групп).
- * - **Версионирование:** сохранение активного расписания в архив, восстановление любой
- *   версии, удаление версий. Активная версия доступна для редактирования, архивные –
- *   только для чтения.
- * - **Редактирование в режиме drag-and-drop:** занятия можно перетаскивать в свободные
- *   ячейки (подсветка зелёным), менять местами (подсветка синим), а также убирать в
- *   буфер и возвращать обратно.
- * - **Буфер:** боковая панель для временного хранения занятий. При переносе в буфер
- *   координаты обнуляются, занятие не блокирует слот. Из буфера можно перетащить
- *   занятие в конкретную свободную ячейку.
- * - **Флаги занятий:** фиксация позиции (`positionFlag`), закрепление аудитории
- *   (`classroomFlag`), номер слияния (`mergeNumber`). Редактируются кликом по занятию
- *   в режиме редактирования. При перемещении/обмене занятий с флагами выводится
- *   предупреждение и флаги сбрасываются.
- * - **Оптимизация расписания:** запуск алгоритма имитации отжига. Перед запуском, если
- *   в буфере есть занятия, показывается диалог с предложением использовать их
- *   (вернуть в расписание со сбросом флагов) или продолжить без них. После
- *   оптимизации выводится детальная статистика (штраф, количество перемещённых
- *   занятий, проблемы с группами слияния и аудиториями).
- * - **Настройки отжига:** возможность изменить начальную температуру и скорость
- *   охлаждения (сохраняются в таблице `settings`).
+ * - **Два режима просмотра:** «По юнитам» и «По группам».
+ * - **Редактирование в режиме drag‑and‑drop:** занятия можно перетаскивать
+ *   в свободные ячейки (подсветка зелёным), менять местами (подсветка
+ *   синим), убирать в буфер и возвращать обратно.
+ * - **Буфер:** боковая панель для временного хранения занятий. При
+ *   переносе в буфер координаты обнуляются. Из буфера можно перетащить
+ *   занятие в конкретную свободную ячейку или использовать при оптимизации.
+ * - **Флаги занятий:** фиксация позиции (`positionFlag`), закрепление
+ *   аудитории (`classroomFlag`), номер слияния (`mergeNumber`).
+ *   Редактируются кликом по занятию.
+ * - **Оптимизация расписания:** алгоритм имитации отжига. Перед запуском
+ *   при наличии занятий в буфере предлагается диалог – «Продолжить без
+ *   буфера» или «Продолжить с буфером» (буферные занятия автоматически
+ *   размещаются по свободным слотам).
+ * - **Настройки отжига:** изменение начальной температуры и скорости
+ *   охлаждения.
  * - **Экспорт:** печать таблицы и выгрузка в CSV.
- * - **Сброс флагов:** массовый сброс выбранных типов флагов для всех занятий активного
- *   расписания.
+ * - **Сброс флагов:** массовый сброс выбранных типов флагов для всех
+ *   занятий активного расписания.
  *
  * ### Архитектура компонента
- * - **Состояния:** режим просмотра (`viewMode`), признак редактирования (`editMode`),
- *   выбранная версия (`selectedVersionId`), текущее перетаскиваемое занятие
- *   (`activeDragEntry`), статусы слотов (`slotStatuses` / `slotSwapIds`), диалоги
- *   (подтверждения, ввода имени, восстановления версии, использования буфера,
- *   параметров отжига, сброса флагов).
- * - **Взаимодействие с сервером:** все запросы и мутации идут через tRPC-роутер
- *   `scheduleDisplay`. Получение данных для сетки, буфера, проверки слотов,
- *   перемещений, обменов, обновления флагов, запуска оптимизации и сброса флагов.
- * - **Drag-and-drop:** на базе `@dnd-kit/core`. При старте перетаскивания для всех
- *   ячеек текущего юнита вычисляются статусы через `checkSlots`. При завершении
- *   выполняется `move`, `swap`, `moveToBuffer` или `moveFromBuffer` в зависимости от
- *   ситуации.
- * - **Оптимизация:** при нажатии кнопки сначала проверяется количество занятий в
- *   буфере (`getBufferedCount`). Если есть, показывается диалог; при выборе «с
- *   буфером» передаётся `includeBuffered: true`, и сервер снимает буфер и флаги перед
- *   запуском оптимизатора.
- * - **Версионирование:** выбор версии из выпадающего списка. При выборе архивной
- *   версии запрашивается подтверждение (с возможностью предварительно сохранить
- *   текущее активное расписание). Восстановленная версия отображается с пометкой
- *   «текущая», пока не будет сохранена как новая версия.
+ * - **Состояния:** `viewMode`, `editMode`, `selectedEntry`, `flagForm`,
+ *   `activeDragEntry`, `slotStatuses` / `slotSwapIds`, диалоги
+ *   (подтверждения, ввода имени, использования буфера, параметров
+ *   отжига, сброса флагов).
+ * - **Взаимодействие с сервером:** все запросы и мутации идут через
+ *   tRPC‑роутер `scheduleDisplay`. Получение данных для сетки, буфера,
+ *   проверки слотов, перемещений, обменов, обновления флагов, запуска
+ *   оптимизации и сброса флагов.
+ * - **Drag‑and‑drop:** на базе `@dnd‑kit/core`. При старте
+ *   перетаскивания вычисляются статусы слотов через `checkSlots`. При
+ *   завершении выполняется `move`, `swap`, `moveToBuffer` или
+ *   `moveFromBuffer` в зависимости от ситуации.
+ * - **Оптимизация:** при нажатии кнопки сначала проверяется количество
+ *   занятий в буфере (`getBufferedCount`). Если есть – диалог.
+ * - **Версионирование:** состояние `selectedVersionId` берётся из
+ *   глобального контекста `VersionContext`.
  *
  * ### Вспомогательные компоненты
  * - `DraggableLesson` – отдельное занятие (источник перетаскивания).
- * - `DroppableArea` – ячейка сетки (цель перетаскивания). Меняет фон в зависимости от
- *   статуса (`free`/`conflict`/`swap`) и недели.
- * - `BufferEntry` – элемент в буфере (источник перетаскивания). При перетаскивании
- *   скрывается, чтобы не занимать место.
+ * - `DroppableArea` – ячейка сетки (цель перетаскивания). Меняет фон в
+ *   зависимости от статуса (`free`/`conflict`/`swap`) и недели.
+ * - `BufferEntry` – элемент в буфере (источник перетаскивания).
  * - `BufferZone` – боковая панель буфера (цель для сброса занятий).
  *
  * ### Примечания
- * - Редактирование доступно только для активного расписания (`selectedVersionId === null`).
- * - Все мутации сбрасывают флаги фиксации и слияния у перемещаемых занятий.
- * - При восстановлении версии или удалении активных данных требуется подтверждение
- *   через `ConfirmContext`.
- * - Для тестирования и разработки можно использовать `handlePrint` и `handleCSV` для
- *   быстрого просмотра текущего состояния расписания.
- */
-/**
- * ... (документация без изменений)
+ * - Все мутации редактирования передают `versionId: null`, так как
+ *   работают с активными записями.
+ * - При чистом листе кнопки редактирования, оптимизации и экспорта
+ *   скрыты или заблокированы.
  */
 "use client";
 import { toast } from "sonner";
@@ -90,6 +89,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { useConfirmContext } from "@/contexts/ConfirmContext";
 import { InputDialog } from "@/components/ui/InputDialog";
+import { useSelectedVersionId } from "@/contexts/VersionContext";
 
 type Day = { id: number; name: string };
 type Pair = { id: number; number: number };
@@ -107,11 +107,10 @@ type ScheduleRow = {
   lessonId: number | null;
   isBuffered: boolean;
 };
-type AnyRow = ScheduleRow & { studyGroupCode?: string };
+// type AnyRow = ScheduleRow & { studyGroupCode?: string };
 type ScheduleRowWithGroup = ScheduleRow & { studyGroupCode: string };
 type WeekInfo = { id: number; type: string };
 
-// Type guard для проверки, является ли объект ScheduleRow
 function isScheduleRow(value: unknown): value is ScheduleRow {
   return (
     typeof value === 'object' &&
@@ -123,25 +122,19 @@ function isScheduleRow(value: unknown): value is ScheduleRow {
   );
 }
 
-// Type guard для строкового статуса слота
 function isSlotStatus(value: unknown): value is "free" | "conflict" | "swap" {
   return value === "free" || value === "conflict" || value === "swap";
 }
 
-// Безопасное извлечение массива из данных, если он есть
 function extractArray<T>(arr: unknown, guard: (el: unknown) => el is T): T[] {
   if (!Array.isArray(arr)) return [];
   return arr.filter(guard);
 }
 
-// Проверка на ScheduleRowWithGroup
 function isScheduleRowWithGroup(value: unknown): value is ScheduleRowWithGroup {
   return isScheduleRow(value) && 'studyGroupCode' in value && typeof value.studyGroupCode === 'string';
 }
 
-
-
-// Цвета для разных недель
 const WEEK_COLORS = [
   { bg: "bg-teal-200 dark:bg-teal-800", border: "border-teal-400 dark:border-teal-600" },
   { bg: "bg-indigo-200 dark:bg-indigo-800", border: "border-indigo-400 dark:border-indigo-600" },
@@ -280,10 +273,8 @@ export default function AdminSchedulePage() {
   const [selectedEntry, setSelectedEntry] = useState<ScheduleRow | null>(null);
   const [flagForm, setFlagForm] = useState({ mergeNumber: 0, positionFlag: false, classroomFlag: false });
   const [activeDragEntry, setActiveDragEntry] = useState<ScheduleRow | null>(null);
-  const [slotStatuses, setSlotStatuses] = useState<Record<string, "free" | "conflict" | "swap">>({});
+  const [slotStatuses, setSlotStatuses] = useState<Record<string, { status: "free" | "conflict" | "swap"; reason?: string }>>({});
   const [slotSwapIds, setSlotSwapIds] = useState<Record<string, number>>({});
-  const [restoredVersionName, setRestoredVersionName] = useState<string | null>(null);
-  const [restoredVersionId, setRestoredVersionId] = useState<number | null>(null);
   const [showAnnealingDialog, setShowAnnealingDialog] = useState(false);
   const [tempInput, setTempInput] = useState(1000);
   const [rateInput, setRateInput] = useState(0.95);
@@ -294,6 +285,17 @@ export default function AdminSchedulePage() {
     classroomFlag: false,
     mergeNumber: false,
   });
+
+  // Состояние версионирования
+  const { selectedVersionId, setSelectedVersionId } = useSelectedVersionId();
+  const isActiveVersion = selectedVersionId !== null;
+
+  // Сброс редактирования при переходе на чистый лист
+  useEffect(() => {
+    if (!isActiveVersion) {
+      setEditMode(false);
+    }
+  }, [isActiveVersion]);
 
   const tempQuery = trpc.settings.get.useQuery(
     { key: "opt_initial_temperature" },
@@ -323,11 +325,12 @@ export default function AdminSchedulePage() {
     if (count > 0) {
       setBufferDialog({ show: true, count });
     } else {
-      optimizeScheduleMut.mutate({ versionId: selectedVersionId });
+      optimizeScheduleMut.mutate({ versionId: null });
     }
   };
+
   useEffect(() => {
-  const handleKeyDown = (e: KeyboardEvent) => {
+    const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && resetFlagsDialog) {
         setResetFlagsDialog(false);
       }
@@ -335,6 +338,7 @@ export default function AdminSchedulePage() {
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [resetFlagsDialog]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && showAnnealingDialog) {
@@ -357,58 +361,62 @@ export default function AdminSchedulePage() {
     show: boolean; message: string; onConfirm: () => void;
   }>({ show: false, message: "", onConfirm: () => {} });
 
-  const [selectedVersionId, setSelectedVersionId] = useState<number | null>(null);
-  const [restoreDialog, setRestoreDialog] = useState<{
+  const [inputDialog, setInputDialog] = useState<{
     show: boolean;
-    versionId: number;
-    versionName: string;
-  }>({ show: false, versionId: 0, versionName: "" });
+    title: string;
+    defaultValue?: string;
+    onConfirm: (value: string) => void;
+  }>({ show: false, title: "", onConfirm: () => {} });
 
   const utils = trpc.useUtils();
   const versionsQuery = trpc.scheduleVersions.list.useQuery();
-  const [versionsList, setVersionsList] = useState<{ id: number; name: string; createdAt: string }[]>([]);
 
-  useEffect(() => {
-    if (versionsQuery.data && versionsList.length === 0) {
-      setVersionsList(versionsQuery.data);
-    }
-  }, [versionsQuery.data, versionsList.length]);
+  // Мутации
+  const switchToVersionMut = trpc.scheduleVersions.switchToVersion.useMutation({
+    onSuccess: (_, variables) => {
+      // Сбрасываем кэш, чтобы UI сразу обновился
+      utils.scheduleDisplay.getForWeekPair.refetch({ weekBaseId: 1, versionId: null });
+      utils.scheduleDisplay.getByStudyGroups.refetch({ weekBaseId: 1, versionId: null });
+      utils.scheduleDisplay.getBuffer.refetch({ versionId: null });
+
+      utils.scheduleVersions.list.invalidate();
+
+      // Тосты
+      if (variables.targetVersionId === null) {
+        toast.success("Переключено на Чистый лист. Генераторы разблокированы.");
+      } else {
+        const versionName = versionsQuery.data?.find(v => v.id === variables.targetVersionId)?.name ?? "";
+        toast.success(`Вы переключились на версию «${versionName}»`);
+      }
+    },
+    onError: (e) => { toast.error(e.message); },
+  });
 
   const saveActiveMut = trpc.scheduleVersions.saveActive.useMutation({
     onSuccess: async () => {
-      toast.success("Версия сохранена");
-      await utils.scheduleVersions.list.refetch();
-      setVersionsList(utils.scheduleVersions.list.getData() ?? []);
-      setSelectedVersionId(null);
-      setRestoredVersionId(null);
-      setRestoredVersionName(null);
-      refreshData();
+      toast.success("Копия версии сохранена");
+      utils.scheduleVersions.list.invalidate();
     },
-    onError: (e) => { toast.error(e.message); },
+    onError: (e) => {toast.error(e.message)},
   });
 
   const deleteVersionMut = trpc.scheduleVersions.delete.useMutation({
-    onSuccess: async (_, variables) => {
-      // Удаляем из списка сразу же
-      setVersionsList(prev => prev.filter(v => v.id !== variables.versionId));
+    onSuccess: async () => {
       toast.success("Версия удалена");
+      utils.scheduleVersions.list.invalidate();
+      utils.scheduleDisplay.getForWeekPair.invalidate();
+      utils.scheduleDisplay.getByStudyGroups.invalidate();
+      utils.scheduleDisplay.getBuffer.invalidate();
     },
-    onError: (e) => { toast.error(e.message); },
+    onError: (e) => {toast.error(e.message)},
   });
+  const { data: allUnits } = trpc.units.list.useQuery(
+    undefined,
+    { enabled: viewMode === "units" }
+  );
+  const { data: allUnitTypes } = trpc.unitTypes.list.useQuery(undefined, { enabled: viewMode === "units" });
 
-  const restoreAsActiveMut = trpc.scheduleVersions.restoreAsActive.useMutation({
-    onSuccess: async (_, variables) => {
-      toast.success("Версия восстановлена как активная");
-      await utils.scheduleVersions.list.refetch();
-      const updatedList = utils.scheduleVersions.list.getData() ?? [];
-      setVersionsList(updatedList.filter(v => v.id !== variables.versionId));
-      setSelectedVersionId(null);
-      refreshData();
-    },
-    onError: (e) => { toast.error(e.message); },
-  });
-
-  const versionParam = selectedVersionId !== null ? selectedVersionId : null;
+  const versionParam = null;
   const { data: unitsData, isLoading: unitsLoading } = trpc.scheduleDisplay.getForWeekPair.useQuery(
     { weekBaseId: 1, versionId: versionParam },
     { enabled: viewMode === "units" }
@@ -419,7 +427,7 @@ export default function AdminSchedulePage() {
   );
   const { data: bufferData } = trpc.scheduleDisplay.getBuffer.useQuery(
     { versionId: null },
-    { enabled: editMode && selectedVersionId === null }
+    { enabled: editMode && isActiveVersion }
   );
 
   const activeWeeksData: WeekInfo[] = unitsData?.weeks || groupsData?.weeks || [];
@@ -521,26 +529,26 @@ export default function AdminSchedulePage() {
         return;
       }
       if (targetUnitCode !== entry.unitCode) {
-        console.warn("Нельзя перенести занятие в другой юнит");
+        toast.error("Нельзя перенести занятие в другой юнит")
         return;
       }
 
-      const status = slotStatuses[targetId];
-      if (status === "conflict") {
-        toast.error("Невозможно разместить: конфликт");
+      const slot = slotStatuses[targetId];
+      if (slot?.status === "conflict") {
+        toast.error(slot.reason ?? "Невозможно разместить: конфликт");
         return;
       }
 
       try {
-        if (status === "free") {
-          await moveMutation.mutateAsync({ id: entry.id, targetWeekId, targetDayId, targetPairId, targetUnitCode, versionId: selectedVersionId });
-        } else if (status === "swap") {
-          const swapId = slotSwapIds[targetId];
+        if (slot?.status === "free") {
+          await moveMutation.mutateAsync({ id: entry.id, targetWeekId, targetDayId, targetPairId, targetUnitCode, versionId: null });
+        } else if (slot?.status === "swap") {
+            const swapId = slotSwapIds[targetId];
           if (!swapId) {
             toast.error("Занятие для обмена не найдено");
             return;
           }
-          await swapMutation.mutateAsync({ id1: entry.id, id2: swapId, versionId: selectedVersionId });
+          await swapMutation.mutateAsync({ id1: entry.id, id2: swapId, versionId: null });
         }
         refreshData();
       } catch (e: unknown) {
@@ -566,22 +574,21 @@ export default function AdminSchedulePage() {
           }
         }
       }
-      const result = await checkSlots.mutateAsync({ movingId: entry.id, slots, versionId: selectedVersionId });
-      const newStatuses: Record<string, "free" | "conflict" | "swap"> = {};
+      const result = await checkSlots.mutateAsync({ movingId: entry.id, slots, versionId: null });
+      const newStatuses: Record<string, { status: "free" | "conflict" | "swap"; reason?: string | undefined }> = {};
       const newSwapIds: Record<string, number> = {};
       for (const [key, val] of Object.entries(result)) {
-        // Безопасно извлекаем статус
         if (val && typeof val === 'object' && 'status' in val && isSlotStatus(val.status)) {
-          newStatuses[key] = val.status;
+          newStatuses[key] = { status: val.status as "free" | "conflict" | "swap", reason: val.reason };
           if (val.status === 'swap' && 'swapId' in val && typeof val.swapId === 'number') {
             newSwapIds[key] = val.swapId;
           }
         }
       }
-      setSlotStatuses(newStatuses);
+      setSlotStatuses(newStatuses as Record<string, { status: "free" | "conflict" | "swap"; reason?: string }>);
       setSlotSwapIds(newSwapIds);
     },
-    [unitsData, groupsData, activeWeekIds, checkSlots]
+    [unitsData, groupsData, activeWeekIds, checkSlots, selectedVersionId]
   );
 
   const handleDragStart = (event: DragStartEvent) => {
@@ -607,17 +614,15 @@ export default function AdminSchedulePage() {
     const targetId = over.id;
     if (typeof targetId !== 'string') return;
 
-    // --- Буфер ---
     if (targetId === "buffer-zone") {
       if (!entry.isBuffered) {
-        await moveToBufferMut.mutateAsync({ id: entry.id, versionId: selectedVersionId });
+        await moveToBufferMut.mutateAsync({ id: entry.id, versionId: null });
         refreshData();
       }
       return;
     }
 
     if (entry.isBuffered) {
-      // возврат из буфера
       const parts = targetId.split("-");
       if (parts.length < 5 || parts[0] !== "week") return;
       const targetWeekId = parseInt(parts[1], 10);
@@ -625,19 +630,18 @@ export default function AdminSchedulePage() {
       const targetPairId = parseInt(parts[3], 10);
       const targetUnitCode = parts.slice(4).join("-");
       const slots = [{ weekId: targetWeekId, dayId: targetDayId, pairId: targetPairId, unitCode: targetUnitCode }];
-      const result = await checkSlots.mutateAsync({ movingId: entry.id, slots });
+      const result = await checkSlots.mutateAsync({ movingId: entry.id, slots, versionId: null });
       const statusKey = `week-${targetWeekId}-${targetDayId}-${targetPairId}-${targetUnitCode}`;
-      const status = result[statusKey]?.status;
-      if (status !== "free") {
-        toast.error("Невозможно разместить: конфликт");
+      const slotResult = result[statusKey];
+      if (slotResult?.status !== "free") {
+        toast.error(slotResult?.reason ?? "Невозможно разместить: конфликт");
         return;
       }
-      await moveFromBufferMut.mutateAsync({ id: entry.id, targetWeekId, targetDayId, targetPairId, targetUnitCode, versionId: selectedVersionId });
+      await moveFromBufferMut.mutateAsync({ id: entry.id, targetWeekId, targetDayId, targetPairId, targetUnitCode, versionId: null });
       refreshData();
       return;
     }
 
-    // --- Проверка флагов ---
     const hasFlags = entry.positionFlag || entry.mergeNumber !== 0;
     if (hasFlags) {
       setConfirmDialog({
@@ -666,7 +670,7 @@ export default function AdminSchedulePage() {
 
   const saveFlags = async () => {
     if (!selectedEntry) return;
-    await updateFlags.mutateAsync({ id: selectedEntry.id, ...flagForm, versionId: selectedVersionId });
+    await updateFlags.mutateAsync({ id: selectedEntry.id, ...flagForm, versionId: null });
     setSelectedEntry(null);
     refreshData();
   };
@@ -688,12 +692,11 @@ export default function AdminSchedulePage() {
               week.type,
             ];
             for (const code of unitCodes) {
-              const entry = unitsData.rows.find(
+              const entries = unitsData.rows.filter(
                 r => r.unitCode === code && r.dayOfWeekId === day.id && r.pairNumberId === pair.id && r.weekId === week.id
               );
-              row.push(entry ? entry.displayText : "—");
+              row.push(entries.length > 0 ? entries.map(e => e.displayText).join("<br>") : "—");
             }
-            // Сохраняем тип недели для последующего определения фона
             (row as string[] & { _isEven?: boolean })._isEven = week.id % 2 === 0;
             rows.push(row);
           }
@@ -712,12 +715,11 @@ export default function AdminSchedulePage() {
               week.type,
             ];
             for (const code of groupCodes) {
-              const entry = groupsData.rows.find(
+              const entries = groupsData.rows.filter(
                 r => r.studyGroupCode === code && r.dayOfWeekId === day.id && r.pairNumberId === pair.id && r.weekId === week.id
               );
-              row.push(entry ? entry.displayText : "—");
+              row.push(entries.length > 0 ? entries.map(e => e.displayText).join("<br>") : "—");
             }
-            // Сохраняем тип недели для последующего определения фона
             (row as string[] & { _isEven?: boolean })._isEven = week.id % 2 === 0;
             rows.push(row);
           }
@@ -767,210 +769,130 @@ export default function AdminSchedulePage() {
     printWindow.close();
   };
 
-  const handleCSV = () => {
-    const rows: string[][] = [];
-    const header = ["День", "Пара", ...activeWeeksData.map(w => w.type)];
+const handleCSV = () => {
+  const rows: string[][] = [];
 
-    if (viewMode === "units" && unitsData) {
-      const unitCodes = Array.from(new Set(unitsData.rows.map(r => r.unitCode))).sort();
-      unitCodes.forEach(code => header.push(code));
-      rows.push(header);
+  if (viewMode === "units" && unitsData) {
+    const unitCodes = Array.from(new Set(unitsData.rows.map(r => r.unitCode))).sort();
+    const header = ["День", "Пара", "Неделя", ...unitCodes];
+    rows.push(header);
 
-      for (const day of unitsData.days) {
-        for (const pair of unitsData.pairs) {
-          for (const week of activeWeeksData) {
-            const row = [
-              day.name,
-              String(pair.number),
-              week.type,
-            ];
-            for (const code of unitCodes) {
-              const entry = unitsData.rows.find(
-                r => r.unitCode === code && r.dayOfWeekId === day.id && r.pairNumberId === pair.id && r.weekId === week.id
-              );
-              row.push(entry ? entry.displayText : "—");
-            }
-            // Сохраняем тип недели для последующего определения фона
-            (row as string[] & { _isEven?: boolean })._isEven = week.id % 2 === 0;
-            rows.push(row);
+    for (const day of unitsData.days) {
+      for (const pair of unitsData.pairs) {
+        for (const week of activeWeeksData) {
+          const row = [
+            day.name,
+            String(pair.number),
+            week.type,
+          ];
+          for (const code of unitCodes) {
+            const entries = unitsData.rows.filter(
+              r => r.unitCode === code && r.dayOfWeekId === day.id && r.pairNumberId === pair.id && r.weekId === week.id
+            );
+            row.push(entries.length > 0 ? entries.map(e => e.displayText).join(" | ") : "—");
           }
-        }
-      }
-    } else if (viewMode === "groups" && groupsData) {
-      const groupCodes = Array.from(new Set(groupsData.rows.map((r: ScheduleRowWithGroup) => r.studyGroupCode))).sort();
-      groupCodes.forEach(code => header.push(code));
-      rows.push(header);
-
-      for (const day of groupsData.days) {
-        for (const pair of groupsData.pairs) {
-          for (const week of activeWeeksData) {
-            const row = [
-              day.name,
-              String(pair.number),
-              week.type,
-            ];
-            for (const code of groupCodes) {
-              const entry = groupsData.rows.find(
-                r => r.studyGroupCode === code && r.dayOfWeekId === day.id && r.pairNumberId === pair.id && r.weekId === week.id
-              );
-              row.push(entry ? entry.displayText : "—");
-            }
-            // Сохраняем тип недели для последующего определения фона
-            (row as string[] & { _isEven?: boolean })._isEven = week.id % 2 === 0;
-            rows.push(row);
-          }
+          rows.push(row);
         }
       }
     }
+  } else if (viewMode === "groups" && groupsData) {
+    const groupCodes = Array.from(new Set(groupsData.rows.map((r: ScheduleRowWithGroup) => r.studyGroupCode))).sort();
+    const header = ["День", "Пара", "Неделя", ...groupCodes];
+    rows.push(header);
 
-    if (rows.length === 0) return;
+    for (const day of groupsData.days) {
+      for (const pair of groupsData.pairs) {
+        for (const week of activeWeeksData) {
+          const row = [
+            day.name,
+            String(pair.number),
+            week.type,
+          ];
+          for (const code of groupCodes) {
+            const entries = groupsData.rows.filter(
+              r => r.studyGroupCode === code && r.dayOfWeekId === day.id && r.pairNumberId === pair.id && r.weekId === week.id
+            );
+            row.push(entries.length > 0 ? entries.map(e => e.displayText).join(" | ") : "—");
+          }
+          rows.push(row);
+        }
+      }
+    }
+  }
 
-    const bom = "\uFEFF";
-    const csvContent = "data:text/csv;charset=utf-8," + bom + rows.map(r => r.join(";")).join("\n");
-    const link = document.createElement("a");
-    link.setAttribute("href", encodeURI(csvContent));
-    link.setAttribute("download", `schedule.csv`);
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
+  if (rows.length === 0) return;
+
+  const bom = "\uFEFF";
+  const csvContent = "data:text/csv;charset=utf-8," + bom + rows.map(r => r.join(";")).join("\n");
+  const link = document.createElement("a");
+  link.setAttribute("href", encodeURI(csvContent));
+  link.setAttribute("download", `schedule.csv`);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+};
+
+  const { confirm } = useConfirmContext();
+
+  // Обработчик изменения версии
+  const handleVersionChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const val = e.target.value;
+    const targetVersionId = val === "" ? null : Number(val);
+    if (targetVersionId === selectedVersionId) return;
+    await switchToVersionMut.mutateAsync({
+      currentVersionId: selectedVersionId,
+      targetVersionId,
+    });
+    setSelectedVersionId(targetVersionId);
   };
 
-  const resetGeneratedMut = trpc.generations.resetGeneratedData.useMutation({
-    onSuccess: () => {
-      toast.success('Активные данные удалены')
-      refreshData()
-    },
-    onError: (e) => { toast.error(e.message) },
-  });
-
-  const handleSaveVersion = () => {
+  // Обработчик сохранения копии версии
+  const handleSaveAsCopy = () => {
     setInputDialog({
       show: true,
-      title: "Название версии",
-      defaultValue: `Версия от ${new Date().toLocaleDateString()}`,
+      title: "Название копии",
+      defaultValue: `Копия от ${new Date().toLocaleDateString()}`,
       onConfirm: async (name) => {
         await saveActiveMut.mutateAsync({ name });
         setInputDialog({ show: false, title: "", onConfirm: () => {} });
-        setRestoredVersionName(null);
-        setRestoredVersionId(null);
+        // После сохранения копии переключаемся на чистый лист
+        setSelectedVersionId(null);
       },
     });
   };
 
-  const { confirm } = useConfirmContext();
-
-  // Удаление версии
+  // Удаление активной версии
   const handleDeleteVersion = async () => {
-    const versionId = restoredVersionId ?? selectedVersionId;
-    if (versionId === null) return;
+    if (selectedVersionId === null) return;
+    const versionId = selectedVersionId;
+    const versionName = versionsQuery.data?.find(v => v.id === versionId)?.name ?? "";
     const ok = await confirm({
       title: "Удаление версии",
-      message: "Удалить версию и все её данные?",
+      message: `Удалить версию «${versionName}» и все её данные?`,
       confirmLabel: "Удалить",
       variant: "danger",
     });
     if (!ok) return;
 
     try {
+      // Сначала деактивируем текущую версию (чистый лист)
+      await switchToVersionMut.mutateAsync({
+        currentVersionId: selectedVersionId,
+        targetVersionId: null,
+      });
+      // Затем удаляем версию
       await deleteVersionMut.mutateAsync({ versionId });
-      // Немедленно удаляем из списка
-      setVersionsList(prev => prev.filter(v => v.id !== versionId));
-      // Если удалялась текущая активная версия, сбрасываем состояние
-      if (versionId === restoredVersionId) {
-        setRestoredVersionId(null);
-        setRestoredVersionName(null);
-      }
       setSelectedVersionId(null);
-      refreshData();
-      toast.success("Версия удалена");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Ошибка удаления");
     }
   };
-
-  // const handleVersionChange = (val: string) => {
-  //   if (val === "active") {
-  //     setSelectedVersionId(null);
-  //     setRestoredVersionName(null);
-  //     setRestoredVersionId(null);
-  //     return;
-  //   }
-  //   const versionId = Number(val);
-  //   const versionName = versionsList.find((v) => v.id === versionId)?.name ?? "";
-  //   setRestoreDialog({ show: true, versionId, versionName });
-  // };
-
-  const [inputDialog, setInputDialog] = useState<{
-    show: boolean;
-    title: string;
-    defaultValue?: string;
-    onConfirm: (value: string) => void;
-  }>({ show: false, title: "", onConfirm: () => {} });
-
-  const handleRestoreSaveAndProceed = () => {
-    setRestoreDialog({ show: false, versionId: 0, versionName: "" });
-    setInputDialog({
-      show: true,
-      title: "Сохранить текущее расписание как",
-      defaultValue: `Версия от ${new Date().toLocaleDateString()}`,
-      onConfirm: async (name) => {
-        try {
-          await saveActiveMut.mutateAsync({ name });
-        } catch (e) {
-          toast.error("Ошибка при сохранении: " + (e instanceof Error ? e.message : ""));
-          return;
-        }
-        try {
-          await restoreAsActiveMut.mutateAsync({ versionId: restoreDialog.versionId });
-          setVersionsList(prev => prev.filter(v => v.id !== restoreDialog.versionId));
-          setRestoredVersionName(restoreDialog.versionName);
-          setRestoredVersionId(restoreDialog.versionId);
-          setSelectedVersionId(null);
-          setInputDialog({ show: false, title: "", onConfirm: () => {} });
-          refreshData();
-        } catch (e) {
-          toast.error("Ошибка восстановления: " + (e instanceof Error ? e.message : ""));
-        }
-      },
-    });
-  };
-
-  // Восстановление версии без сохранения текущей
-  const handleRestoreProceedWithoutSave = async () => {
-    const previousRestoredId = restoredVersionId; // запоминаем id предыдущей активной версии
-    setRestoreDialog({ show: false, versionId: 0, versionName: "" });
-    try {
-      await restoreAsActiveMut.mutateAsync({ versionId: restoreDialog.versionId });
-      // Если была активная сохранённая версия, удаляем её полностью (она стала пустой)
-      if (previousRestoredId !== null) {
-        await deleteVersionMut.mutateAsync({ versionId: previousRestoredId });
-        setVersionsList(prev => prev.filter(v => v.id !== previousRestoredId));
-        // Принудительно сбрасываем кэш, чтобы список обновился на сервере
-        await utils.scheduleVersions.list.invalidate();
-      }
-      // Восстановленная версия становится текущей и удаляется из списка архивов
-      setRestoredVersionName(restoreDialog.versionName);
-      setRestoredVersionId(restoreDialog.versionId);
-      setSelectedVersionId(null);
-      setVersionsList(prev => prev.filter(v => v.id !== restoreDialog.versionId));
-      refreshData();
-    } catch (e) {
-      toast.error("Ошибка восстановления: " + (e instanceof Error ? e.message : ""));
-    }
-  };
-
-  const handleRestoreCancel = () => {
-    setRestoreDialog({ show: false, versionId: 0, versionName: "" });
-  };
-
-  const isActiveVersion = selectedVersionId === null;
 
   if (viewMode === "units" && unitsLoading) return <div className="p-6"><Skeleton className="h-4 w-32" /></div>;
   if (viewMode === "groups" && groupsLoading) return <div className="p-6"><Skeleton className="h-4 w-32" /></div>;
 
   const bufferEntries = bufferData || [];
   
-  // Безопасное извлечение строк
   const displayRows = viewMode === "units"
     ? (unitsData?.rows ?? [])
     : extractArray<ScheduleRowWithGroup>(groupsData?.rows, isScheduleRowWithGroup);
@@ -978,101 +900,105 @@ export default function AdminSchedulePage() {
   const days = viewMode === "units" ? unitsData?.days : groupsData?.days;
   const pairs = viewMode === "units" ? unitsData?.pairs : groupsData?.pairs;
   
-  const unitKeys = viewMode === "units"
-    ? Array.from(new Set(displayRows?.map((r) => (r as ScheduleRow).unitCode) || [])).sort()
-    : Array.from(
-        new Set(
-          displayRows
-            .filter((r): r is ScheduleRowWithGroup => isScheduleRowWithGroup(r))
-            .map(r => r.studyGroupCode)
-        )
-      ).sort();
+  const unitKeys = (() => {
+    if (viewMode === "units") {
+      const codes = Array.from(new Set((unitsData?.rows ?? []).map(r => r.unitCode)));
+      if (!allUnits || !allUnitTypes) return codes.sort();
+
+      const typeMap = new Map<number, string>();
+      for (const ut of allUnitTypes) typeMap.set(ut.id, ut.name);
+
+      const codeToType = new Map<string, string>();
+      for (const u of allUnits) {
+        const type = typeMap.get(u.unitTypeId) ?? 'ГРУППА';
+        codeToType.set(u.code, type);
+      }
+
+      const flows: string[] = [];
+      const groups: string[] = [];
+      const subByGroup = new Map<string, string[]>();
+
+      for (const code of codes) {
+        const type = codeToType.get(code) ?? 'ГРУППА';
+        if (type === 'ПОТОК') {
+          flows.push(code);
+        } else {
+          const match = code.match(/^(.+?)(\d+)$/);
+          if (match && codes.includes(match[1])) {
+            const parent = match[1];
+            if (!subByGroup.has(parent)) subByGroup.set(parent, []);
+            subByGroup.get(parent)!.push(code);
+          } else {
+            groups.push(code);
+          }
+        }
+      }
+
+      flows.sort();
+      groups.sort();
+
+
+      const ordered: string[] = [...flows];
+      for (const g of groups) {
+        ordered.push(g);
+        if (subByGroup.has(g)) ordered.push(...subByGroup.get(g)!);
+      }
+      // Подгруппы, чья родительская группа сама является подгруппой (редко), добавляются в конец
+      for (const [parent, subs] of subByGroup) {
+        if (!groups.includes(parent) && !flows.includes(parent)) {
+          ordered.push(parent);
+          ordered.push(...subs);
+        }
+      }
+      return ordered;
+    } else {
+      return Array.from(new Set((groupsData?.rows ?? []).map(r => r.studyGroupCode))).sort();
+    }
+  })();
 
   return (
     <div className="flex h-full flex-col bg-background p-4 text-foreground">
       <h1 className="mb-4 text-xl font-bold">Расписание</h1>
-        {/* Панель версионирования */}
-        <div className="mb-4 flex items-center gap-3">
-          <select
-            className="rounded border border-border bg-background px-2 py-1 text-sm"
-            value={
-              restoredVersionId !== null
-                ? "restored"
-                : "active"
-            }
-            onChange={(e) => {
-              const val = e.target.value;
-              if (val === "active") {
-                // Пользователь выбрал пункт "Текущее (не сохранено)" – ничего не меняем
-                return;
-              }
-              // Выбрана архивная версия – открываем диалог восстановления
-              const versionId = Number(val);
-              const versionName = versionsList.find((v) => v.id === versionId)?.name ?? "";
-              setRestoreDialog({ show: true, versionId, versionName });
-            }}
-          >
-            {/* Динамический заголовок текущего состояния */}
-            {restoredVersionId === null ? (
-              <option value="active">Текущее (не сохранено)</option>
-            ) : (
-              <option value="restored">{restoredVersionName} (текущее)</option>
-            )}
-            {/* Список архивных версий */}
-            {versionsList.map((v) => (
-              <option key={v.id} value={v.id}>
-                {v.name} ({new Date(v.createdAt).toLocaleDateString()})
-              </option>
-            ))}
-          </select>
 
-          {/* Кнопки управления */}
-          {restoredVersionId === null ? (
-            <>
-              <button
-                onClick={handleSaveVersion}
-                disabled={saveActiveMut.isPending}
-                aria-label="Сохранить как версию"
-                className="rounded bg-green-600 px-3 py-1 text-sm text-white hover:bg-green-700"
-              >
-                {saveActiveMut.isPending ? "Сохранение..." : "Сохранить как версию"}
-              </button>
-              <button
-                onClick={async () => {
-                  const ok = await confirm({
-                    title: "Удаление активного расписания",
-                    message:
-                      "Будут полностью удалены все активные данные (расписание, занятия, юниты, группы). Действие нельзя отменить. Продолжить?",
-                    confirmLabel: "Удалить",
-                    variant: "danger",
-                  });
-                  if (!ok) return;
-                  try {
-                    await resetGeneratedMut.mutateAsync();
-                    setRestoredVersionName(null);
-                    setRestoredVersionId(null);
-                    toast.success("Активные данные удалены");
-                  } catch (e) {}
-                }}
-                disabled={resetGeneratedMut.isPending}
-                className="rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
-              >
-                {resetGeneratedMut.isPending ? "Удаление..." : "Удалить активное"}
-              </button>
-            </>
-          ) : (
-            <>
-              <button
-                onClick={handleDeleteVersion}
-                disabled={deleteVersionMut.isPending}
-                aria-label="Удалить версию"
-                className="rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
-              >
-                {deleteVersionMut.isPending ? "Удаление..." : "Удалить версию"}
-              </button>
-            </>
-          )}
-        </div>
+      {/* Панель версионирования */}
+      <div className="mb-4 flex items-center gap-3">
+        <select
+          className="rounded border border-border bg-background px-2 py-1 text-sm"
+          value={selectedVersionId === null ? "" : selectedVersionId.toString()}
+          onChange={handleVersionChange}
+        >
+          <option value="">
+            Чистый лист {selectedVersionId === null ? "(текущее)" : ""}
+          </option>
+          {versionsQuery.data?.map((v) => (
+            <option key={v.id} value={v.id.toString()}>
+              {v.name}
+              {v.id === selectedVersionId ? " (текущее)" : ""}
+            </option>
+          ))}
+        </select>
+
+        <button
+          onClick={handleSaveAsCopy}
+          disabled={!isActiveVersion || saveActiveMut.isPending}
+          aria-label="Сохранить копию версии"
+          className="rounded bg-green-600 px-3 py-1 text-sm text-white hover:bg-green-700 disabled:opacity-50"
+        >
+          {saveActiveMut.isPending ? "Сохранение..." : "Сохранить как…"}
+        </button>
+
+        {isActiveVersion && (
+          <button
+            onClick={handleDeleteVersion}
+            disabled={deleteVersionMut.isPending}
+            aria-label="Удалить версию"
+            className="rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700 disabled:opacity-50"
+          >
+            {deleteVersionMut.isPending ? "Удаление..." : "Удалить версию"}
+          </button>
+        )}
+      </div>
+
       <InputDialog
         open={inputDialog.show}
         title={inputDialog.title}
@@ -1080,37 +1006,7 @@ export default function AdminSchedulePage() {
         onConfirm={inputDialog.onConfirm}
         onCancel={() => setInputDialog({ show: false, title: "", onConfirm: () => {} })}
       />
-      {/* Диалог восстановления версии */}
-      {restoreDialog.show && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
-          <div className="max-w-md rounded border border-border bg-background p-6 shadow-lg">
-            <p className="mb-4 text-foreground">
-              Вы собираетесь загрузить версию «{restoreDialog.versionName}» как активную.
-              Текущее активное расписание будет безвозвратно удалено. Желаете сохранить текущее расписание перед заменой?
-            </p>
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={handleRestoreCancel}
-                className="rounded border border-border px-4 py-2 text-foreground hover:bg-muted"
-              >
-                Отмена
-              </button>
-              <button
-                onClick={handleRestoreProceedWithoutSave}
-                className="rounded bg-yellow-600 px-4 py-2 text-white hover:bg-yellow-700"
-              >
-                Продолжить без сохранения
-              </button>
-              <button
-                onClick={handleRestoreSaveAndProceed}
-                className="hover:bg-primary/90 rounded bg-primary px-4 py-2 text-white"
-              >
-                Сохранить и продолжить
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+
       {/* Диалог использования буфера */}
       {bufferDialog.show && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
@@ -1128,7 +1024,7 @@ export default function AdminSchedulePage() {
               <button
                 onClick={() => {
                   setBufferDialog({ show: false, count: 0 });
-                  optimizeScheduleMut.mutate({ versionId: selectedVersionId });
+                  optimizeScheduleMut.mutate({ versionId: null });
                 }}
                 className="rounded bg-yellow-600 px-4 py-2 text-white hover:bg-yellow-700"
               >
@@ -1137,7 +1033,7 @@ export default function AdminSchedulePage() {
               <button
                 onClick={() => {
                   setBufferDialog({ show: false, count: 0 });
-                  optimizeScheduleMut.mutate({ versionId: selectedVersionId, includeBuffered: true });
+                  optimizeScheduleMut.mutate({ versionId: null, includeBuffered: true });
                 }}
                 className="hover:bg-primary/90 rounded bg-primary px-4 py-2 text-white"
               >
@@ -1147,6 +1043,7 @@ export default function AdminSchedulePage() {
           </div>
         </div>
       )}
+
       {/* Легенда */}
       <div className="mb-4 flex flex-wrap gap-4 rounded border border-border bg-muted p-3 text-sm">
         {activeWeeksData.map((week, idx) => (
@@ -1199,8 +1096,12 @@ export default function AdminSchedulePage() {
       <div className="mb-4 flex gap-4">
         <button onClick={() => setViewMode("units")} className={viewMode === "units" ? "border-b-2 border-blue-500 font-bold" : ""}>По юнитам</button>
         <button onClick={() => setViewMode("groups")} className={viewMode === "groups" ? "border-b-2 border-blue-500 font-bold" : ""}>По группам</button>
-        <button onClick={handlePrint} className="ml-2 rounded bg-blue-600 px-3 py-1 text-white hover:bg-blue-700">🖨️ Печать</button>
-        <button onClick={handleCSV} className="ml-2 rounded bg-green-600 px-3 py-1 text-white hover:bg-green-700">📥 CSV</button>
+        {isActiveVersion && (
+          <>
+            <button onClick={handlePrint} className="ml-2 rounded bg-blue-600 px-3 py-1 text-white hover:bg-blue-700">🖨️ Печать</button>
+            <button onClick={handleCSV} className="ml-2 rounded bg-green-600 px-3 py-1 text-white hover:bg-green-700">📥 CSV</button>
+          </>
+        )}
         {viewMode === "units" && (
           <button
             onClick={handleOptimize}
@@ -1237,7 +1138,7 @@ export default function AdminSchedulePage() {
                     Выберите, какие флаги сбросить у всех занятий активного расписания:
                   </p>
                   <label className="mb-4 flex items-center gap-2 text-foreground">
-                  <input
+                    <input
                       type="checkbox"
                       checked={resetFlagsSelection.mergeNumber}
                       onChange={(e) =>
@@ -1300,23 +1201,23 @@ export default function AdminSchedulePage() {
 
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
         <div className="flex min-h-0 flex-1 items-stretch gap-4">
-          {editMode && <BufferZone entries={bufferEntries} isEditMode={editMode} />}
+          {editMode && isActiveVersion && <BufferZone entries={bufferEntries} isEditMode={editMode} />}
 
           <div className="min-h-0 flex-1 overflow-auto" id="schedule-table">
             {days && pairs && displayRows && (
-              <div className="overflow-x-auto rounded-md border border-border">
-                <table className="w-full border-collapse text-sm">
-                  <thead>
+              <div className="rounded-md border border-border">
+                <table className="w-full border-separate border-spacing-0 text-sm">
+                  <thead style={{ position: 'sticky', top: 0, zIndex: 20, background: 'var(--muted)' }}>
                     <tr className="bg-muted">
-                      <th className="sticky left-0 z-20 w-[70px] min-w-[70px] border border-border bg-muted p-2 text-foreground">
+                      <th style={{ position: 'sticky', left: 0, zIndex: 30, background: 'var(--muted)' }} className="w-[70px] min-w-[70px] border border-border bg-muted p-2 text-foreground">
                         День
                       </th>
-                      <th className="sticky left-[70px] z-20 w-[50px] min-w-[50px] border border-border bg-muted p-2 text-foreground">
+                      <th style={{ position: 'sticky', left: '70px', zIndex: 30, background: 'var(--muted)' }} className="w-[50px] min-w-[50px] border border-border bg-muted p-2 text-foreground">
                         Пара
                       </th>
                       {unitKeys.map((code) => (
                         <th key={code} className="min-w-[180px] whitespace-nowrap border border-border bg-blue-50 p-2 text-foreground dark:bg-blue-900/30">
-                          {code}
+                          <span style={{ position: 'relative', zIndex: 1 }}>{code}</span>
                         </th>
                       ))}
                     </tr>
@@ -1330,44 +1231,72 @@ export default function AdminSchedulePage() {
                             {isFirstPairOfDay && (
                               <td
                                 rowSpan={pairs.length}
-                                className="sticky left-0 z-10 border border-border bg-background p-2 text-center align-top font-medium"
+                                style={{ position: 'sticky', left: 0, zIndex: 10, background: 'var(--background)' }}
+                                className="border border-border bg-background p-2 text-center align-top font-medium"
                               >
                                 {day.name}
                               </td>
                             )}
-                            <td className="sticky left-[70px] z-10 border border-border bg-background p-2 text-center align-top">
+                            <td
+                              style={{ position: 'sticky', left: '70px', zIndex: 10, background: 'var(--background)' }}
+                              className="border border-border bg-background p-2 text-center align-top"
+                            >
                               {pair.number}
                             </td>
                             {unitKeys.map((code) => (
                               <td key={`${day.id}-${pair.id}-${code}`} className="min-w-[180px] border border-border p-1 align-top">
                                 <div className="flex flex-col gap-1">
-                                  {activeWeeksData.map((week, weekIdx) => {
-                                    const matchFn = (r: AnyRow) =>
-                                      viewMode === "units"
-                                        ? r.unitCode === code
-                                        : r.studyGroupCode === code;
-                                    const entry = displayRows.find(
-                                      (r) =>
-                                        matchFn(r) &&
-                                        r.dayOfWeekId === day.id &&
-                                        r.pairNumberId === pair.id &&
-                                        r.weekId === week.id
-                                    );
-                                    return (
-                                      <DroppableArea
-                                        key={`${week.id}-${day.id}-${pair.id}-${code}`}
-                                        weekId={week.id}
-                                        weekIndex={weekIdx}
-                                        dayId={day.id}
-                                        pairId={pair.id}
-                                        unitCode={code}
-                                        entry={entry}
-                                        isEditMode={editMode}
-                                        status={slotStatuses[`week-${week.id}-${day.id}-${pair.id}-${code}`] ?? null}
-                                        onCellClick={openFlagEditor}
-                                      />
-                                    );
-                                  })}
+{activeWeeksData.map((week, weekIdx) => {
+  if (viewMode === "units") {
+    const entry = displayRows.find(
+      (r) =>
+        'unitCode' in r &&
+        r.unitCode === code &&
+        r.dayOfWeekId === day.id &&
+        r.pairNumberId === pair.id &&
+        r.weekId === week.id
+    );
+    return (
+      <DroppableArea
+        key={`${week.id}-${day.id}-${pair.id}-${code}`}
+        weekId={week.id}
+        weekIndex={weekIdx}
+        dayId={day.id}
+        pairId={pair.id}
+        unitCode={code}
+        entry={entry as ScheduleRow | undefined}
+        isEditMode={editMode && isActiveVersion}
+        status={slotStatuses[`week-${week.id}-${day.id}-${pair.id}-${code}`]?.status ?? null}
+        onCellClick={openFlagEditor}
+      />
+    );
+    } else {
+      // viewMode === "groups"
+      const entries = (displayRows as ScheduleRowWithGroup[]).filter(
+        (r) =>
+          r.studyGroupCode === code &&
+          r.dayOfWeekId === day.id &&
+          r.pairNumberId === pair.id &&
+          r.weekId === week.id
+      );
+      const color = WEEK_COLORS[weekIdx % WEEK_COLORS.length];
+      const bg = `${color.bg} ${color.border}`;
+      return (
+        <div
+          key={`${week.id}-${day.id}-${pair.id}-${code}`}
+          className={`rounded border p-1 text-xs leading-tight ${bg}`}
+        >
+          {entries.length > 0 ? (
+            entries.map((entry) => (
+              <DraggableLesson key={entry.id} entry={entry} isEditMode={false} />
+            ))
+          ) : (
+            <span className="text-xs text-muted-foreground">—</span>
+          )}
+        </div>
+      );
+    }
+})}
                                 </div>
                               </td>
                             ))}

@@ -1,10 +1,18 @@
-import { router, adminProcedure } from "../../trpc";
+/**
+ * ## Объединённый роутер генераторов
+ *
+ * Содержит все мутации пайплайна генерации: группы, юниты, занятия,
+ * назначение аудиторий, генерация расписания.
+ *
+ * Мутации доступны только администратору. Защита от вызова при открытой
+ * версии реализована через вызов `assertCleanSlate` внутри каждой мутации.
+ */
+import { router } from "../../trpc";
 import { generateGroupsRouter } from "./generateGroups";
 import { generateUnitsRouter } from "./generateUnits";
 import { generateLessonsRouter } from "./generateLessons";
 import { assignClassroomsRouter } from "./assignClassrooms"
 import { generateScheduleRouter } from "./generateSchedule";
-import { clearGeneratedData } from "../../../../lib/clearGeneratedData";
 import { generateCredentialsRouter } from "./generateCredentials";
 
 export const generationsRouter = router({
@@ -14,8 +22,4 @@ export const generationsRouter = router({
   ...assignClassroomsRouter._def.procedures,
   ...generateScheduleRouter._def.procedures,
   ...generateCredentialsRouter._def.procedures,
-  resetGeneratedData: adminProcedure.mutation(async () => {
-    await clearGeneratedData();
-    return { success: true };
-  }),
 });

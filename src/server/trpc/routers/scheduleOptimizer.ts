@@ -75,6 +75,7 @@
  * - Для изменения параметров отжига администратор может воспользоваться интерфейсом
  *   на странице расписания (кнопка ⚙️).
  */
+
 import { db } from "@/db";
 import {
   scheduleDisplay as sdTable,
@@ -100,12 +101,13 @@ import { eq, inArray, and, asc, gte, isNull, or, SQL, isNotNull } from "drizzle-
 
 type SlotKey = string;
 type ScheduleEntry = typeof sdTable.$inferSelect;
-type StrictScheduleEntry = ScheduleEntry & { weekId: number; dayOfWeekId: number; pairNumberId: number };
+export type StrictScheduleEntry = ScheduleEntry & { weekId: number; dayOfWeekId: number; pairNumberId: number };
 
-interface Occupancy {
+export interface Occupancy {
   teacherIds: Set<number>;
   groupIds: Set<number>;
   unitCodes: Set<string>;
+  classroomIds: Set<number>;
 }
 
 interface MergeGroup {
@@ -114,7 +116,7 @@ interface MergeGroup {
   totalStudents: number;
 }
 
-interface   OptimizationContext {
+export interface OptimizationContext {
   entries: StrictScheduleEntry[];
   slots: { weekId: number; dayId: number; pairId: number }[];
   occupancyBySlot: Map<SlotKey, Occupancy>;
@@ -136,6 +138,8 @@ interface   OptimizationContext {
   classroomCapacity: Map<number, number>;
   mergeClassroomIds: Map<number, number | null>;
 }
+export { canMoveToSlot };
+
 
 const slotKey = (weekId: number, d: number, p: number): SlotKey => `${weekId}-${d}-${p}`;
 
@@ -346,7 +350,7 @@ async function buildContext(entries: StrictScheduleEntry[]): Promise<Optimizatio
   for (const e of finalEntries) {
     const key = slotKey(e.weekId, e.dayOfWeekId, e.pairNumberId);
     if (!occupancyBySlot.has(key)) {
-      occupancyBySlot.set(key, { teacherIds: new Set(), groupIds: new Set(), unitCodes: new Set() });
+      occupancyBySlot.set(key, { teacherIds: new Set(), groupIds: new Set(), unitCodes: new Set() , classroomIds: new Set()});
     }
     const occ = occupancyBySlot.get(key)!;
     const teacherId = lessonTeacher.get(e.lessonId!);
@@ -364,6 +368,9 @@ async function buildContext(entries: StrictScheduleEntry[]): Promise<Optimizatio
       });
     }
     occ.unitCodes.add(e.unitCode);
+    if (e.classroomId != null) {
+      occ.classroomIds.add(e.classroomId);
+    }
   }
 
   return {
@@ -391,46 +398,35 @@ function canMoveToSlot(
   pairId: number
 ): boolean {
   if (entry.positionFlag && (entry.mergeNumber ?? 0) === 0) return false;
+
   const key = slotKey(weekId, dayId, pairId);
   const occ = ctx.occupancyBySlot.get(key);
   if (!occ) return true;
 
+  // Преподаватель
   const teacherId = ctx.lessonTeacher.get(entry.lessonId!);
   if (teacherId && occ.teacherIds.has(teacherId)) return false;
 
-  const groups = ctx.unitGroups.get(entry.unitCode);
-  if (groups) {
-    for (const g of groups) {
-      if (!occ.groupIds.has(g)) continue;
-      // Группа занята, проверяем, занята ли она юнитом, отличным от подгруппы
-      let blocked = false;
-      for (const uc of occ.unitCodes) {
-        const occType = ctx.unitTypeByUnitCode.get(uc) ?? 'ГРУППА';
-        if (occType === 'ПОДГРУППА') continue; // подгруппа не блокирует
-        const occGroups = ctx.unitGroups.get(uc);
-        if (occGroups && occGroups.has(g)) {
-          blocked = true;
-          break;
-        }
-      }
-      if (blocked) return false;
-    }
-  }
+  // Аудитория
+  if (entry.classroomId != null && occ.classroomIds.has(entry.classroomId)) return false;
 
-  const entryType = ctx.unitTypeByUnitCode.get(entry.unitCode) ?? "ГРУППА";
-  if (entryType === "ПОДГРУППА" || entryType === "ГРУППА") {
+  // Проверка общих групп — точно как в checkSlots для чужих юнитов
+  const entryType = ctx.unitTypeByUnitCode.get(entry.unitCode) ?? 'ГРУППА';
+  const entryGroups = ctx.unitGroups.get(entry.unitCode);
+
+  if (entryGroups && entryGroups.size > 0) {
     for (const existingUnitCode of occ.unitCodes) {
-      const existingType = ctx.unitTypeByUnitCode.get(existingUnitCode) ?? "ГРУППА";
-      if (existingType === "ПОТОК") {
-        const existingGroups = ctx.unitGroups.get(existingUnitCode);
-        if (existingGroups && groups && [...groups].some(g => existingGroups.has(g))) {
-          return false;
-        }
-      } else if (existingType === "ГРУППА" && entryType === "ПОДГРУППА") {
-        const existingGroups = ctx.unitGroups.get(existingUnitCode);
-        if (existingGroups && groups && [...groups].some(g => existingGroups.has(g))) {
-          return false;
-        }
+      const existingType = ctx.unitTypeByUnitCode.get(existingUnitCode) ?? 'ГРУППА';
+      const existingGroups = ctx.unitGroups.get(existingUnitCode);
+      if (!existingGroups || existingGroups.size === 0) continue;
+
+      // Находим общие группы
+      const shared = [...entryGroups].filter(g => existingGroups.has(g));
+      if (shared.length === 0) continue;
+
+      // Общие группы есть – запрет, кроме случая двух подгрупп
+      if (!(entryType === 'ПОДГРУППА' && existingType === 'ПОДГРУППА')) {
+        return false;
       }
     }
   }
@@ -552,10 +548,13 @@ function updateOccupancy(ctx: OptimizationContext, entry: StrictScheduleEntry, o
     const groups = ctx.unitGroups.get(entry.unitCode);
     if (groups) groups.forEach(g => oldOcc.groupIds.delete(g));
     oldOcc.unitCodes.delete(entry.unitCode);
+    if (entry.classroomId != null) {
+      oldOcc.classroomIds.delete(entry.classroomId);
+    }
   }
 
   if (!ctx.occupancyBySlot.has(newKey)) {
-    ctx.occupancyBySlot.set(newKey, { teacherIds: new Set(), groupIds: new Set(), unitCodes: new Set() });
+    ctx.occupancyBySlot.set(newKey, { teacherIds: new Set(), groupIds: new Set(), unitCodes: new Set() , classroomIds: new Set()});
   }
   const newOcc = ctx.occupancyBySlot.get(newKey)!;
   const teacherId = ctx.lessonTeacher.get(entry.lessonId!);
@@ -563,6 +562,9 @@ function updateOccupancy(ctx: OptimizationContext, entry: StrictScheduleEntry, o
   const groups = ctx.unitGroups.get(entry.unitCode);
   if (groups) groups.forEach(g => newOcc.groupIds.add(g));
   newOcc.unitCodes.add(entry.unitCode);
+  if (entry.classroomId != null) {
+    newOcc.classroomIds.add(entry.classroomId);
+  }
 }
 
 function evaluateState(ctx: OptimizationContext): number {

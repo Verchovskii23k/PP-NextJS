@@ -1,5 +1,4 @@
 "use client";
-import { trpc } from "@/trpc/client";
 import { useState, useEffect } from "react";
 import { tableNames, tablesMeta, TABLE_CATEGORIES } from "@/lib/table-meta";
 import { DataTable } from "./_components/DataTable";
@@ -18,8 +17,6 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { toast } from "sonner";
-import { useConfirmContext } from "@/contexts/ConfirmContext";
 
 const TABLE_ICONS: Record<string, string> = {
   institutes: "🏛️",
@@ -208,8 +205,6 @@ function CategorySection({
 
 export default function AdminCrudPage() {
   const [selectedTable, setSelectedTable] = useState<string | null>(null);
-  const resetMutation = trpc.generations.resetGeneratedData.useMutation();
-  const { confirm } = useConfirmContext();
 
   const handleSelectTable = (tableKey: string) => {
     setSelectedTable(tableKey);
@@ -231,30 +226,6 @@ export default function AdminCrudPage() {
       <main className="flex-1 overflow-auto bg-background p-6">
         {selectedTable ? (
           <>
-            <div className="mb-4">
-              <button
-                onClick={async () => {
-                  const ok = await confirm({
-                    title: "Сброс сгенерированных данных",
-                    message:
-                      "Будут удалены все сгенерированные данные (расписание, занятия, юниты, группы). Справочники останутся без изменений. Продолжить?",
-                    confirmLabel: "Сбросить",
-                    variant: "danger",
-                  });
-                  if (!ok) return;
-                  try {
-                    await resetMutation.mutateAsync();
-                    toast.success("Все сгенерированные данные удалены. Запустите генерацию заново.");
-                  } catch (e: unknown) {
-                    const message = e instanceof Error ? e.message : "Неизвестная ошибка";
-                    toast.error("Ошибка при сбросе: " + message);
-                  }
-                }}
-                className="rounded bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-700"
-              >
-                Сбросить всё
-              </button>
-            </div>
             <DataTable key={selectedTable} tableName={selectedTable} />
           </>
         ) : (

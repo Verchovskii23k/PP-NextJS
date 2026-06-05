@@ -1,73 +1,46 @@
 /**
  * ## Роутер `scheduleDisplayRouter`
  *
- * Отвечает за всё, что связано с отображением и редактированием расписания.
- * Предоставляет CRUD-подобные процедуры для таблицы `schedule_display`, а также
- * специализированные запросы для построения сетки расписания, буфера занятий,
- * проверки конфликтов при drag‑and‑drop и запуска оптимизатора.
+ * Отвечает за отображение и редактирование расписания. Предоставляет
+ * запросы и мутации для таблицы `schedule_display`, буфера, проверки
+ * конфликтов drag‑and‑drop и запуска оптимизатора.
  *
- * Все процедуры доступны только администраторам (adminProcedure).
+ * Все процедуры доступны только администраторам (`adminProcedure`).
  *
- * ---
  * ### 🔐 Версионирование данных
  *
- * Система поддерживает архивные версии расписания.
- * В зависимости от переданного `versionId` выбирается один из трёх режимов:
- * - `versionId === undefined` или `null` – **активное расписание** (`isActive = true`, `versionId IS NULL`).
- * - `versionId` – конкретная архивная версия (`isActive = false`, `versionId = переданному`).
+ * Система поддерживает архивные версии расписания. В зависимости от
+ * переданного `versionId` выбирается один из режимов:
+ * - `null` или `undefined` – **активное расписание** (`isActive = true`, `versionId IS NULL`).
+ * - число – конкретная **архивная версия** (`isActive = false`, `versionId = переданному`).
  *
- * Это касается не только `scheduleDisplay`, но и связанных таблиц:
- * `unitRoots`, `lessons`, `lessonClassrooms`.
+ * При работе с активным расписанием все мутации передают `versionId: null`.
  *
- * Вспомогательные функции `scheduleVersionCondition`, `unitRootsVersionCondition` и т.д.
- * генерируют нужное условие для SQL-запроса.
+ * ### Процедуры
  *
- * ---
- * ### 📋 Процедуры (endpoints)
+ * | Процедура          | Тип      | Описание |
+ * |--------------------|----------|----------|
+ * | `getForWeekPair`   | query    | Строки расписания, дни, пары и недели для режима «По юнитам». |
+ * | `getByGroup`       | query    | То же для одной учебной группы. |
+ * | `getByStudyGroups` | query    | Агрегация по всем группам. |
+ * | `getBuffer`        | query    | Записи в буфере. |
+ * | `getBufferedCount` | query    | Количество записей в буфере. |
+ * | `moveToBuffer`     | mutation | Переместить в буфер (обнулить координаты). |
+ * | `moveFromBuffer`   | mutation | Вернуть из буфера в указанный слот. |
+ * | `checkSlots`       | mutation | Проверка слотов для drag‑and‑drop (`free`/`conflict`/`swap`). |
+ * | `move`             | mutation | Перемещение занятия в свободный слот. |
+ * | `swap`             | mutation | Обмен двух занятий местами. |
+ * | `updateFlags`      | mutation | Изменение флагов занятия. |
+ * | `optimizeSchedule` | mutation | Запуск оптимизации. При `includeBuffered` размещает буферные занятия по свободным слотам. |
+ * | `resetFlags`       | mutation | Массовый сброс выбранных флагов. |
  *
- * | Процедура          | Тип      | Описание                                                                                                    |
- * |--------------------|----------|-------------------------------------------------------------------------------------------------------------|
- * | `getForWeekPair`   | query    | Возвращает строки расписания, дни, пары и недели для режима "По юнитам".
- *                                   Фильтрует только активные (не буфер) записи с известными координатами.                                      |
- * | `getByGroup`       | query    | То же для одной учебной группы (по `studyGroupCode`).                                                       |
- * | `getByStudyGroups` | query    | Агрегирует расписание сразу по всем группам: для каждой группы 
- *                                   собирает связанные юниты и их строки. Используется в режиме "По группам".                                   |
- * | `getBuffer`        | query    | Возвращает все записи, находящиеся в буфере (`isBuffered = true`) для заданной версии.                      |
- * | `getBufferedCount` | query    | Возвращает количество записей в буфере. Используется для проверки необходимости диалога перед оптимизацией. |
- * | `moveToBuffer`     | mutation | Перемещает занятие в буфер: устанавливает `isBuffered = true` и **обнуляет координаты** 
- *                                  (`weekId`, `dayOfWeekId`, `pairNumberId`), чтобы слот освободился и не создавалось дубликатов.               |
- * | `moveFromBuffer`   | mutation | Возвращает занятие из буфера в указанную ячейку. Проверяет, что запись действительно в буфере, 
- *                                   и что целевой слот не занят. При успехе снимает флаг `isBuffered`, прописывает новые координаты и 
- *                                   сбрасывает флаги фиксации.                                                                                  |
- * | `checkSlots`       | mutation | **Ключевая логика drag‑and‑drop.** Для перетаскиваемого занятия (`movingId`) и массива 
- *                                   потенциальных слотов возвращает статус каждого слота: `"free"` (свободно), 
- *                                   `"conflict"` (конфликт) или `"swap"` (можно обменяться с находящимся там занятием). 
- *                                   Учитывает: группы юнита, преподавателя, аудиторию, дисциплину, а также обратный конфликт при swap. 
- *                                   Подробнее см. ниже.                                                                                         |
- * | `move`             | mutation | Прямое перемещение занятия в свободный слот. Сбрасывает флаги фиксации.                                     |
- * | `swap`             | mutation | Обмен двух записей одного юнита местами (с координатами). Сбрасывает флаги фиксации.                        |
- * | `updateFlags`      | mutation | Изменяет флаги (`mergeNumber`, `positionFlag`, `classroomFlag`) у конкретной записи.                        |
- * | `optimizeSchedule` | mutation | Запускает оптимизатор расписания. Если передан `includeBuffered: true`, предварительно снимает флаг
- *                                   буфера и сбрасывает все ограничивающие флаги у всех записей в буфере, чтобы они могли быть
- *                                   переставлены оптимизатором.                                                                                 |
- * | `resetFlags`       | mutation | Массовый сброс выбранных флагов (позиции, аудитории, слияния) у всех активных не-буферных записей.          |
+ * ### Логика `checkSlots`
  *
- * ---
- * ### 🧠 Логика проверки конфликтов в `checkSlots`
- *
- * Алгоритм для каждого слота:
- * 1. Если слот совпадает с исходной позицией перемещаемого занятия (и оно не в буфере) – сразу `"free"`.
- * 2. Загружаются все не-буферные записи в этом слоте.
- * 3. Выделяются:
- *    - `sameUnitEntry` – запись с тем же `unitCode`, что и у перетаскиваемого.
- *    - `differentUnitEntries` – записи с другими `unitCode`.
- * 4. **Прямой конфликт** проверяется только для `differentUnitEntries`: если хоть одна из них имеет общие группы с перемещаемым занятием, или того же преподавателя, или ту же аудиторию – статус `"conflict"`.
- * 5. Если есть `sameUnitEntry` и перемещаемое занятие **не из буфера**:
- *    - Сравниваются преподаватель, аудитория и дисциплина перемещаемого и найденного. Если все три совпадают – `"conflict"`.
- *    - Иначе вычисляется `oldSlot` (откуда тянут). Для всех оставшихся записей в исходном слоте проверяется **обратный конфликт**: не будут ли они конфликтовать с `sameUnitEntry`, если тот переместится в исходный слот. Если конфликт есть – `"conflict"`, иначе `"swap"` (с указанием `swapId`).
- * 6. Если `sameUnitEntry` нет – `"free"`.
- *
- * Эта логика гарантирует, что DnD не допустит двойного бронирования и предложит обмен там, где это возможно.
+ * Для каждого слота проверяются:
+ * 1. Исходная позиция – `"free"`.
+ * 2. Прямой конфликт по группам (кроме двух подгрупп), преподавателю и аудитории.
+ * 3. Если в слоте есть запись того же юнита и занятие не из буфера – проверка swap.
+ * 4. Иначе `"free"`.
  */
 import { z } from "zod";
 import { router, adminProcedure } from "../trpc";
@@ -156,6 +129,128 @@ function lessonClassroomsVersionCondition(
     eq(lessonClassrooms.isActive, false),
     eq(lessonClassrooms.versionId, versionId)
   );
+}
+
+async function isSlotFreeForBuffered(
+  ctx: Context,
+  entry: typeof scheduleDisplay.$inferSelect,
+  weekId: number,
+  dayId: number,
+  pairId: number,
+  versionCond: ReturnType<typeof scheduleVersionCondition>
+): Promise<boolean> {
+  // Проверим, есть ли в этом слоте не-буферные записи
+  const slotEntries = await ctx.db
+    .select()
+    .from(scheduleDisplay)
+    .where(
+      and(
+        eq(scheduleDisplay.weekId, weekId),
+        eq(scheduleDisplay.dayOfWeekId, dayId),
+        eq(scheduleDisplay.pairNumberId, pairId),
+        eq(scheduleDisplay.isBuffered, false),
+        versionCond
+      )
+    );
+
+  if (slotEntries.length === 0) return true; // слот полностью свободен
+
+  // Получаем преподавателя и группы для размещаемого занятия
+  let entryLesson: { teacherId: number | null } | undefined;
+  if (entry.lessonId != null) {
+    [entryLesson] = await ctx.db
+      .select({ teacherId: lessons.teacherId })
+      .from(lessons)
+      .where(
+        and(
+          eq(lessons.id, entry.lessonId),
+          eq(lessons.isActive, true),
+          isNull(lessons.versionId)
+        )
+      )
+      .limit(1);
+  }
+  const entryTeacher = entryLesson?.teacherId;
+
+  const entryGroups = await ctx.db
+    .select({ studyGroupId: unitRoots.studyGroupId })
+    .from(unitRoots)
+    .where(
+      and(
+        eq(unitRoots.unitCode, entry.unitCode),
+        eq(unitRoots.isActive, true),
+        isNull(unitRoots.versionId)
+      )
+    );
+  const entryGroupSet = new Set(entryGroups.map((r) => r.studyGroupId));
+
+  // Проверяем конфликты с каждым занятием в слоте
+  for (const other of slotEntries) {
+    // Преподаватель
+    let otherLesson: { teacherId: number | null } | undefined;
+    if (other.lessonId != null) {
+      [otherLesson] = await ctx.db
+        .select({ teacherId: lessons.teacherId })
+        .from(lessons)
+        .where(
+          and(
+            eq(lessons.id, other.lessonId),
+            eq(lessons.isActive, true),
+            isNull(lessons.versionId)
+          )
+        )
+        .limit(1);
+    }
+    if (entryTeacher && otherLesson?.teacherId && entryTeacher === otherLesson.teacherId)
+      return false;
+
+    // Группы
+    const otherGroups = await ctx.db
+      .select({ studyGroupId: unitRoots.studyGroupId })
+      .from(unitRoots)
+      .where(
+        and(
+          eq(unitRoots.unitCode, other.unitCode),
+          eq(unitRoots.isActive, true),
+          isNull(unitRoots.versionId)
+        )
+      );
+    for (const g of otherGroups) {
+      if (entryGroupSet.has(g.studyGroupId)) {
+        // Проверяем тип юнита — две подгруппы могут сосуществовать
+        const [entryUnitType] = await ctx.db
+          .select({ name: unitTypes.name })
+          .from(units)
+          .innerJoin(unitTypes, eq(units.unitTypeId, unitTypes.id))
+          .where(
+            and(
+              eq(units.code, entry.unitCode),
+              eq(units.isActive, true),
+              isNull(units.versionId)
+            )
+          )
+          .limit(1);
+        const [otherUnitType] = await ctx.db
+          .select({ name: unitTypes.name })
+          .from(units)
+          .innerJoin(unitTypes, eq(units.unitTypeId, unitTypes.id))
+          .where(
+            and(
+              eq(units.code, other.unitCode),
+              eq(units.isActive, true),
+              isNull(units.versionId)
+            )
+          )
+          .limit(1);
+
+        if (entryUnitType?.name !== 'ПОДГРУППА' || otherUnitType?.name !== 'ПОДГРУППА') {
+          return false; // конфликт по группам, кроме случая двух подгрупп
+        }
+      }
+    }
+  }
+
+  return true;
 }
 
 export const scheduleDisplayRouter = router({
@@ -446,7 +541,9 @@ export const scheduleDisplayRouter = router({
           )
         );
       if (existing.length > 0) throw new TRPCError({ code: 'CONFLICT', message: 'Слот занят' });
-
+      if (input.targetUnitCode !== record[0].unitCode) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Нельзя переместить занятие в чужой юнит' });
+      }
       await ctx.db
         .update(scheduleDisplay)
         .set({
@@ -554,7 +651,7 @@ export const scheduleDisplayRouter = router({
             unitCode: m.unitCode,
           };
 
-      const results: Record<string, { status: string; swapId?: number }> = {};
+      const results: Record<string, { status: string; swapId?: number; reason?: string }> = {};
 
       for (const slot of input.slots) {
         const key = `week-${slot.weekId}-${slot.dayId}-${slot.pairId}-${slot.unitCode}`;
@@ -592,8 +689,9 @@ export const scheduleDisplayRouter = router({
 
         // Проверка прямого конфликта
         let directConflict = false;
+        let conflictReason: string | undefined
         for (const other of differentUnitEntries) {
-          const otherUnitRoots = await ctx.db
+                    const otherUnitRoots = await ctx.db
             .select({ studyGroupId: unitRoots.studyGroupId })
             .from(unitRoots)
             .where(
@@ -629,7 +727,16 @@ export const scheduleDisplayRouter = router({
             oTeacherId = otherTeacher[0]?.teacherId ?? null;
             oClassroomId = otherClassroom[0]?.classroomId ?? null;
           }
-
+          if ((mTeacherId && oTeacherId && mTeacherId === oTeacherId) ||
+              (mClassroomId && oClassroomId && mClassroomId === oClassroomId)) {
+            directConflict = true;
+            if (mTeacherId && oTeacherId && mTeacherId === oTeacherId) {
+              conflictReason = "Преподаватель уже занят в этом слоте";
+            } else {
+              conflictReason = "Аудитория уже используется в этом слоте";
+            }
+            break;
+          }
           // Проверка общих групп, но исключаем случай двух подгрупп
           const sharedGroups = [...movingGroupIds].filter(g => otherGroupIds.has(g));
           const conflictByGroup = sharedGroups.length > 0;
@@ -639,30 +746,24 @@ export const scheduleDisplayRouter = router({
             const mUnitType = await getUnitType(m.unitCode, ctx);
             const oUnitType = await getUnitType(other.unitCode, ctx);
             // Конфликт по группам отменяется, только если оба юнита — подгруппы
+            
             if (!(mUnitType === 'ПОДГРУППА' && oUnitType === 'ПОДГРУППА')) {
               directConflict = true;
-              break;
-            }
-          }
-          // Если конфликт по группам не обнаружен или отменён, проверяем преподавателя и аудиторию
-          if (!directConflict) {
-            if ((mTeacherId && oTeacherId && mTeacherId === oTeacherId) ||
-                (mClassroomId && oClassroomId && mClassroomId === oClassroomId)) {
-              directConflict = true;
+              conflictReason = `Конфликт по группам: ${mUnitType} не может стоять вместе с ${oUnitType}`;
               break;
             }
           }
         }
 
         if (directConflict) {
-          results[key] = { status: "conflict" };
+          results[key] = { status: "conflict", reason: conflictReason ?? "Конфликт" };
           continue;
         }
 
         // Если есть запись того же юнита в слоте
         if (sameUnitEntry) {
           if (m.isBuffered) {
-            results[key] = { status: "conflict" };
+            results[key] = { status: "conflict", reason: "Буферное занятие не может обменяться" };
             continue;
           }
 
@@ -722,7 +823,7 @@ export const scheduleDisplayRouter = router({
             mClassroomId === sClassroomId &&
             mDisc === sDisc
           ) {
-            results[key] = { status: "conflict" };
+            results[key] = { status: "conflict", reason: "Занятия идентичны – обмен не имеет смысла" };
             continue;
           }
 
@@ -818,18 +919,8 @@ export const scheduleDisplayRouter = router({
                 }
               }
             }
-if (key === 'week-1-1-1-23м1') { // интересующий слот
-  console.log('Slot', key, {
-    directConflict,
-    sameUnitEntry: !!sameUnitEntry,
-    mUnitType: await getUnitType(m.unitCode, ctx),
-    oUnitTypes: await Promise.all(differentUnitEntries.map(e => getUnitType(e.unitCode, ctx))),
-    mTeacherId, mClassroomId,
-    differentEntries: differentUnitEntries.map(e => ({ id: e.id, code: e.unitCode }))
-  });
-}
             results[key] = reverseConflict
-              ? { status: "conflict" }
+              ? { status: "conflict", reason: "Обратный конфликт: занятие не может быть перемещено на исходное место" }
               : { status: "swap", swapId: sameUnitEntry.id };
           } else {
             results[key] = { status: "conflict" };
@@ -969,17 +1060,78 @@ if (key === 'week-1-1-1-23м1') { // интересующий слот
     .mutation(async ({ ctx, input }) => {
       if (input.includeBuffered) {
         const versionCond = scheduleVersionCondition(input.versionId);
-        // Снимаем буфер и сбрасываем все флаги, которые мешают перемещению
-        await ctx.db
-          .update(scheduleDisplay)
-          .set({
-            isBuffered: false,
-            positionFlag: false,
-            mergeNumber: 0,
-            classroomFlag: false,
-          })
+
+        // Получаем все буферные записи
+        const buffered = await ctx.db
+          .select()
+          .from(scheduleDisplay)
           .where(and(eq(scheduleDisplay.isBuffered, true), versionCond));
+
+        if (buffered.length > 0) {
+          // Список всех возможных слотов (неделя × день × пара)
+          const allWeeks = await ctx.db
+            .select({ id: weeks.id })
+            .from(weeks)
+            .where(eq(weeks.isActive, true));
+          const allDays = await ctx.db
+            .select()
+            .from(daysOfWeek)
+            .orderBy(asc(daysOfWeek.id));
+          const allPairs = await ctx.db
+            .select()
+            .from(pairs)
+            .orderBy(asc(pairs.number));
+
+          const slots: { weekId: number; dayId: number; pairId: number }[] = [];
+          for (const w of allWeeks) {
+            for (const d of allDays) {
+              for (const p of allPairs) {
+                slots.push({ weekId: w.id, dayId: d.id, pairId: p.id });
+              }
+            }
+          }
+
+          // Для каждой буферной записи ищем свободный слот
+          for (const buf of buffered) {
+            let foundSlot: typeof slots[0] | null = null;
+
+            // Перебираем слоты в случайном порядке для равномерности
+            const shuffledSlots = [...slots].sort(() => Math.random() - 0.5);
+            for (const slot of shuffledSlots) {
+              const free = await isSlotFreeForBuffered(
+                ctx,
+                buf,
+                slot.weekId,
+                slot.dayId,
+                slot.pairId,
+                versionCond
+              );
+              if (free) {
+                foundSlot = slot;
+                break;
+              }
+            }
+
+            if (foundSlot) {
+              // Перемещаем из буфера в найденный слот
+              await ctx.db
+                .update(scheduleDisplay)
+                .set({
+                  weekId: foundSlot.weekId,
+                  dayOfWeekId: foundSlot.dayId,
+                  pairNumberId: foundSlot.pairId,
+                  isBuffered: false,
+                  positionFlag: false,
+                  mergeNumber: 0,
+                  classroomFlag: false,
+                })
+                .where(and(eq(scheduleDisplay.id, buf.id), versionCond));
+            }
+            // Если слот не найден, запись остаётся в буфере
+          }
+        }
       }
+
       return await optimizeSchedule(input.versionId);
     }),
     resetFlags: adminProcedure

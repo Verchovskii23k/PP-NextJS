@@ -68,9 +68,11 @@ import {
   scheduleDisplay
 } from "@/db/schema";
 import { eq, and, inArray, sql, isNull } from "drizzle-orm";
+import { assertCleanSlate } from "./helpers";
 
 export const generateGroupsRouter = router({
   generateGroups: adminProcedure.mutation(async ({ ctx }) => {
+    await assertCleanSlate(ctx);
     // 1. Удаляем все активные динамические данные
     await ctx.db.transaction(async (tx) => {
       await tx.delete(scheduleDisplay).where(
