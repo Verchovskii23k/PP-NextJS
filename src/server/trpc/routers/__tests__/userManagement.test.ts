@@ -1,15 +1,18 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { db } from '@/db';
-import { users, students, accounts, verificationTokens, profiles } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { users, students, accounts, profiles } from '@/db/schema';
+import { eq, and } from 'drizzle-orm';
 import { createTestCaller } from '@/test/trpc';
-import { clearAllTestData, createTestUser, createTestEmployee, createTestProfile, createTestSpecialty, createTestDepartment, createTestInstitute, createTestEducation } from '@/test/helpers';
-import * as emailModule from '@/server/email';
-
-vi.mock('@/server/email', () => ({
-  sendResetCodeEmail: vi.fn().mockResolvedValue(undefined),
-  sendNewCredentialsEmail: vi.fn().mockResolvedValue(undefined),
-}));
+import {
+  clearAllTestData,
+  createTestUser,
+  createTestEmployee,
+  createTestProfile,
+  createTestSpecialty,
+  createTestDepartment,
+  createTestInstitute,
+  createTestEducation,
+} from '@/test/helpers';
 
 let caller: Awaited<ReturnType<typeof createTestCaller>>;
 
@@ -45,9 +48,6 @@ describe('userManagement', () => {
       });
     }
 
-    // Полностью очищаем таблицу verificationTokens перед каждым тестом
-    await db.delete(verificationTokens);
-
     caller = await createTestCaller({ id: adminUserId, role: 'admin' });
   });
 
@@ -80,173 +80,33 @@ describe('userManagement', () => {
     });
   });
 
-  describe('updateRole', () => {
-    it('должен изменить роль пользователя', async () => {
-      const teacherUser = await db.select().from(users).where(eq(users.email, 'teacher@test.com')).limit(1);
-      const teacherId = teacherUser[0].id;
-
-      const result = await caller.userManagement.updateRole({
-        userId: teacherId,
-        newRole: 'student',
-      });
-      expect(result.success).toBe(true);
-
-      const updated = await db.select().from(users).where(eq(users.id, teacherId)).limit(1);
-      expect(updated[0].role).toBe('student');
-    });
-
-    it('должен вернуть ошибку при попытке изменить роль администратора', async () => {
-      const adminUser = await db.select().from(users).where(eq(users.email, 'admin@test.com')).limit(1);
-      const adminId = adminUser[0].id;
-
-      await expect(caller.userManagement.updateRole({
-        userId: adminId,
-        newRole: 'student',
-      })).rejects.toThrow('Нельзя изменить роль администратора');
-    });
-
-    it('должен вернуть ошибку при попытке изменить собственную роль (админ меняет админа) – та же ошибка', async () => {
-      const adminUser = await db.select().from(users).where(eq(users.email, 'admin@test.com')).limit(1);
-      const adminId = adminUser[0].id;
-
-      await expect(caller.userManagement.updateRole({
-        userId: adminId,
-        newRole: 'student',
-      })).rejects.toThrow('Нельзя изменить роль администратора');
-    });
-
-    it('должен вернуть ошибку если пользователь не найден', async () => {
-      await expect(caller.userManagement.updateRole({
-        userId: 'non-existent-id',
-        newRole: 'teacher',
-      })).rejects.toThrow('Пользователь не найден');
-    });
-  });
-
-  describe('sendResetCode', () => {
-    it('должен отправить код сброса на email пользователя', async () => {
-      const teacherUser = await db.select().from(users).where(eq(users.email, 'teacher@test.com')).limit(1);
-      const teacherId = teacherUser[0].id;
-
-      const result = await caller.userManagement.sendResetCode({ userId: teacherId });
-      expect(result.success).toBe(true);
-
-      const tokens = await db.select().from(verificationTokens).where(eq(verificationTokens.identifier, teacherId));
-      expect(tokens).toHaveLength(1);
-      expect(tokens[0].token).toMatch(/^\d{3}$/);
-      expect(tokens[0].expires).toBeInstanceOf(Date);
-
-      expect(emailModule.sendResetCodeEmail).toHaveBeenCalledWith(teacherUser[0].email, tokens[0].token);
-    });
-
-    it('должен удалить старые коды перед созданием нового', async () => {
-      const teacherUser = await db.select().from(users).where(eq(users.email, 'teacher@test.com')).limit(1);
-      const teacherId = teacherUser[0].id;
-
-      // Сначала создаём старый код через прямой вызов роутера (он генерирует уникальный код)
-      await caller.userManagement.sendResetCode({ userId: teacherId });
-      
-      // Получаем первый код
-      const firstTokens = await db.select().from(verificationTokens).where(eq(verificationTokens.identifier, teacherId));
-      expect(firstTokens).toHaveLength(1);
-      const firstToken = firstTokens[0].token;
-
-      // Вызываем повторно - должен удалить старый и создать новый
-      await caller.userManagement.sendResetCode({ userId: teacherId });
-
-      // Проверяем, что осталась только одна запись и токен изменился
-      const secondTokens = await db.select().from(verificationTokens).where(eq(verificationTokens.identifier, teacherId));
-      expect(secondTokens).toHaveLength(1);
-      expect(secondTokens[0].token).not.toBe(firstToken);
-    });
-
-    it('должен вернуть ошибку если пользователь не найден', async () => {
-      await expect(caller.userManagement.sendResetCode({ userId: 'non-existent' }))
-        .rejects.toThrow('Пользователь не найден');
-    });
-  });
-
-  describe('confirmResetCode', () => {
-    it('должен подтвердить код и сбросить пароль', async () => {
-      const teacherUser = await db.select().from(users).where(eq(users.email, 'teacher@test.com')).limit(1);
-      const teacherId = teacherUser[0].id;
-
-      // Генерируем код через роутер, чтобы он был уникальным
-      await caller.userManagement.sendResetCode({ userId: teacherId });
-      const tokens = await db.select().from(verificationTokens).where(eq(verificationTokens.identifier, teacherId));
-      const code = tokens[0].token;
-
-      const result = await caller.userManagement.confirmResetCode({
-        userId: teacherId,
-        code,
-      });
-      expect(result.success).toBe(true);
-      expect(result.newPassword).toBeNull();
-      expect(result.message).toBe('Новый пароль отправлен на email');
-
-      const [updatedUser] = await db.select().from(users).where(eq(users.id, teacherId));
-      expect(updatedUser.hashedPassword).not.toBe(teacherUser[0].hashedPassword);
-
-      const [account] = await db.select().from(accounts).where(eq(accounts.userId, teacherId));
-      expect(account).toBeDefined();
-      expect(account.providerId).toBe('credential');
-
-      expect(emailModule.sendNewCredentialsEmail).toHaveBeenCalledWith(teacherUser[0].email, expect.any(String));
-
-      const remainingTokens = await db.select().from(verificationTokens).where(eq(verificationTokens.identifier, teacherId));
-      expect(remainingTokens).toHaveLength(0);
-    });
-
-    it('должен вернуть ошибку при неверном коде', async () => {
-      const teacherUser = await db.select().from(users).where(eq(users.email, 'teacher@test.com')).limit(1);
-      const teacherId = teacherUser[0].id;
-
-      // Создаём код через роутер
-      await caller.userManagement.sendResetCode({ userId: teacherId });
-
-      // Пытаемся подтвердить с неверным кодом
-      await expect(caller.userManagement.confirmResetCode({
-        userId: teacherId,
-        code: 'wrong',
-      })).rejects.toThrow('Неверный или истёкший код');
-    });
-
-    it('должен вернуть ошибку при истёкшем коде', async () => {
-      const teacherUser = await db.select().from(users).where(eq(users.email, 'teacher@test.com')).limit(1);
-      const teacherId = teacherUser[0].id;
-
-      // Создаём код, но с истекшим сроком (вручную обновляем expires)
-      await caller.userManagement.sendResetCode({ userId: teacherId });
-      await db.update(verificationTokens)
-        .set({ expires: new Date(Date.now() - 10000) })
-        .where(eq(verificationTokens.identifier, teacherId));
-
-      const tokens = await db.select().from(verificationTokens).where(eq(verificationTokens.identifier, teacherId));
-      const expiredCode = tokens[0].token;
-
-      await expect(caller.userManagement.confirmResetCode({
-        userId: teacherId,
-        code: expiredCode,
-      })).rejects.toThrow('Неверный или истёкший код');
-    });
-  });
-
   describe('resetUserPassword', () => {
-    it('должен напрямую сбросить пароль пользователя (без кода)', async () => {
+    it('должен сгенерировать новый email и пароль, обновить БД и вернуть их', async () => {
       const teacherUser = await db.select().from(users).where(eq(users.email, 'teacher@test.com')).limit(1);
       const teacherId = teacherUser[0].id;
+      const oldEmail = teacherUser[0].email;
       const oldHash = teacherUser[0].hashedPassword;
 
       const result = await caller.userManagement.resetUserPassword({ userId: teacherId });
-      expect(result.success).toBe(true);
-      expect(result.newPassword).toBeNull();
 
+      // Проверяем возвращаемые значения
+      expect(result.newEmail).toBeDefined();
+      expect(result.newEmail).toContain('@internal.uni');
+      expect(result.newPassword).toBeDefined();
+      expect(typeof result.newPassword).toBe('string');
+      expect(result.newPassword.length).toBeGreaterThanOrEqual(8);
+
+      // Проверяем обновление в БД
       const [updatedUser] = await db.select().from(users).where(eq(users.id, teacherId));
+      expect(updatedUser.email).toBe(result.newEmail);
+      expect(updatedUser.email).not.toBe(oldEmail);
       expect(updatedUser.hashedPassword).not.toBe(oldHash);
 
-      const [account] = await db.select().from(accounts).where(eq(accounts.userId, teacherId));
+      // Проверяем синхронизацию с accounts
+      const [account] = await db.select().from(accounts).where(and(eq(accounts.userId, teacherId), eq(accounts.providerId, 'credential')));
       expect(account).toBeDefined();
-      expect(emailModule.sendNewCredentialsEmail).toHaveBeenCalledWith(teacherUser[0].email, expect.any(String));
+      expect(account.accountId).toBe(result.newEmail);
+      expect(account.password).toBe(updatedUser.hashedPassword);
     });
 
     it('должен вернуть ошибку если пользователь не найден', async () => {

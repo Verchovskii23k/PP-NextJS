@@ -39,33 +39,37 @@ export default function AdministratorsPage() {
   if (error) return <div className="p-6 text-red-500">Ошибка: {error.message}</div>;
 
   return (
-    <div className="mx-auto h-full max-w-4xl overflow-y-auto bg-background p-6 text-foreground">
-      <h1 className="mb-6 text-2xl font-bold">Управление администраторами</h1>
+    <div className="mx-auto h-full max-w-4xl bg-background p-6 text-foreground flex flex-col">
+      {/* Верхняя панель (не прокручивается) */}
+      <div className="flex-shrink-0">
+        <h1 className="mb-6 text-2xl font-bold">Управление администраторами</h1>
 
-      {mutError && (
-        <div className="mb-4 rounded border border-red-400 bg-red-100 px-4 py-3 text-red-700">
-          {mutError}
-        </div>
-      )}
-      {mutWarning && (
-        <div className="mb-4 rounded border border-yellow-400 bg-yellow-100 px-4 py-3 text-yellow-700">
-          {mutWarning}
-        </div>
-      )}
+        {mutError && (
+          <div className="mb-4 rounded border border-red-400 bg-red-100 px-4 py-3 text-red-700">
+            {mutError}
+          </div>
+        )}
+        {mutWarning && (
+          <div className="mb-4 rounded border border-yellow-400 bg-yellow-100 px-4 py-3 text-yellow-700">
+            {mutWarning}
+          </div>
+        )}
 
-      <div className="mb-4">
-        <input
-          type="text"
-          placeholder="Поиск по ФИО..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full max-w-xs rounded border border-border bg-background px-3 py-1 text-sm"
-        />
+        <div className="mb-4">
+          <input
+            type="text"
+            placeholder="Поиск по ФИО..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full max-w-xs rounded border border-border bg-background px-3 py-1 text-sm"
+          />
+        </div>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-border">
+      {/* Прокручиваемая таблица */}
+      <div className="overflow-y-auto rounded-lg border border-border max-h-[calc(100vh-200px)]">
         <table className="w-full text-sm">
-          <thead className="bg-muted">
+          <thead className="sticky top-0 z-10 bg-muted">
             <tr>
               <th className="px-4 py-2 text-left">Сотрудник</th>
               <th className="px-4 py-2 text-center">Администратор</th>

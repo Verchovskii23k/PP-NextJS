@@ -264,11 +264,39 @@ export const scheduleDisplayRouter = router({
     .query(async ({ ctx, input }) => {
       const versionCond = scheduleVersionCondition(input.versionId);
 
-      const weeksList = await ctx.db
-        .select({ id: weeks.id, type: weeks.type })
-        .from(weeks)
-        .where(eq(weeks.isActive, true))
-        .orderBy(asc(weeks.id));
+let weeksList;
+if (input.versionId != null) {
+  // Архивная версия: только недели, реально используемые в этой версии
+  weeksList = (await ctx.db
+    .selectDistinct({ id: scheduleDisplay.weekId, type: weeks.type })
+    .from(scheduleDisplay)
+    .innerJoin(weeks, eq(scheduleDisplay.weekId, weeks.id))
+    .where(
+      and(
+        eq(scheduleDisplay.versionId, input.versionId),
+        eq(scheduleDisplay.isBuffered, false),
+        isNotNull(scheduleDisplay.weekId)
+      )
+    )
+    .orderBy(asc(scheduleDisplay.weekId))
+  ).map(w => ({ id: w.id as number, type: w.type }));
+} else {
+  // Активная версия: только недели, используемые в активных записях
+  weeksList = (await ctx.db
+    .selectDistinct({ id: scheduleDisplay.weekId, type: weeks.type })
+    .from(scheduleDisplay)
+    .innerJoin(weeks, eq(scheduleDisplay.weekId, weeks.id))
+    .where(
+      and(
+        eq(scheduleDisplay.isActive, true),
+        isNull(scheduleDisplay.versionId),
+        eq(scheduleDisplay.isBuffered, false),
+        isNotNull(scheduleDisplay.weekId)
+      )
+    )
+    .orderBy(asc(scheduleDisplay.weekId))
+  ).map(w => ({ id: w.id as number, type: w.type }));
+}
 
       const rows = await ctx.db
         .select()
@@ -305,11 +333,38 @@ export const scheduleDisplayRouter = router({
       const versionCond = scheduleVersionCondition(input.versionId);
       const unitRootsCond = unitRootsVersionCondition(input.versionId);
 
-      const weeksList = await ctx.db
-        .select({ id: weeks.id, type: weeks.type })
-        .from(weeks)
-        .where(eq(weeks.isActive, true))
-        .orderBy(asc(weeks.id));
+let weeksList;
+if (input.versionId != null) {
+  // Архивная версия: только недели, реально используемые в этой версии
+  weeksList = (await ctx.db
+    .selectDistinct({ id: scheduleDisplay.weekId, type: weeks.type })
+    .from(scheduleDisplay)
+    .innerJoin(weeks, eq(scheduleDisplay.weekId, weeks.id))
+    .where(
+      and(
+        eq(scheduleDisplay.versionId, input.versionId),
+        eq(scheduleDisplay.isBuffered, false),
+        isNotNull(scheduleDisplay.weekId)
+      )
+    )
+    .orderBy(asc(scheduleDisplay.weekId))
+  ).map(w => ({ id: w.id as number, type: w.type }));
+} else {
+  weeksList = (await ctx.db
+    .selectDistinct({ id: scheduleDisplay.weekId, type: weeks.type })
+    .from(scheduleDisplay)
+    .innerJoin(weeks, eq(scheduleDisplay.weekId, weeks.id))
+    .where(
+      and(
+        eq(scheduleDisplay.isActive, true),
+        isNull(scheduleDisplay.versionId),
+        eq(scheduleDisplay.isBuffered, false),
+        isNotNull(scheduleDisplay.weekId)
+      )
+    )
+    .orderBy(asc(scheduleDisplay.weekId))
+  ).map(w => ({ id: w.id as number, type: w.type }));
+}
 
       const unitLinks = await ctx.db
         .select({ unitCode: unitRoots.unitCode })
@@ -368,11 +423,38 @@ export const scheduleDisplayRouter = router({
       const versionCond = scheduleVersionCondition(input.versionId);
       const unitRootsCond = unitRootsVersionCondition(input.versionId);
 
-      const weeksList = await ctx.db
-        .select({ id: weeks.id, type: weeks.type })
-        .from(weeks)
-        .where(eq(weeks.isActive, true))
-        .orderBy(asc(weeks.id));
+let weeksList;
+if (input.versionId != null) {
+  // Архивная версия: только недели, реально используемые в этой версии
+  weeksList = (await ctx.db
+    .selectDistinct({ id: scheduleDisplay.weekId, type: weeks.type })
+    .from(scheduleDisplay)
+    .innerJoin(weeks, eq(scheduleDisplay.weekId, weeks.id))
+    .where(
+      and(
+        eq(scheduleDisplay.versionId, input.versionId),
+        eq(scheduleDisplay.isBuffered, false),
+        isNotNull(scheduleDisplay.weekId)
+      )
+    )
+    .orderBy(asc(scheduleDisplay.weekId))
+  ).map(w => ({ id: w.id as number, type: w.type }));
+} else {
+  weeksList = (await ctx.db
+    .selectDistinct({ id: scheduleDisplay.weekId, type: weeks.type })
+    .from(scheduleDisplay)
+    .innerJoin(weeks, eq(scheduleDisplay.weekId, weeks.id))
+    .where(
+      and(
+        eq(scheduleDisplay.isActive, true),
+        isNull(scheduleDisplay.versionId),
+        eq(scheduleDisplay.isBuffered, false),
+        isNotNull(scheduleDisplay.weekId)
+      )
+    )
+    .orderBy(asc(scheduleDisplay.weekId))
+  ).map(w => ({ id: w.id as number, type: w.type }));
+}
 
       const roots = await ctx.db
         .select({
@@ -731,9 +813,9 @@ export const scheduleDisplayRouter = router({
               (mClassroomId && oClassroomId && mClassroomId === oClassroomId)) {
             directConflict = true;
             if (mTeacherId && oTeacherId && mTeacherId === oTeacherId) {
-              conflictReason = "Преподаватель уже занят в этом слоте";
+              conflictReason = "Преподаватель уже занят в это время";
             } else {
-              conflictReason = "Аудитория уже используется в этом слоте";
+              conflictReason = "Аудитория уже занята в это время";
             }
             break;
           }
@@ -749,7 +831,7 @@ export const scheduleDisplayRouter = router({
             
             if (!(mUnitType === 'ПОДГРУППА' && oUnitType === 'ПОДГРУППА')) {
               directConflict = true;
-              conflictReason = `Конфликт по группам: ${mUnitType} не может стоять вместе с ${oUnitType}`;
+              conflictReason = `Конфликт по группам: ${mUnitType} не может стоять в одно время с ${oUnitType}`;
               break;
             }
           }
@@ -763,7 +845,7 @@ export const scheduleDisplayRouter = router({
         // Если есть запись того же юнита в слоте
         if (sameUnitEntry) {
           if (m.isBuffered) {
-            results[key] = { status: "conflict", reason: "Буферное занятие не может обменяться" };
+            results[key] = { status: "conflict", reason: "Буферное занятие не может быть обменяно" };
             continue;
           }
 
@@ -920,7 +1002,7 @@ export const scheduleDisplayRouter = router({
               }
             }
             results[key] = reverseConflict
-              ? { status: "conflict", reason: "Обратный конфликт: занятие не может быть перемещено на исходное место" }
+              ? { status: "conflict", reason: "Обратный конфликт: занятие обмена не может быть перемещено" }
               : { status: "swap", swapId: sameUnitEntry.id };
           } else {
             results[key] = { status: "conflict" };
@@ -1069,10 +1151,12 @@ export const scheduleDisplayRouter = router({
 
         if (buffered.length > 0) {
           // Список всех возможных слотов (неделя × день × пара)
-          const allWeeks = await ctx.db
-            .select({ id: weeks.id })
-            .from(weeks)
-            .where(eq(weeks.isActive, true));
+const existingWeeks = await ctx.db
+  .selectDistinct({ id: scheduleDisplay.weekId })
+  .from(scheduleDisplay)
+  .where(and(eq(scheduleDisplay.isBuffered, false), versionCond));
+const weekIds = existingWeeks.map(w => w.id).filter(id => id != null) as number[];
+const allWeeks = weekIds.length > 0 ? weekIds.map(id => ({ id })) : [];
           const allDays = await ctx.db
             .select()
             .from(daysOfWeek)

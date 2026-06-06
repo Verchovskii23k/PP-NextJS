@@ -501,8 +501,10 @@ export function DataTable({ tableName }: DataTableProps) {
   if (isLoading) return <div className="p-6"><SkeletonTable rows={8} /></div>;
   if (isError && error) return <div className="text-red-500">Ошибка: {error.message}</div>;
 
-  return (
-    <div>
+return (
+  <div className="flex flex-col h-[calc(100vh-100px)] overflow-auto">
+    {/* Верхняя панель инструментов — прилипает к верху контейнера */}
+    <div className="sticky top-0 z-30 bg-background pb-2">
       <div className="mb-4 flex items-center gap-2">
         <input
           placeholder="Поиск по всем полям..."
@@ -570,13 +572,27 @@ export function DataTable({ tableName }: DataTableProps) {
           </>
         )}
       </div>
+    </div>
 
-      <div className="overflow-x-auto rounded border border-border">
-        <table className="min-w-full divide-y divide-border">
-          <thead className="bg-muted">
-            {table.getHeaderGroups().map(headerGroup => (
-              <tr key={headerGroup.id}>
-                {headerGroup.headers.map(header => (
+    {/* Таблица: шапка приклеивается сразу под панелью */}
+    <div className="rounded border border-border">
+      <table className="min-w-full divide-y divide-border">
+        <thead
+          className="sticky z-20 bg-muted"
+          style={{ top: "50px" }} // высота панели (подберите точное значение в инспекторе)
+        >
+          {table.getHeaderGroups().map(headerGroup => (
+            <tr key={headerGroup.id}>
+              {headerGroup.headers.map(header => {
+                let extraClasses = "";
+                if (header.column.id === "select") {
+                  extraClasses = "sticky left-0 z-20 bg-muted w-10";
+                } else if (header.column.id === "index") {
+                  extraClasses = "sticky left-[40px] z-20 bg-muted w-10";
+                } else if (header.column.id === "actions") {
+                  extraClasses = "sticky right-0 z-20 bg-muted";
+                }
+                return (
                   <th
                     key={header.id}
                     colSpan={header.colSpan}
@@ -584,7 +600,7 @@ export function DataTable({ tableName }: DataTableProps) {
                       header.column.getCanSort()
                         ? "hover:bg-muted/70 cursor-pointer select-none"
                         : ""
-                    }`}
+                    } ${extraClasses}`}
                     onClick={header.column.getToggleSortingHandler()}
                   >
                     {header.isPlaceholder ? null : (
@@ -594,113 +610,128 @@ export function DataTable({ tableName }: DataTableProps) {
                       </div>
                     )}
                   </th>
-                ))}
-              </tr>
-            ))}
-          </thead>
-            <tbody className="min-h-[300px] divide-y divide-border bg-background">
-              {table.getRowModel().rows.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={columns.length}
-                    className="px-4 py-4 text-center align-middle text-sm text-muted-foreground"
-                  >
-                    <div className="flex h-full min-h-[250px] items-center justify-center">
-                      Нет данных
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                table.getRowModel().rows.map((row, rowIndex) => {
-                  const isSelected = selectedIds.has(row.original.id);
-                  return (
-                    <tr
-                      key={row.id}
-                      className={`hover:bg-muted/50 ${
-                        row.original.isActive === false ? "bg-red-50 dark:bg-red-900/20" : ""
-                      } ${isSelected ? "bg-gray-100 dark:bg-gray-800" : ""}`}
-                    >
-                      {row.getVisibleCells().map(cell => {
-                        if (cell.column.id === "index") {
-                          return (
-                            <td
-                              key={cell.id}
-                              className="whitespace-nowrap px-4 py-2 text-xs text-muted-foreground"
-                            >
-                              {rowIndex + 1}
-                            </td>
-                          );
-                        }
-                        return (
-                          <td
-                            key={cell.id}
-                            className="whitespace-nowrap px-4 py-2 text-sm text-foreground"
-                          >
-                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-        </table>
-      </div>
-
-      {table.getPageCount() > 1 && (
-        <div className="mt-4 flex items-center justify-between">
-          <div className="text-sm text-muted-foreground">
-            Страница {pagination.pageIndex + 1} из {table.getPageCount()}
-          </div>
-          <div className="flex gap-2">
-            <button
-              className="rounded border border-border bg-background px-3 py-1 text-sm text-foreground disabled:opacity-50"
-              onClick={() => table.previousPage()}
-              disabled={!table.getCanPreviousPage()}
-            >
-              Назад
-            </button>
-            <button
-              className="rounded border border-border bg-background px-3 py-1 text-sm text-foreground disabled:opacity-50"
-              onClick={() => table.nextPage()}
-              disabled={!table.getCanNextPage()}
-            >
-              Вперёд
-            </button>
-          </div>
-        </div>
-      )}
-
-      {showForm && (
-        <RecordForm
-          tableName={tableName}
-          editId={editId}
-          onClose={() => {
-            setShowForm(false);
-            setEditId(null);
-          }}
-          onSaved={(savedRow) => {
-            setShowForm(false);
-            setEditId(null);
-            const dyn = (utils as unknown as Record<string, DynamicUtils>)[routerKey];
-            const listCache = dyn?.list?.getData?.();
-            const row = savedRow as BaseRow;   // <-- приведение
-            if (listCache && Array.isArray(listCache)) {
-              if (editId) {
-                const newData = listCache.map((r: BaseRow) =>
-                  r.id === row.id ? { ...r, ...row } : r
                 );
-                dyn?.list?.setData?.(undefined, newData);
-              } else {
-                dyn?.list?.setData?.(undefined, [...listCache, row]);
-              }
-            } else {
-              dyn?.list?.invalidate?.();
-            }
-          }}
-        />
-      )}
+              })}
+            </tr>
+          ))}
+        </thead>
+        <tbody className="min-h-[500px] divide-y divide-border bg-background">
+          {table.getRowModel().rows.length === 0 ? (
+            <tr>
+              <td
+                colSpan={columns.length}
+                className="px-4 py-4 text-center align-middle text-sm text-muted-foreground"
+              >
+                <div className="flex h-full min-h-[250px] items-center justify-center">
+                  Нет данных
+                </div>
+              </td>
+            </tr>
+          ) : (
+            table.getRowModel().rows.map((row, rowIndex) => {
+              const isSelected = selectedIds.has(row.original.id);
+              return (
+                <tr
+                  key={row.id}
+                  className={`hover:bg-muted/50 ${
+                    row.original.isActive === false ? "bg-red-50 dark:bg-red-900/20" : ""
+                  } ${isSelected ? "bg-gray-100 dark:bg-gray-800" : ""}`}
+                >
+                  {row.getVisibleCells().map(cell => {
+                    if (cell.column.id === "index") {
+                      return (
+                        <td
+                          key={cell.id}
+                          className="sticky left-[40px] z-10 w-10 whitespace-nowrap px-4 py-2 text-xs text-muted-foreground bg-background"
+                        >
+                          {rowIndex + 1}
+                        </td>
+                      );
+                    }
+
+                    if (cell.column.id === "actions") {
+                      let actionsBg = "bg-background";
+                      if (row.original.isActive === false) {
+                        actionsBg = "bg-red-50 dark:bg-red-900/20";
+                      } else if (isSelected) {
+                        actionsBg = "bg-gray-100 dark:bg-gray-800";
+                      }
+                      return (
+                        <td
+                          key={cell.id}
+                          className={`sticky right-0 z-10 whitespace-nowrap px-4 py-2 text-sm text-foreground ${actionsBg}`}
+                        >
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </td>
+                      );
+                    }
+
+                    let cellExtraClasses = "";
+                    if (cell.column.id === "select") {
+                      cellExtraClasses = "sticky left-0 z-10 w-10 bg-background";
+                      if (row.original.isActive === false) {
+                        cellExtraClasses += " bg-red-50 dark:bg-red-900/20";
+                      } else if (isSelected) {
+                        cellExtraClasses += " bg-gray-100 dark:bg-gray-800";
+                      }
+                    }
+
+                    return (
+                      <td
+                        key={cell.id}
+                        className={`whitespace-nowrap px-4 py-2 text-sm text-foreground ${cellExtraClasses}`}
+                      >
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })
+          )}
+        </tbody>
+      </table>
     </div>
-  );
+
+    {table.getPageCount() > 1 && (
+      <div className="mt-4 flex items-center justify-between">
+        <div className="text-sm text-muted-foreground">
+          Страница {pagination.pageIndex + 1} из {table.getPageCount()}
+        </div>
+        <div className="flex gap-2">
+          <button
+            className="rounded border border-border bg-background px-3 py-1 text-sm text-foreground disabled:opacity-50"
+            onClick={() => table.previousPage()}
+            disabled={!table.getCanPreviousPage()}
+          >
+            Назад
+          </button>
+          <button
+            className="rounded border border-border bg-background px-3 py-1 text-sm text-foreground disabled:opacity-50"
+            onClick={() => table.nextPage()}
+            disabled={!table.getCanNextPage()}
+          >
+            Вперёд
+          </button>
+        </div>
+      </div>
+    )}
+
+    {showForm && (
+      <RecordForm
+        tableName={tableName}
+        editId={editId}
+        onClose={() => {
+          setShowForm(false);
+          setEditId(null);
+        }}
+        onSaved={() => {
+          setShowForm(false);
+          setEditId(null);
+          (utils as unknown as Record<string, DynamicUtils>)[routerKey]?.list?.invalidate?.();
+        }}
+      />
+    )}
+  </div>
+);
 }

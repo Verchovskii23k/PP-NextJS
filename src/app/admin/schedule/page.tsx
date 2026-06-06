@@ -9,15 +9,22 @@
  * - `selectedVersionId === null` – **«Чистый лист»**. Расписание отсутствует,
  *   редактирование и оптимизация недоступны. Можно только переключаться
  *   между версиями или запускать генераторы.
- * - `selectedVersionId !== null` – **активная сохранённая версия**.
- *   Все изменения автоматически сохраняются в ней. Доступны
- *   редактирование, оптимизация, сброс флагов, экспорт.
+ * - `selectedVersionId !== null` – **активная версия**. Её данные
+ *   восстанавливаются из архива в виде активной копии. Все изменения
+ *   применяются к этой активной копии и **не сохраняются автоматически**.
+ *   При переключении на другую версию или чистый лист несохранённые
+ *   правки удаляются. Для фиксации изменений используйте «Сохранить как…»,
+ *   создающий новую версию с текущим состоянием.
  * - Выпадающий список всегда содержит «Чистый лист» и все сохранённые
  *   версии с пометкой «(текущее)» у активной.
  * - Переключение между версиями мгновенное, без диалогов подтверждения.
- * - Кнопка «Сохранить как…» создаёт копию текущей версии под новым именем.
- * - Кнопка «Удалить версию» полностью удаляет активную версию и её данные,
- *   после чего активируется чистый лист.
+ * - Кнопка «Сохранить как…» создаёт копию текущего активного расписания
+ *   в виде новой версии с заданным именем.
+ * - Кнопка «Удалить версию» полностью удаляет активную версию и все её
+ *   данные (архив и активные копии), после чего активируется чистый лист.
+ * - Кнопка «Переименовать» позволяет изменить название открытой версии.
+ *   Название меняется только в справочнике версий, архивные данные не
+ *   затрагиваются.
  *
  * ### Возможности
  * - **Два режима просмотра:** «По юнитам» и «По группам».
@@ -90,6 +97,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useConfirmContext } from "@/contexts/ConfirmContext";
 import { InputDialog } from "@/components/ui/InputDialog";
 import { useSelectedVersionId } from "@/contexts/VersionContext";
+import React from 'react';  
 
 type Day = { id: number; name: string };
 type Pair = { id: number; number: number };
@@ -430,7 +438,7 @@ export default function AdminSchedulePage() {
     { enabled: editMode && isActiveVersion }
   );
 
-  const activeWeeksData: WeekInfo[] = unitsData?.weeks || groupsData?.weeks || [];
+  const activeWeeksData: WeekInfo[] = (unitsData?.weeks || groupsData?.weeks || []).map(w => ({ id: w.id as number, type: w.type }));
   const activeWeekIds = activeWeeksData.map((w) => w.id);
 
   const moveMutation = trpc.scheduleDisplay.move.useMutation({
@@ -887,6 +895,14 @@ const handleCSV = () => {
       toast.error(e instanceof Error ? e.message : "Ошибка удаления");
     }
   };
+  //Переименование активной версии
+  const renameVersionMut = trpc.scheduleVersions.update.useMutation({
+    onSuccess: () => {
+      utils.scheduleVersions.list.invalidate();
+      toast.success('Версия переименована');
+    },
+    onError: (e) => {toast.error(e.message)},
+  });
 
   if (viewMode === "units" && unitsLoading) return <div className="p-6"><Skeleton className="h-4 w-32" /></div>;
   if (viewMode === "groups" && groupsLoading) return <div className="p-6"><Skeleton className="h-4 w-32" /></div>;
@@ -995,6 +1011,27 @@ const handleCSV = () => {
             className="rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700 disabled:opacity-50"
           >
             {deleteVersionMut.isPending ? "Удаление..." : "Удалить версию"}
+          </button>
+        )}
+        {isActiveVersion && (
+          <button
+            onClick={() => {
+              const currentName = versionsQuery.data?.find(v => v.id === selectedVersionId)?.name ?? '';
+              setInputDialog({
+                show: true,
+                title: 'Переименовать версию',
+                defaultValue: currentName,
+                onConfirm: async (name) => {
+                  await renameVersionMut.mutateAsync({ versionId: selectedVersionId!, name });
+                  setInputDialog({ show: false, title: '', onConfirm: () => {} });
+                },
+              });
+            }}
+            disabled={renameVersionMut.isPending}
+            aria-label="Переименовать версию"
+            className="rounded bg-gray-600 px-3 py-1 text-sm text-white hover:bg-gray-700 disabled:opacity-50"
+          >
+            {renameVersionMut.isPending ? 'Переименование...' : 'Переименовать'}
           </button>
         )}
       </div>
@@ -1203,112 +1240,150 @@ const handleCSV = () => {
         <div className="flex min-h-0 flex-1 items-stretch gap-4">
           {editMode && isActiveVersion && <BufferZone entries={bufferEntries} isEditMode={editMode} />}
 
-          <div className="min-h-0 flex-1 overflow-auto" id="schedule-table">
-            {days && pairs && displayRows && (
-              <div className="rounded-md border border-border">
-                <table className="w-full border-separate border-spacing-0 text-sm">
-                  <thead style={{ position: 'sticky', top: 0, zIndex: 20, background: 'var(--muted)' }}>
-                    <tr className="bg-muted">
-                      <th style={{ position: 'sticky', left: 0, zIndex: 30, background: 'var(--muted)' }} className="w-[70px] min-w-[70px] border border-border bg-muted p-2 text-foreground">
-                        День
-                      </th>
-                      <th style={{ position: 'sticky', left: '70px', zIndex: 30, background: 'var(--muted)' }} className="w-[50px] min-w-[50px] border border-border bg-muted p-2 text-foreground">
-                        Пара
-                      </th>
-                      {unitKeys.map((code) => (
-                        <th key={code} className="min-w-[180px] whitespace-nowrap border border-border bg-blue-50 p-2 text-foreground dark:bg-blue-900/30">
-                          <span style={{ position: 'relative', zIndex: 1 }}>{code}</span>
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {days.map((day: Day) =>
-                      pairs.map((pair: Pair, pairIdx: number) => {
-                        const isFirstPairOfDay = pairIdx === 0;
-                        return (
-                          <tr key={`${day.id}-${pair.id}`}>
-                            {isFirstPairOfDay && (
-                              <td
-                                rowSpan={pairs.length}
-                                style={{ position: 'sticky', left: 0, zIndex: 10, background: 'var(--background)' }}
-                                className="border border-border bg-background p-2 text-center align-top font-medium"
-                              >
-                                {day.name}
-                              </td>
-                            )}
-                            <td
-                              style={{ position: 'sticky', left: '70px', zIndex: 10, background: 'var(--background)' }}
-                              className="border border-border bg-background p-2 text-center align-top"
-                            >
-                              {pair.number}
-                            </td>
-                            {unitKeys.map((code) => (
-                              <td key={`${day.id}-${pair.id}-${code}`} className="min-w-[180px] border border-border p-1 align-top">
-                                <div className="flex flex-col gap-1">
-{activeWeeksData.map((week, weekIdx) => {
-  if (viewMode === "units") {
-    const entry = displayRows.find(
-      (r) =>
-        'unitCode' in r &&
-        r.unitCode === code &&
-        r.dayOfWeekId === day.id &&
-        r.pairNumberId === pair.id &&
-        r.weekId === week.id
-    );
-    return (
-      <DroppableArea
-        key={`${week.id}-${day.id}-${pair.id}-${code}`}
-        weekId={week.id}
-        weekIndex={weekIdx}
-        dayId={day.id}
-        pairId={pair.id}
-        unitCode={code}
-        entry={entry as ScheduleRow | undefined}
-        isEditMode={editMode && isActiveVersion}
-        status={slotStatuses[`week-${week.id}-${day.id}-${pair.id}-${code}`]?.status ?? null}
-        onCellClick={openFlagEditor}
-      />
-    );
-    } else {
-      // viewMode === "groups"
-      const entries = (displayRows as ScheduleRowWithGroup[]).filter(
-        (r) =>
-          r.studyGroupCode === code &&
-          r.dayOfWeekId === day.id &&
-          r.pairNumberId === pair.id &&
-          r.weekId === week.id
-      );
-      const color = WEEK_COLORS[weekIdx % WEEK_COLORS.length];
-      const bg = `${color.bg} ${color.border}`;
-      return (
+<div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden" id="schedule-table">
+  {days && pairs && displayRows && (
+    <div
+      className="schedule-grid h-full w-full"
+      style={{
+        display: 'grid',
+        gridTemplateColumns: `70px 50px repeat(${unitKeys.length}, minmax(180px, 1fr))`,
+        gridTemplateRows: `auto repeat(${days.length * pairs.length * activeWeeksData.length}, auto)`,
+        overflow: 'auto',
+      }}
+    >
+      {/* Шапка */}
+      <div
+        className="sticky-header-left border border-border bg-muted p-2 font-bold text-foreground"
+        style={{ gridRow: 1, gridColumn: 1 }}
+      >
+        День
+      </div>
+      <div
+        className="sticky-header-left border border-border bg-muted p-2 font-bold text-foreground"
+        style={{ gridRow: 1, gridColumn: 2, left: '70px' }}
+      >
+        Пара
+      </div>
+      {unitKeys.map((code, idx) => (
         <div
-          key={`${week.id}-${day.id}-${pair.id}-${code}`}
-          className={`rounded border p-1 text-xs leading-tight ${bg}`}
+          key={`header-${code}`}
+          className="sticky-header-top border border-border bg-blue-50 p-2 font-bold text-foreground dark:bg-blue-900/30"
+          style={{ gridRow: 1, gridColumn: idx + 3 }}
         >
-          {entries.length > 0 ? (
-            entries.map((entry) => (
-              <DraggableLesson key={entry.id} entry={entry} isEditMode={false} />
-            ))
-          ) : (
-            <span className="text-xs text-muted-foreground">—</span>
-          )}
+          {code}
         </div>
-      );
-    }
-})}
-                                </div>
-                              </td>
-                            ))}
-                          </tr>
+      ))}
+
+      {/* Тело */}
+      {days.map((day: Day, dayIdx: number) =>
+        pairs.map((pair: Pair, pairIdx: number) =>
+          activeWeeksData.map((week, weekIdx) => {
+            const rowIndex =
+              2 +
+              (dayIdx * pairs.length * activeWeeksData.length +
+                pairIdx * activeWeeksData.length +
+                weekIdx);
+            const color = WEEK_COLORS[weekIdx % WEEK_COLORS.length];
+            const bgClass = `${color.bg} ${color.border}`;
+
+            return (
+              <React.Fragment key={`${day.id}-${pair.id}-${week.id}`}>
+                {/* Колонка День */}
+                <div
+                  className="sticky-col-left border border-border p-2 text-center font-medium"
+                  style={{
+                    gridRow: rowIndex,
+                    gridColumn: 1,
+                    position: 'sticky',
+                    left: 0,
+                    zIndex: 3,
+                    background: 'var(--background)',
+                  }}
+                >
+                  {day.name}
+                </div>
+                {/* Колонка Пара */}
+                <div
+                  className="sticky-col-left border border-border p-2 text-center"
+                  style={{
+                    gridRow: rowIndex,
+                    gridColumn: 2,
+                    position: 'sticky',
+                    left: '70px',
+                    zIndex: 3,
+                    background: 'var(--background)',
+                  }}
+                >
+                  {pair.number}
+                </div>
+                {/* Колонки юнитов/групп */}
+                {unitKeys.map((code, colIdx) => (
+                  <div
+                    key={`cell-${day.id}-${pair.id}-${week.id}-${code}`}
+                    className={`border border-border p-1 align-top ${viewMode === 'units' ? '' : bgClass}`}
+                    style={{ gridRow: rowIndex, gridColumn: colIdx + 3 }}
+                  >
+                    {viewMode === 'units' ? (
+                      (() => {
+                        const entry = displayRows.find(
+                          (r) =>
+                            'unitCode' in r &&
+                            r.unitCode === code &&
+                            r.dayOfWeekId === day.id &&
+                            r.pairNumberId === pair.id &&
+                            r.weekId === week.id
                         );
-                      })
+                        return (
+                          <DroppableArea
+                            weekId={week.id}
+                            weekIndex={weekIdx}
+                            dayId={day.id}
+                            pairId={pair.id}
+                            unitCode={code}
+                            entry={entry as ScheduleRow | undefined}
+                            isEditMode={editMode && isActiveVersion}
+                            status={slotStatuses[`week-${week.id}-${day.id}-${pair.id}-${code}`]?.status ?? null}
+                            onCellClick={openFlagEditor}
+                          />
+                        );
+                      })()
+                    ) : (
+                      (() => {
+                        const entries = (displayRows as ScheduleRowWithGroup[]).filter(
+                          (r) =>
+                            r.studyGroupCode === code &&
+                            r.dayOfWeekId === day.id &&
+                            r.pairNumberId === pair.id &&
+                            r.weekId === week.id
+                        );
+                        return entries.length > 0 ? (
+                          entries.map((entry) => (
+                            <DraggableLesson key={entry.id} entry={entry} isEditMode={false} />
+                          ))
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        );
+                      })()
                     )}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+                  </div>
+                ))}
+              </React.Fragment>
+            );
+          })
+        )
+      )}
+    </div>
+  )}
+</div>
+
+
+
+
+
+
+
+
+
         </div>
 
         <DragOverlay>

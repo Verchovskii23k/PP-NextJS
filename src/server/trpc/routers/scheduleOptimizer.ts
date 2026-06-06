@@ -59,9 +59,7 @@
  * - Связь `lessonClassrooms` синхронизируется после каждого успешного размещения
  *   группы слияния.
  *
- * @param versionId - фильтр версии расписания:
- *   - `null` или `undefined` – только активные записи (`isActive = true`, `versionId IS NULL`).
- *   - число – записи конкретной архивной версии.
+ * @param versionId - фильтр версии расписания (всегда `null` при вызове из UI; архивные версии не оптимизируются).
  *
  * @returns Объект с детальной статистикой (см. выше). Пригоден для отображения
  *   администратору в виде информативных тостов.
@@ -81,7 +79,6 @@ import {
   scheduleDisplay as sdTable,
   lessons,
   unitRoots,
-  weeks,
   daysOfWeek,
   pairs,
   settings as settingsTable,
@@ -282,7 +279,8 @@ async function buildContext(entries: StrictScheduleEntry[]): Promise<Optimizatio
   const allUnitRoots = await db.select().from(unitRoots).where(and(eq(unitRoots.isActive, true), isNull(unitRoots.versionId)));
   const allDays = await db.select().from(daysOfWeek).orderBy(asc(daysOfWeek.id));
   const allPairs = await db.select().from(pairs).orderBy(asc(pairs.number));
-  const allWeeks = await db.select({ id: weeks.id }).from(weeks).where(eq(weeks.isActive, true)).orderBy(asc(weeks.id));
+  const usedWeekIds = [...new Set(entries.map(e => e.weekId))];
+  const allWeeks = usedWeekIds.map(id => ({ id })).sort((a, b) => a.id - b.id);
 
   const lessonLessonType = new Map<number, string>();
   const allLessonTypes = await db.select().from(lessonTypes);
@@ -770,20 +768,6 @@ export async function optimizeSchedule(versionId?: number | null) {
   const versionCondition = versionId !== undefined
     ? (versionId === null ? isNull(sdTable.versionId) : eq(sdTable.versionId, versionId))
     : isNull(sdTable.versionId);
-  // let versionCondition;
-  // if (versionId === undefined || versionId === null) {
-  //   // Активная версия: isActive = true AND versionId IS NULL
-  //   versionCondition = and(
-  //     eq(sdTable.isActive, true),
-  //     isNull(sdTable.versionId)
-  //   );
-  // } else {
-  //   // Архивная версия: isActive = false AND versionId = конкретному ID
-  //   versionCondition = and(
-  //     eq(sdTable.isActive, false),
-  //     eq(sdTable.versionId, versionId)
-  //   );
-  // }
   const allEntries = await db.select().from(sdTable)
   .where(and(
     eq(sdTable.isBuffered, false),

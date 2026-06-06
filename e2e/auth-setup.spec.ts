@@ -88,7 +88,6 @@ test.describe('Full registration and credentials generation flow', () => {
     const loginShowBtn = page.locator('button[aria-label="Показать пароль"]');
     await loginShowBtn.click();
     await page.click('button:has-text("Войти")');
-    await page.waitForTimeout(3000);
 
     const teacherDashboardLink = page.locator('a:has-text("Перейти в панель управления")');
     await teacherDashboardLink.waitFor({ state: 'visible', timeout: 10000 });
