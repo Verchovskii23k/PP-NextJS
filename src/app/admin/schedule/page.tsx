@@ -1240,150 +1240,140 @@ const handleCSV = () => {
         <div className="flex min-h-0 flex-1 items-stretch gap-4">
           {editMode && isActiveVersion && <BufferZone entries={bufferEntries} isEditMode={editMode} />}
 
-<div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden" id="schedule-table">
-  {days && pairs && displayRows && (
-    <div
-      className="schedule-grid h-full w-full"
-      style={{
-        display: 'grid',
-        gridTemplateColumns: `70px 50px repeat(${unitKeys.length}, minmax(180px, 1fr))`,
-        gridTemplateRows: `auto repeat(${days.length * pairs.length * activeWeeksData.length}, auto)`,
-        overflow: 'auto',
-      }}
-    >
-      {/* Шапка */}
-      <div
-        className="sticky-header-left border border-border bg-muted p-2 font-bold text-foreground"
-        style={{ gridRow: 1, gridColumn: 1 }}
-      >
-        День
-      </div>
-      <div
-        className="sticky-header-left border border-border bg-muted p-2 font-bold text-foreground"
-        style={{ gridRow: 1, gridColumn: 2, left: '70px' }}
-      >
-        Пара
-      </div>
-      {unitKeys.map((code, idx) => (
-        <div
-          key={`header-${code}`}
-          className="sticky-header-top border border-border bg-blue-50 p-2 font-bold text-foreground dark:bg-blue-900/30"
-          style={{ gridRow: 1, gridColumn: idx + 3 }}
-        >
-          {code}
-        </div>
-      ))}
-
-      {/* Тело */}
-      {days.map((day: Day, dayIdx: number) =>
-        pairs.map((pair: Pair, pairIdx: number) =>
-          activeWeeksData.map((week, weekIdx) => {
-            const rowIndex =
-              2 +
-              (dayIdx * pairs.length * activeWeeksData.length +
-                pairIdx * activeWeeksData.length +
-                weekIdx);
-            const color = WEEK_COLORS[weekIdx % WEEK_COLORS.length];
-            const bgClass = `${color.bg} ${color.border}`;
-
-            return (
-              <React.Fragment key={`${day.id}-${pair.id}-${week.id}`}>
-                {/* Колонка День */}
+          <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden" id="schedule-table">
+            {days && pairs && displayRows && (
+              <div
+                className="schedule-grid h-full w-full"
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: `70px 50px repeat(${unitKeys.length}, minmax(180px, 1fr))`,
+                  gridTemplateRows: `auto repeat(${days.length * pairs.length * activeWeeksData.length}, auto)`,
+                  overflow: 'auto',
+                }}
+              >
+                {/* Шапка */}
                 <div
-                  className="sticky-col-left border border-border p-2 text-center font-medium"
-                  style={{
-                    gridRow: rowIndex,
-                    gridColumn: 1,
-                    position: 'sticky',
-                    left: 0,
-                    zIndex: 3,
-                    background: 'var(--background)',
-                  }}
+                  className="sticky-header-left border border-border bg-muted p-2 font-bold text-foreground"
+                  style={{ gridRow: 1, gridColumn: 1 }}
                 >
-                  {day.name}
+                  День
                 </div>
-                {/* Колонка Пара */}
                 <div
-                  className="sticky-col-left border border-border p-2 text-center"
-                  style={{
-                    gridRow: rowIndex,
-                    gridColumn: 2,
-                    position: 'sticky',
-                    left: '70px',
-                    zIndex: 3,
-                    background: 'var(--background)',
-                  }}
+                  className="sticky-header-left border border-border bg-muted p-2 font-bold text-foreground"
+                  style={{ gridRow: 1, gridColumn: 2, left: '70px' }}
                 >
-                  {pair.number}
+                  Пара
                 </div>
-                {/* Колонки юнитов/групп */}
-                {unitKeys.map((code, colIdx) => (
+                {unitKeys.map((code, idx) => (
                   <div
-                    key={`cell-${day.id}-${pair.id}-${week.id}-${code}`}
-                    className={`border border-border p-1 align-top ${viewMode === 'units' ? '' : bgClass}`}
-                    style={{ gridRow: rowIndex, gridColumn: colIdx + 3 }}
+                    key={`header-${code}`}
+                    className="sticky-header-top border border-border bg-blue-50 p-2 font-bold text-foreground dark:bg-blue-900/30"
+                    style={{ gridRow: 1, gridColumn: idx + 3 }}
                   >
-                    {viewMode === 'units' ? (
-                      (() => {
-                        const entry = displayRows.find(
-                          (r) =>
-                            'unitCode' in r &&
-                            r.unitCode === code &&
-                            r.dayOfWeekId === day.id &&
-                            r.pairNumberId === pair.id &&
-                            r.weekId === week.id
-                        );
-                        return (
-                          <DroppableArea
-                            weekId={week.id}
-                            weekIndex={weekIdx}
-                            dayId={day.id}
-                            pairId={pair.id}
-                            unitCode={code}
-                            entry={entry as ScheduleRow | undefined}
-                            isEditMode={editMode && isActiveVersion}
-                            status={slotStatuses[`week-${week.id}-${day.id}-${pair.id}-${code}`]?.status ?? null}
-                            onCellClick={openFlagEditor}
-                          />
-                        );
-                      })()
-                    ) : (
-                      (() => {
-                        const entries = (displayRows as ScheduleRowWithGroup[]).filter(
-                          (r) =>
-                            r.studyGroupCode === code &&
-                            r.dayOfWeekId === day.id &&
-                            r.pairNumberId === pair.id &&
-                            r.weekId === week.id
-                        );
-                        return entries.length > 0 ? (
-                          entries.map((entry) => (
-                            <DraggableLesson key={entry.id} entry={entry} isEditMode={false} />
-                          ))
-                        ) : (
-                          <span className="text-xs text-muted-foreground">—</span>
-                        );
-                      })()
-                    )}
+                    {code}
                   </div>
                 ))}
-              </React.Fragment>
-            );
-          })
-        )
-      )}
-    </div>
-  )}
-</div>
+                {/* Тело */}
+                {days.map((day: Day, dayIdx: number) =>
+                  pairs.map((pair: Pair, pairIdx: number) =>
+                    activeWeeksData.map((week, weekIdx) => {
+                      const rowIndex =
+                        2 +
+                        (dayIdx * pairs.length * activeWeeksData.length +
+                          pairIdx * activeWeeksData.length +
+                          weekIdx);
+                      const color = WEEK_COLORS[weekIdx % WEEK_COLORS.length];
+                      const bgClass = `${color.bg} ${color.border}`;
 
-
-
-
-
-
-
-
-
+                      return (
+                        <React.Fragment key={`${day.id}-${pair.id}-${week.id}`}>
+                          {/* Колонка День */}
+                          <div
+                            className="sticky-col-left border border-border p-2 text-center font-medium"
+                            style={{
+                              gridRow: rowIndex,
+                              gridColumn: 1,
+                              position: 'sticky',
+                              left: 0,
+                              zIndex: 3,
+                              background: 'var(--background)',
+                            }}
+                          >
+                            {day.name}
+                          </div>
+                          {/* Колонка Пара */}
+                          <div
+                            className="sticky-col-left border border-border p-2 text-center"
+                            style={{
+                              gridRow: rowIndex,
+                              gridColumn: 2,
+                              position: 'sticky',
+                              left: '70px',
+                              zIndex: 3,
+                              background: 'var(--background)',
+                            }}
+                          >
+                            {pair.number}
+                          </div>
+                          {/* Колонки юнитов/групп */}
+                          {unitKeys.map((code, colIdx) => (
+                            <div
+                              key={`cell-${day.id}-${pair.id}-${week.id}-${code}`}
+                              className={`border border-border p-1 align-top ${viewMode === 'units' ? '' : bgClass}`}
+                              style={{ gridRow: rowIndex, gridColumn: colIdx + 3 }}
+                            >
+                              {viewMode === 'units' ? (
+                                (() => {
+                                  const entry = displayRows.find(
+                                    (r) =>
+                                      'unitCode' in r &&
+                                      r.unitCode === code &&
+                                      r.dayOfWeekId === day.id &&
+                                      r.pairNumberId === pair.id &&
+                                      r.weekId === week.id
+                                  );
+                                  return (
+                                    <DroppableArea
+                                      weekId={week.id}
+                                      weekIndex={weekIdx}
+                                      dayId={day.id}
+                                      pairId={pair.id}
+                                      unitCode={code}
+                                      entry={entry as ScheduleRow | undefined}
+                                      isEditMode={editMode && isActiveVersion}
+                                      status={slotStatuses[`week-${week.id}-${day.id}-${pair.id}-${code}`]?.status ?? null}
+                                      onCellClick={openFlagEditor}
+                                    />
+                                  );
+                                })()
+                              ) : (
+                                (() => {
+                                  const entries = (displayRows as ScheduleRowWithGroup[]).filter(
+                                    (r) =>
+                                      r.studyGroupCode === code &&
+                                      r.dayOfWeekId === day.id &&
+                                      r.pairNumberId === pair.id &&
+                                      r.weekId === week.id
+                                  );
+                                  return entries.length > 0 ? (
+                                    entries.map((entry) => (
+                                      <DraggableLesson key={entry.id} entry={entry} isEditMode={false} />
+                                    ))
+                                  ) : (
+                                    <span className="text-xs text-muted-foreground">—</span>
+                                  );
+                                })()
+                              )}
+                            </div>
+                          ))}
+                        </React.Fragment>
+                      );
+                    })
+                  )
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         <DragOverlay>

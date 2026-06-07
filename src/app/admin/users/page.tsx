@@ -58,7 +58,7 @@ export default function UsersPage() {
   });
 
   return (
-  <div className="mx-auto h-full max-w-5xl bg-background p-6 text-foreground flex flex-col">
+  <div className="mx-auto flex h-full max-w-5xl flex-col bg-background p-6 text-foreground">
     {/* Верхняя панель (не прокручивается) */}
     <div className="flex-shrink-0">
       <h1 className="mb-6 text-2xl font-bold">Управление пользователями</h1>
@@ -111,7 +111,7 @@ export default function UsersPage() {
 
     {/* Прокручиваемая таблица */}
     {filteredData && (
-      <div className="overflow-y-auto max-h-[calc(100vh-220px)]">
+      <div className="max-h-[calc(100vh-220px)] overflow-y-auto">
         <table className="w-full text-left text-sm">
           <thead className="sticky top-0 z-10 bg-muted">
             <tr className="border-b border-border text-muted-foreground">

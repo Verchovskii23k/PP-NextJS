@@ -956,7 +956,7 @@ export async function optimizeSchedule(versionId?: number | null) {
         if (j >= i) j++;
         const a = ctx.entries[i];
         const b = ctx.entries[j];
-        if (a.positionFlag || b.positionFlag) { iterations++; continue; }
+        if (a.positionFlag || b.positionFlag || a.unitCode !== b.unitCode) { iterations++; continue; }
         if (!canMoveToSlot(ctx, a, b.weekId, b.dayOfWeekId, b.pairNumberId) ||
             !canMoveToSlot(ctx, b, a.weekId, a.dayOfWeekId, a.pairNumberId)) {
           iterations++; continue;

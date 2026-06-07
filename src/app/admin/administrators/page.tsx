@@ -39,7 +39,7 @@ export default function AdministratorsPage() {
   if (error) return <div className="p-6 text-red-500">Ошибка: {error.message}</div>;
 
   return (
-    <div className="mx-auto h-full max-w-4xl bg-background p-6 text-foreground flex flex-col">
+    <div className="mx-auto flex h-full max-w-4xl flex-col bg-background p-6 text-foreground">
       {/* Верхняя панель (не прокручивается) */}
       <div className="flex-shrink-0">
         <h1 className="mb-6 text-2xl font-bold">Управление администраторами</h1>
@@ -67,7 +67,7 @@ export default function AdministratorsPage() {
       </div>
 
       {/* Прокручиваемая таблица */}
-      <div className="overflow-y-auto rounded-lg border border-border max-h-[calc(100vh-200px)]">
+      <div className="max-h-[calc(100vh-200px)] overflow-y-auto rounded-lg border border-border">
         <table className="w-full text-sm">
           <thead className="sticky top-0 z-10 bg-muted">
             <tr>
@@ -106,7 +106,7 @@ export default function AdministratorsPage() {
                       }}
                       disabled={toggleMutation.isPending || isCurrentUser}
                       title={isCurrentUser ? "Нельзя изменить свою роль" : ""}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full focus:outline-none transition-colors ${
                         emp.isAdmin ? "bg-primary" : "bg-gray-300 dark:bg-gray-600"
                       } ${isCurrentUser ? "cursor-not-allowed opacity-50" : ""}`}
                     >

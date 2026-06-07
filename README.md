@@ -20,7 +20,7 @@
 - **Таблицы:** TanStack React Table
 - **Drag‑and‑Drop:** dnd‑kit
 - **Уведомления:** Sonner (тосты)
-- **Тестирование:** Vitest (503 unit‑теста), Playwright (e2e-тесты)
+- **Тестирование:** Vitest (526 unit‑теста), Playwright (2 e2e-теста)
 - **CI/CD:** GitHub Actions (проверка типов, линтера, тестов и сборки)
 - **Почта (dev):** Mailpit (перехватывает письма на localhost:8025)
 
@@ -119,8 +119,8 @@
   - **Роутеры сущностей:** `academicLoadTypes.ts`, `buildings.ts`, `classRooms.ts`, `controlTypes.ts`, `curriculum.ts`, `curriculumProfiles.ts`, `daysOfWeek.ts`, `departments.ts`, `disciplines.ts`, `disciplineTeachers.ts`, `education.ts`, `educationForms.ts`, `educationLevels.ts`, `employees.ts`, `employeesDepartments.ts`, `employmentTypes.ts`, `hourTypeMapping.ts`, `institutes.ts`, `lessons.ts`, `lessonClassrooms.ts`, `lessonTypes.ts`, `pairs.ts`, `positions.ts`, `profiles.ts`, `specialties.ts`, `students.ts`, `studyGroups.ts`, `units.ts`, `unitRoots.ts`, `unitTypes.ts`, `weeks.ts`.
   - **Расписание:** `schedule.ts` (публичное API), `scheduleDisplay.ts` (drag‑and‑drop, буфер, флаги), `scheduleOptimizer.ts` (имитация отжига), `scheduleVersions.ts` (версионирование).
   - **Генераторы:** `generations` (объединение), `generateCredentials.ts`, `generateGroups.ts`, `generateUnits.ts`, `generateLessons.ts`, `assignClassrooms.ts`, `generateSchedule.ts` а также `helpers.ts` для проверки открытия чистого листа и `index.ts` для подключения генераторов в один подроутер.
-  - **Тесты:** `__tests__/` – **Unit-тесты (Vitest, 503 тестов)** покрывают все CRUD-роутеры справочных таблиц, 
-роутеры аутентификации и управления пользователями, модуль версиониования `scheduleVersions` а также логику вызова генераторов.
+  - **Тесты:** `__tests__/` – **Unit-тесты (Vitest, 526 тестов)** покрывают все CRUD-роутеры справочных таблиц, 
+роутеры аутентификации и управления пользователями, отдельные утилиты, генератор учетных записей, модуль версиониования `scheduleVersions` а также логику вызова генераторов.
 Роутер `scheduleDisplay` и `scheduleOptimizer` частично покрыт тестами (логика проверки конфликтов drag‑and‑drop).
 
 #### 🧪 `test/` – тестовая инфраструктура
@@ -451,6 +451,7 @@ src
 │               ├── employees.test.ts                                        # CRUD "Сотрудники"
 │               ├── employeesDepartments.test.ts                             # CRUD "Сотрудники кафедр"
 │               ├── employmentTypes.test.ts                                  # CRUD "Типы занятости"
+│               ├── generateCredentials.test.ts                              # Тесты генератора учётных записей
 │               ├── generators-logic.test.ts                                 # Логика работы генераторов (групп, юнитов, занятий)
 │               ├── generators.test.ts                                       # Последовательный вызов генераторов
 │               ├── globalImportExport.test.ts                               # Глобальный импорт/экспорт всей БД
@@ -460,8 +461,10 @@ src
 │               ├── lessonTypes.test.ts                                      # CRUD "Типы занятий"
 │               ├── lookup.test.ts                                           # Получение записи по ID (EntityTooltip)
 │               ├── pairs.test.ts                                            # CRUD "Пары"
+│               ├── password.test.ts                                         # Тесты утилит паролей и транслитерации
 │               ├── positions.test.ts                                        # CRUD "Должности"
 │               ├── profiles.test.ts                                         # CRUD "Профили"
+│               ├── safeDelete.test.ts                                       # Тесты безопасного удаления
 │               ├── schedule.test.ts                                         # Публичное API расписания
 │               ├── scheduleVersions.test.ts                                 # Тесты версионирования расписания
 │               ├── settings.test.ts                                         # Управление настройками (ключ-значение)

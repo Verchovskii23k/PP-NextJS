@@ -75,17 +75,24 @@ export const userManagementRouter = router({
             .from(employees)
             .where(eq(employees.userId, user.id))
             .limit(1);
-          if (emp) fullName = `${emp.surname} ${emp.name}${emp.patronymic ? ' ' + emp.patronymic : ''}`;
+          if (emp) {
+            const patronymicPart = emp.patronymic ? ` ${emp.patronymic}` : '';
+            fullName = `${emp.surname} ${emp.name}${patronymicPart}`;
+          }
         } else if (user.role === 'student') {
           const [stu] = await ctx.db
             .select({
               surname: students.surname,
               name: students.name,
+              patronymic: students.patronymic,
             })
             .from(students)
             .where(eq(students.userId, user.id))
             .limit(1);
-          if (stu) fullName = `${stu.surname} ${stu.name}`;
+          if (stu) {
+            const patronymicPart = stu.patronymic ? ` ${stu.patronymic}` : '';
+            fullName = `${stu.surname} ${stu.name}${patronymicPart}`;
+          }
         }
         result.push({ id: user.id, email: user.email, role: user.role, fullName, isSelf });
       }

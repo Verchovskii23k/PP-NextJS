@@ -1,79 +1,79 @@
-/**
- * Универсальная таблица данных для всех CRUD-справочников админ-панели.
- *
- * Полностью строится по метаданным из {@link tablesMeta}: набор колонок, их типы,
- * внешние ключи, фильтры и действия генерируются автоматически на основе переданного
- * `tableName`. Один и тот же компонент обслуживает 30+ таблиц без дублирования кода.
- *
- * ## Основные возможности
- * - **Сортировка** по любому столбцу (клик по заголовку).
- * - **Глобальный поиск** по всем текстовым полям (строка ввода над таблицей).
- * - **Фильтрация по значениям столбца** через попап `ColumnFilterPopover` (исключение
- *   выбранных значений).
- * - **Массовое удаление** выбранных записей с проверкой зависимостей (`batchDeleteRouter`).
- * - **Импорт / экспорт** данных в JSON.
- * - **Создание и редактирование** записей через модальную форму `RecordForm`.
- * - **Подсветка архивных записей** красным фоном, если `row.original.isActive === false`.
- *
- * ## Как работает
- * 1. По `tableName` извлекается объект `TableMeta` из `tablesMeta`.
- * 2. Через `routerKey` динамически получается tRPC-роутер (например, `trpc.institutes`).
- * 3. Вызывается `list.useQuery()` для загрузки всех записей (пагинация на 10000 строк).
- * 4. Для каждого поля из `meta.fields` строится колонка `ColumnDef`:
- *    - Обычное поле → текстовое отображение (`String(value)`).
- *    - Внешний ключ → компонент `ForeignKeyCell`, который по ID показывает осмысленное
- *      имя из связанной таблицы.
- *    - Заголовок колонки содержит `displayName` поля и кнопку фильтра.
- * 5. Добавляются служебные колонки:
- *    - Чекбокс выбора строки.
- *    - Порядковый номер (отображается в `<tbody>`, а не в данных).
- *    - Колонка «Действия» с кнопками «Ред.» и «Удалить».
- * 6. `useReactTable` из TanStack Table управляет сортировкой, фильтрацией,
- *    пагинацией и глобальным поиском.
- * 7. При смене `tableName` все состояния (сортировка, фильтры, пагинация, выбранные ID)
- *    сбрасываются в начальное состояние через `useEffect`.
- *
- * ## Состояния
- * - `isLoading` → отображается скелетон таблицы (`SkeletonTable`).
- * - `isError` → красный текст с сообщением ошибки.
- * - Пустые данные → строка «Нет данных» с минимальной высотой 250px.
- * - `meta === undefined` → сообщение «Таблица не найдена».
- *
- * ## Обработчики
- * - **Удаление одиночной записи** – диалог подтверждения → мутация `delete` → инвалидация
- *   кеша tRPC.
- * - **Массовое удаление** – диалог подтверждения → мутация `batchDelete.deleteMany` →
- *   тост с результатом (сколько удалено, сколько не удалось и почему).
- * - **Экспорт** – запрос `crudImportExport.exportAll` с отключённым автоматическим
- *   выполнением (`enabled: false`), запускается вручную через `refetch()`. Результат
- *   сохраняется как JSON-файл.
- * - **Импорт** – выбор файла → `FileReader` → мутация `crudImportExport.importData` →
- *   тост с количеством вставленных, обновлённых, пропущенных записей и списком ошибок.
- * - **Добавление** – открывает `RecordForm` с `editId = null`.
- * - **Редактирование** – открывает `RecordForm` с `editId = id` выбранной строки.
- *
- * ## UI-структура
- * - **Панель инструментов**: глобальный поиск, кнопки «Добавить», «JSON-экспорт»,
- *   «JSON-импорт», кнопка массового удаления (появляется при выборе строк).
- * - **Таблица**: шапка с сортируемыми заголовками, тело с данными.
- * - **Строки**: чекбокс, порядковый номер, значения полей, кнопки действий.
- * - **Пейджинг**: отображается только если страниц больше одной.
- * - **Модальная форма**: рендерится поверх таблицы при `showForm === true`.
- *
- * ## Примечания
- * - `pageSize` установлен в 10000, чтобы показывать все записи без пагинации
- *   (в типовых справочниках данных немного). При необходимости можно уменьшить.
- * - Фильтрация работает как **исключение**: выбранные значения скрываются из таблицы,
- *   а не показываются только они.
- * - Для добавления новой таблицы достаточно создать запись в `tablesMeta` и
- *   соответствующий tRPC-роутер с методами `list`, `create`, `update`, `delete`.
- *   Компонент подхватит её автоматически.
- * - Тип `CrudRouter` – упрощённая версия реального типа tRPC-роутера для обхода
- *   сложной типизации. В production-коде рекомендуется использовать точные типы
- *   из `@trpc/server`.
- *
- * @param tableName - ключ из `tablesMeta`, определяющий, какую таблицу отображать.
- */
+// /**
+//  * Универсальная таблица данных для всех CRUD-справочников админ-панели.
+//  *
+//  * Полностью строится по метаданным из {@link tablesMeta}: набор колонок, их типы,
+//  * внешние ключи, фильтры и действия генерируются автоматически на основе переданного
+//  * `tableName`. Один и тот же компонент обслуживает 30+ таблиц без дублирования кода.
+//  *
+//  * ## Основные возможности
+//  * - **Сортировка** по любому столбцу (клик по заголовку).
+//  * - **Глобальный поиск** по всем текстовым полям (строка ввода над таблицей).
+//  * - **Фильтрация по значениям столбца** через попап `ColumnFilterPopover` (исключение
+//  *   выбранных значений).
+//  * - **Массовое удаление** выбранных записей с проверкой зависимостей (`batchDeleteRouter`).
+//  * - **Импорт / экспорт** данных в JSON.
+//  * - **Создание и редактирование** записей через модальную форму `RecordForm`.
+//  * - **Подсветка архивных записей** красным фоном, если `row.original.isActive === false`.
+//  *
+//  * ## Как работает
+//  * 1. По `tableName` извлекается объект `TableMeta` из `tablesMeta`.
+//  * 2. Через `routerKey` динамически получается tRPC-роутер (например, `trpc.institutes`).
+//  * 3. Вызывается `list.useQuery()` для загрузки всех записей (пагинация на 10000 строк).
+//  * 4. Для каждого поля из `meta.fields` строится колонка `ColumnDef`:
+//  *    - Обычное поле → текстовое отображение (`String(value)`).
+//  *    - Внешний ключ → компонент `ForeignKeyCell`, который по ID показывает осмысленное
+//  *      имя из связанной таблицы.
+//  *    - Заголовок колонки содержит `displayName` поля и кнопку фильтра.
+//  * 5. Добавляются служебные колонки:
+//  *    - Чекбокс выбора строки.
+//  *    - Порядковый номер (отображается в `<tbody>`, а не в данных).
+//  *    - Колонка «Действия» с кнопками «Ред.» и «Удалить».
+//  * 6. `useReactTable` из TanStack Table управляет сортировкой, фильтрацией,
+//  *    пагинацией и глобальным поиском.
+//  * 7. При смене `tableName` все состояния (сортировка, фильтры, пагинация, выбранные ID)
+//  *    сбрасываются в начальное состояние через `useEffect`.
+//  *
+//  * ## Состояния
+//  * - `isLoading` → отображается скелетон таблицы (`SkeletonTable`).
+//  * - `isError` → красный текст с сообщением ошибки.
+//  * - Пустые данные → строка «Нет данных» с минимальной высотой 250px.
+//  * - `meta === undefined` → сообщение «Таблица не найдена».
+//  *
+//  * ## Обработчики
+//  * - **Удаление одиночной записи** – диалог подтверждения → мутация `delete` → инвалидация
+//  *   кеша tRPC.
+//  * - **Массовое удаление** – диалог подтверждения → мутация `batchDelete.deleteMany` →
+//  *   тост с результатом (сколько удалено, сколько не удалось и почему).
+//  * - **Экспорт** – запрос `crudImportExport.exportAll` с отключённым автоматическим
+//  *   выполнением (`enabled: false`), запускается вручную через `refetch()`. Результат
+//  *   сохраняется как JSON-файл.
+//  * - **Импорт** – выбор файла → `FileReader` → мутация `crudImportExport.importData` →
+//  *   тост с количеством вставленных, обновлённых, пропущенных записей и списком ошибок.
+//  * - **Добавление** – открывает `RecordForm` с `editId = null`.
+//  * - **Редактирование** – открывает `RecordForm` с `editId = id` выбранной строки.
+//  *
+//  * ## UI-структура
+//  * - **Панель инструментов**: глобальный поиск, кнопки «Добавить», «JSON-экспорт»,
+//  *   «JSON-импорт», кнопка массового удаления (появляется при выборе строк).
+//  * - **Таблица**: шапка с сортируемыми заголовками, тело с данными.
+//  * - **Строки**: чекбокс, порядковый номер, значения полей, кнопки действий.
+//  * - **Пейджинг**: отображается только если страниц больше одной.
+//  * - **Модальная форма**: рендерится поверх таблицы при `showForm === true`.
+//  *
+//  * ## Примечания
+//  * - `pageSize` установлен в 10000, чтобы показывать все записи без пагинации
+//  *   (в типовых справочниках данных немного). При необходимости можно уменьшить.
+//  * - Фильтрация работает как **исключение**: выбранные значения скрываются из таблицы,
+//  *   а не показываются только они.
+//  * - Для добавления новой таблицы достаточно создать запись в `tablesMeta` и
+//  *   соответствующий tRPC-роутер с методами `list`, `create`, `update`, `delete`.
+//  *   Компонент подхватит её автоматически.
+//  * - Тип `CrudRouter` – упрощённая версия реального типа tRPC-роутера для обхода
+//  *   сложной типизации. В production-коде рекомендуется использовать точные типы
+//  *   из `@trpc/server`.
+//  *
+//  * @param tableName - ключ из `tablesMeta`, определяющий, какую таблицу отображать.
+//  */
 "use client";
 import * as React from "react";
 import { useRef, useState } from "react";
@@ -501,237 +501,237 @@ export function DataTable({ tableName }: DataTableProps) {
   if (isLoading) return <div className="p-6"><SkeletonTable rows={8} /></div>;
   if (isError && error) return <div className="text-red-500">Ошибка: {error.message}</div>;
 
-return (
-  <div className="flex flex-col h-[calc(100vh-100px)] overflow-auto">
-    {/* Верхняя панель инструментов — прилипает к верху контейнера */}
-    <div className="sticky top-0 z-30 bg-background pb-2">
-      <div className="mb-4 flex items-center gap-2">
-        <input
-          placeholder="Поиск по всем полям..."
-          value={globalFilter}
-          onChange={e => setGlobalFilter(e.target.value)}
-          className="max-w-sm rounded border border-border bg-background px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground"
-        />
-        <button
-          className="hover:bg-primary/90 rounded bg-primary px-3 py-1.5 text-sm text-white"
-          onClick={() => {
-            setEditId(null);
-            setShowForm(true);
-          }}
-        >
-          Добавить
-        </button>
-        <button
-          className="rounded bg-green-600 px-3 py-1.5 text-sm text-white hover:bg-green-700"
-          onClick={handleExport}
-          disabled={exportQuery.isFetching}
-        >
-          {exportQuery.isFetching ? "..." : "JSON-экспорт"}
-        </button>
-        <input
-          type="file"
-          accept=".json"
-          ref={fileInputRef}
-          className="hidden"
-          onChange={handleImport}
-        />
-        <button
-          className="rounded bg-yellow-600 px-3 py-1.5 text-sm text-white hover:bg-yellow-700"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={importMutation.isPending}
-        >
-          {importMutation.isPending ? "..." : "JSON-импорт"}
-        </button>
-        {selectedIds.size > 0 && (
+  return (
+    <div className="flex h-[calc(100vh-100px)] flex-col overflow-y-auto">
+      {/* Верхняя панель инструментов — прилипает к верху, не скроллится горизонтально */}
+      <div className="sticky top-0 z-30 bg-background pb-2">
+        <div className="mb-4 flex items-center gap-2">
+          <input
+            placeholder="Поиск по всем полям..."
+            value={globalFilter}
+            onChange={e => setGlobalFilter(e.target.value)}
+            className="max-w-sm rounded border border-border bg-background px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground"
+          />
           <button
-            className="rounded bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-700"
-            onClick={handleDeleteSelected}
-            disabled={deleteManyMutation.isPending}
+            className="hover:bg-primary/90 rounded bg-primary px-3 py-1.5 text-sm text-white"
+            onClick={() => {
+              setEditId(null);
+              setShowForm(true);
+            }}
           >
-            {deleteManyMutation.isPending
-              ? "Удаление..."
-              : `Удалить выбранные (${selectedIds.size})`}
+            Добавить
           </button>
-        )}
-        {selectedIds.size > 0 && hasActiveToggle && (
-          <>
+          <button
+            className="rounded bg-green-600 px-3 py-1.5 text-sm text-white hover:bg-green-700"
+            onClick={handleExport}
+            disabled={exportQuery.isFetching}
+          >
+            {exportQuery.isFetching ? "..." : "JSON-экспорт"}
+          </button>
+          <input
+            type="file"
+            accept=".json"
+            ref={fileInputRef}
+            className="hidden"
+            onChange={handleImport}
+          />
+          <button
+            className="rounded bg-yellow-600 px-3 py-1.5 text-sm text-white hover:bg-yellow-700"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={importMutation.isPending}
+          >
+            {importMutation.isPending ? "..." : "JSON-импорт"}
+          </button>
+          {selectedIds.size > 0 && (
             <button
-              className="rounded bg-orange-600 px-3 py-1.5 text-sm text-white hover:bg-orange-700"
-              onClick={handleDeactivateSelected}
-              disabled={batchUpdateActiveMutation.isPending}
+              className="rounded bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-700"
+              onClick={handleDeleteSelected}
+              disabled={deleteManyMutation.isPending}
             >
-              {batchUpdateActiveMutation.isPending ? "..." : `Деактивировать (${selectedIds.size})`}
+              {deleteManyMutation.isPending
+                ? "Удаление..."
+                : `Удалить выбранные (${selectedIds.size})`}
             </button>
-            <button
-              className="rounded bg-green-600 px-3 py-1.5 text-sm text-white hover:bg-green-700"
-              onClick={handleActivateSelected}
-              disabled={batchUpdateActiveMutation.isPending}
-            >
-              {batchUpdateActiveMutation.isPending ? "..." : `Активировать (${selectedIds.size})`}
-            </button>
-          </>
-        )}
-      </div>
-    </div>
-
-    {/* Таблица: шапка приклеивается сразу под панелью */}
-    <div className="rounded border border-border">
-      <table className="min-w-full divide-y divide-border">
-        <thead
-          className="sticky z-20 bg-muted"
-          style={{ top: "50px" }} // высота панели (подберите точное значение в инспекторе)
-        >
-          {table.getHeaderGroups().map(headerGroup => (
-            <tr key={headerGroup.id}>
-              {headerGroup.headers.map(header => {
-                let extraClasses = "";
-                if (header.column.id === "select") {
-                  extraClasses = "sticky left-0 z-20 bg-muted w-10";
-                } else if (header.column.id === "index") {
-                  extraClasses = "sticky left-[40px] z-20 bg-muted w-10";
-                } else if (header.column.id === "actions") {
-                  extraClasses = "sticky right-0 z-20 bg-muted";
-                }
-                return (
-                  <th
-                    key={header.id}
-                    colSpan={header.colSpan}
-                    className={`px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground ${
-                      header.column.getCanSort()
-                        ? "hover:bg-muted/70 cursor-pointer select-none"
-                        : ""
-                    } ${extraClasses}`}
-                    onClick={header.column.getToggleSortingHandler()}
-                  >
-                    {header.isPlaceholder ? null : (
-                      <div className="flex items-center gap-1">
-                        {flexRender(header.column.columnDef.header, header.getContext())}
-                        {{ asc: " 🔼", desc: " 🔽" }[header.column.getIsSorted() as string] ?? null}
-                      </div>
-                    )}
-                  </th>
-                );
-              })}
-            </tr>
-          ))}
-        </thead>
-        <tbody className="min-h-[500px] divide-y divide-border bg-background">
-          {table.getRowModel().rows.length === 0 ? (
-            <tr>
-              <td
-                colSpan={columns.length}
-                className="px-4 py-4 text-center align-middle text-sm text-muted-foreground"
+          )}
+          {selectedIds.size > 0 && hasActiveToggle && (
+            <>
+              <button
+                className="rounded bg-orange-600 px-3 py-1.5 text-sm text-white hover:bg-orange-700"
+                onClick={handleDeactivateSelected}
+                disabled={batchUpdateActiveMutation.isPending}
               >
-                <div className="flex h-full min-h-[250px] items-center justify-center">
-                  Нет данных
-                </div>
-              </td>
-            </tr>
-          ) : (
-            table.getRowModel().rows.map((row, rowIndex) => {
-              const isSelected = selectedIds.has(row.original.id);
-              return (
-                <tr
-                  key={row.id}
-                  className={`hover:bg-muted/50 ${
-                    row.original.isActive === false ? "bg-red-50 dark:bg-red-900/20" : ""
-                  } ${isSelected ? "bg-gray-100 dark:bg-gray-800" : ""}`}
-                >
-                  {row.getVisibleCells().map(cell => {
-                    if (cell.column.id === "index") {
-                      return (
-                        <td
-                          key={cell.id}
-                          className="sticky left-[40px] z-10 w-10 whitespace-nowrap px-4 py-2 text-xs text-muted-foreground bg-background"
-                        >
-                          {rowIndex + 1}
-                        </td>
-                      );
-                    }
+                {batchUpdateActiveMutation.isPending ? "..." : `Деактивировать (${selectedIds.size})`}
+              </button>
+              <button
+                className="rounded bg-green-600 px-3 py-1.5 text-sm text-white hover:bg-green-700"
+                onClick={handleActivateSelected}
+                disabled={batchUpdateActiveMutation.isPending}
+              >
+                {batchUpdateActiveMutation.isPending ? "..." : `Активировать (${selectedIds.size})`}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
 
-                    if (cell.column.id === "actions") {
-                      let actionsBg = "bg-background";
-                      if (row.original.isActive === false) {
-                        actionsBg = "bg-red-50 dark:bg-red-900/20";
-                      } else if (isSelected) {
-                        actionsBg = "bg-gray-100 dark:bg-gray-800";
+      {/* Таблица с горизонтальной прокруткой – панель не скроллится, шапка прилипает */}
+      <div className="overflow-x-auto rounded border border-border">
+        <table className="min-w-full divide-y divide-border">
+          <thead
+            className="sticky z-20 bg-muted"
+            style={{ top: "0px" }} // высота панели (подберите точное значение в инспекторе)
+          >
+            {table.getHeaderGroups().map(headerGroup => (
+              <tr key={headerGroup.id}>
+                {headerGroup.headers.map(header => {
+                  let extraClasses = "";
+                  if (header.column.id === "select") {
+                    extraClasses = "sticky left-0 z-20 bg-muted w-10";
+                  } else if (header.column.id === "index") {
+                    extraClasses = "sticky left-[40px] z-20 bg-muted w-10";
+                  } else if (header.column.id === "actions") {
+                    extraClasses = "sticky right-0 z-20 bg-muted";
+                  }
+                  return (
+                    <th
+                      key={header.id}
+                      colSpan={header.colSpan}
+                      className={`px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground ${
+                        header.column.getCanSort()
+                          ? "hover:bg-muted/70 cursor-pointer select-none"
+                          : ""
+                      } ${extraClasses}`}
+                      onClick={header.column.getToggleSortingHandler()}
+                    >
+                      {header.isPlaceholder ? null : (
+                        <div className="flex items-center gap-1">
+                          {flexRender(header.column.columnDef.header, header.getContext())}
+                          {{ asc: " 🔼", desc: " 🔽" }[header.column.getIsSorted() as string] ?? null}
+                        </div>
+                      )}
+                    </th>
+                  );
+                })}
+              </tr>
+            ))}
+          </thead>
+          <tbody className="min-h-[500px] divide-y divide-border bg-background">
+            {table.getRowModel().rows.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={columns.length}
+                  className="px-4 py-4 text-center align-middle text-sm text-muted-foreground"
+                >
+                  <div className="flex h-full min-h-[250px] items-center justify-center">
+                    Нет данных
+                  </div>
+                </td>
+              </tr>
+            ) : (
+              table.getRowModel().rows.map((row, rowIndex) => {
+                const isSelected = selectedIds.has(row.original.id);
+                return (
+                  <tr
+                    key={row.id}
+                    className={`hover:bg-muted/50 ${
+                      row.original.isActive === false ? "bg-red-50 dark:bg-red-900/20" : ""
+                    } ${isSelected ? "bg-gray-100 dark:bg-gray-800" : ""}`}
+                  >
+                    {row.getVisibleCells().map(cell => {
+                      if (cell.column.id === "index") {
+                        return (
+                          <td
+                            key={cell.id}
+                            className="sticky left-[40px] z-10 w-10 whitespace-nowrap bg-background px-4 py-2 text-xs text-muted-foreground"
+                          >
+                            {rowIndex + 1}
+                          </td>
+                        );
                       }
+
+                      if (cell.column.id === "actions") {
+                        let actionsBg = "bg-background";
+                        if (row.original.isActive === false) {
+                          actionsBg = "bg-red-50 dark:bg-red-900/20";
+                        } else if (isSelected) {
+                          actionsBg = "bg-gray-100 dark:bg-gray-800";
+                        }
+                        return (
+                          <td
+                            key={cell.id}
+                            className={`sticky right-0 z-10 whitespace-nowrap px-4 py-2 text-sm text-foreground ${actionsBg}`}
+                          >
+                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                          </td>
+                        );
+                      }
+
+                      let cellExtraClasses = "";
+                      if (cell.column.id === "select") {
+                        cellExtraClasses = "sticky left-0 z-10 w-10 bg-background";
+                        if (row.original.isActive === false) {
+                          cellExtraClasses += " bg-red-50 dark:bg-red-900/20";
+                        } else if (isSelected) {
+                          cellExtraClasses += " bg-gray-100 dark:bg-gray-800";
+                        }
+                      }
+
                       return (
                         <td
                           key={cell.id}
-                          className={`sticky right-0 z-10 whitespace-nowrap px-4 py-2 text-sm text-foreground ${actionsBg}`}
+                          className={`whitespace-nowrap px-4 py-2 text-sm text-foreground ${cellExtraClasses}`}
                         >
                           {flexRender(cell.column.columnDef.cell, cell.getContext())}
                         </td>
                       );
-                    }
-
-                    let cellExtraClasses = "";
-                    if (cell.column.id === "select") {
-                      cellExtraClasses = "sticky left-0 z-10 w-10 bg-background";
-                      if (row.original.isActive === false) {
-                        cellExtraClasses += " bg-red-50 dark:bg-red-900/20";
-                      } else if (isSelected) {
-                        cellExtraClasses += " bg-gray-100 dark:bg-gray-800";
-                      }
-                    }
-
-                    return (
-                      <td
-                        key={cell.id}
-                        className={`whitespace-nowrap px-4 py-2 text-sm text-foreground ${cellExtraClasses}`}
-                      >
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </td>
-                    );
-                  })}
-                </tr>
-              );
-            })
-          )}
-        </tbody>
-      </table>
-    </div>
-
-    {table.getPageCount() > 1 && (
-      <div className="mt-4 flex items-center justify-between">
-        <div className="text-sm text-muted-foreground">
-          Страница {pagination.pageIndex + 1} из {table.getPageCount()}
-        </div>
-        <div className="flex gap-2">
-          <button
-            className="rounded border border-border bg-background px-3 py-1 text-sm text-foreground disabled:opacity-50"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
-          >
-            Назад
-          </button>
-          <button
-            className="rounded border border-border bg-background px-3 py-1 text-sm text-foreground disabled:opacity-50"
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
-          >
-            Вперёд
-          </button>
-        </div>
+                    })}
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
       </div>
-    )}
 
-    {showForm && (
-      <RecordForm
-        tableName={tableName}
-        editId={editId}
-        onClose={() => {
-          setShowForm(false);
-          setEditId(null);
-        }}
-        onSaved={() => {
-          setShowForm(false);
-          setEditId(null);
-          (utils as unknown as Record<string, DynamicUtils>)[routerKey]?.list?.invalidate?.();
-        }}
-      />
-    )}
-  </div>
-);
+      {table.getPageCount() > 1 && (
+        <div className="mt-4 flex items-center justify-between">
+          <div className="text-sm text-muted-foreground">
+            Страница {pagination.pageIndex + 1} из {table.getPageCount()}
+          </div>
+          <div className="flex gap-2">
+            <button
+              className="rounded border border-border bg-background px-3 py-1 text-sm text-foreground disabled:opacity-50"
+              onClick={() => table.previousPage()}
+              disabled={!table.getCanPreviousPage()}
+            >
+              Назад
+            </button>
+            <button
+              className="rounded border border-border bg-background px-3 py-1 text-sm text-foreground disabled:opacity-50"
+              onClick={() => table.nextPage()}
+              disabled={!table.getCanNextPage()}
+            >
+              Вперёд
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showForm && (
+        <RecordForm
+          tableName={tableName}
+          editId={editId}
+          onClose={() => {
+            setShowForm(false);
+            setEditId(null);
+          }}
+          onSaved={() => {
+            setShowForm(false);
+            setEditId(null);
+            (utils as unknown as Record<string, DynamicUtils>)[routerKey]?.list?.invalidate?.();
+          }}
+        />
+      )}
+    </div>
+  );
 }
