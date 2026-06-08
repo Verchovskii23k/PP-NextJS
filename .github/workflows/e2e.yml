@@ -37,20 +37,17 @@ jobs:
         run: npx drizzle-kit push
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/university_schedule_test
-      - name: Start dev server in background
-        run: npm run dev:test &
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/university_schedule_test
-          SMTP_HOST: localhost
-          SMTP_PORT: 1025
-          SMTP_FROM: "e2e@test.com"
-      - name: Wait for server to be ready
-        run: npx wait-on http://localhost:3000
       - name: Run E2E tests
         run: npm run test:e2e
         env:
-          PLAYWRIGHT_TEST_BASE_URL: http://localhost:3000
-      - name: Upload test results (artifacts)
+          CI: true
+          PORT: 3000
+          BETTER_AUTH_URL: http://localhost:3000
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/university_schedule_test
+          SMTP_HOST: localhost
+          SMTP_PORT: 1025
+          SMTP_FROM: "Расписание университета <e2e@test.com>"
+      - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
