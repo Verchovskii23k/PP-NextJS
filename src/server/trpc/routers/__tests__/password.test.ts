@@ -86,10 +86,10 @@ describe('password utilities', () => {
       expect(pwd).toHaveLength(8);
     });
 
-    it('low – 6 символов, минимум 2 заглавные, 2 строчные, 2 цифры', () => {
+    it('low – 10 символов, минимум 2 заглавные, 2 строчные, 2 цифры', () => {
       for (let i = 0; i < 30; i++) {
         const pwd = generateRandomPassword('low');
-        expect(pwd).toHaveLength(6);
+        expect(pwd).toHaveLength(10);
         const upper = (pwd.match(/[A-Z]/g) || []).length;
         const lower = (pwd.match(/[a-z]/g) || []).length;
         const digits = (pwd.match(/[0-9]/g) || []).length;
@@ -99,10 +99,10 @@ describe('password utilities', () => {
       }
     });
 
-    it('medium – 10 символов, минимум 2 заглавные, 2 строчные, 2 цифры', () => {
+    it('medium – 12 символов, минимум 2 заглавные, 2 строчные, 2 цифры', () => {
       for (let i = 0; i < 30; i++) {
         const pwd = generateRandomPassword('medium');
-        expect(pwd).toHaveLength(10);
+        expect(pwd).toHaveLength(12);
         const upper = (pwd.match(/[A-Z]/g) || []).length;
         const lower = (pwd.match(/[a-z]/g) || []).length;
         const digits = (pwd.match(/[0-9]/g) || []).length;

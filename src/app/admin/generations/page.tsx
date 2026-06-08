@@ -159,7 +159,7 @@ export default function GenerationsPage() {
       if (data.assignedClassrooms === 0) {
         toast.warning("Аудитории не назначены. Возможно, занятия не созданы или нет подходящих аудиторий.");
       } else {
-        toast.success(`Назначено аудиторий: ${data.assignedClassrooms}`);
+        toast.success(`Для ${data.assignedClassrooms} занятий(ия) назначены аудитории`);
       }
     },
     onError: (e) => { toast.error(e.message); },

@@ -105,29 +105,46 @@ export const employeesRouter = router({
     .mutation(async ({ ctx, input }) => {
       return ctx.db.insert(employees).values(input).returning();
     }),
-  update: adminProcedure
-    .input(z.object({
-      id: z.number(),
-      surname: z.string().min(1).optional(),
-      name: z.string().min(1).optional(),
-      patronymic: z.string().optional(),
-      isActive: z.boolean().optional(),
-    }))
-    .mutation(async ({ ctx, input }) => {
-      const { id, ...data } = input;
-      if (data.isActive === false) {
-        return ctx.db.transaction(async (tx) => {
-          await cascadeDeactivate(tx, "employees", id);
-          const [result] = await tx
-            .update(employees)
-            .set(data)
-            .where(eq(employees.id, id))
-            .returning();
-          return result;
+update: adminProcedure
+  .input(z.object({
+    id: z.number(),
+    surname: z.string().min(1).optional(),
+    name: z.string().min(1).optional(),
+    patronymic: z.string().optional(),
+    isActive: z.boolean().optional(),
+  }))
+  .mutation(async ({ ctx, input }) => {
+    const { id, ...data } = input;
+
+    // Защита от деактивации самого себя
+    if (data.isActive === false) {
+      const [employee] = await ctx.db
+        .select({ userId: employees.userId })
+        .from(employees)
+        .where(eq(employees.id, id))
+        .limit(1);
+      if (employee?.userId && ctx.user?.id === employee.userId) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: 'Нельзя деактивировать самого себя',
         });
       }
-      return ctx.db.update(employees).set(data).where(eq(employees.id, id)).returning();
-    }),
+      // Каскадная деактивация (существующая логика)
+      return ctx.db.transaction(async (tx) => {
+        await cascadeDeactivate(tx, "employees", id);
+        const [result] = await tx
+          .update(employees)
+          .set(data)
+          .where(eq(employees.id, id))
+          .returning();
+        return result;
+      });
+    }
+    // Обычное обновление (включая активацию)
+    return ctx.db.update(employees).set(data).where(eq(employees.id, id)).returning();
+  }),
+
+  
 delete: adminProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {

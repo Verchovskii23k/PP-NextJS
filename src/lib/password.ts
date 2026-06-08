@@ -1,6 +1,6 @@
 /**
  * Генерирует пароль в зависимости от уровня сложности.
- * - low: 6 символов (без спецсимволов)
+ * - low: 10 символов (без спецсимволов)
  * - medium: 12 символов (без спецсимволов)
  * - high: длина по умолчанию 12, включает спецсимволы
  * Если вызвана без аргументов, возвращает legacy-пароль (8 символов).
@@ -101,28 +101,14 @@ export function generateRandomPassword(
     case "low":
       return generateLowPassword();
     case "medium":
-      return generateSimplePassword(10);
+      return generateMediumPassword();
     case "high":
       return generateHighPassword(length ?? 12);
   }
 }
 
-/** 6 символов без спецсимволов */
+/** 10 символов без спецсимволов */
 function generateLowPassword(): string {
-  const upper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-  const lower = 'abcdefghijklmnopqrstuvwxyz';
-  const digits = '0123456789';
-  const getRandom = (source: string, count: number) =>
-    Array.from({ length: count }, () => source[Math.floor(Math.random() * source.length)]).join('');
-  let password = getRandom(upper, 2) + getRandom(lower, 2) + getRandom(digits, 2);
-  password = password.split('').sort(() => Math.random() - 0.5).join('');
-  return password;
-}
-/**
- * Генерирует пароль заданной длины без спецсимволов.
- * Минимум 2 заглавные, 2 строчные, 2 цифры, остальные – любые из алфавита.
- */
-function generateSimplePassword(length: number): string {
   const upper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
   const lower = 'abcdefghijklmnopqrstuvwxyz';
   const digits = '0123456789';
@@ -130,9 +116,7 @@ function generateSimplePassword(length: number): string {
   const getRandom = (source: string, count: number) =>
     Array.from({ length: count }, () => source[Math.floor(Math.random() * source.length)]).join('');
 
-  let password = getRandom(upper, 2) + getRandom(lower, 2) + getRandom(digits, 2);
-  const remaining = length - 6;
-  if (remaining > 0) password += getRandom(all, remaining);
+  let password = getRandom(upper, 2) + getRandom(lower, 2) + getRandom(digits, 2) + getRandom(all, 4);
   password = password.split('').sort(() => Math.random() - 0.5).join('');
 
   const forbidden = ['123','234','345','456','567','678','789','890',
@@ -140,12 +124,37 @@ function generateSimplePassword(length: number): string {
                      'ijk','jkl','klm','lmn','mno','nop','opq','pqr',
                      'qrs','rst','stu','tuv','uvw','vwx','wxy','xyz'];
   if (forbidden.some(seq => password.toLowerCase().includes(seq))) {
-    return generateSimplePassword(length);
+    return generateLowPassword();
   }
   return password;
 }
-/** 12+ символов со спецсимволами */
+/** 12 символов без спецсимволов (medium) */
+function generateMediumPassword(): string {
+  const upper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const lower = 'abcdefghijklmnopqrstuvwxyz';
+  const digits = '0123456789';
+  const all = upper + lower + digits;
+  const getRandom = (source: string, count: number) =>
+    Array.from({ length: count }, () => source[Math.floor(Math.random() * source.length)]).join('');
+
+  let password = getRandom(upper, 2) + getRandom(lower, 2) + getRandom(digits, 2) + getRandom(all, 6);
+  password = password.split('').sort(() => Math.random() - 0.5).join('');
+
+  const forbidden = ['123','234','345','456','567','678','789','890',
+                     'abc','bcd','cde','def','efg','fgh','ghi','hij',
+                     'ijk','jkl','klm','lmn','mno','nop','opq','pqr',
+                     'qrs','rst','stu','tuv','uvw','vwx','wxy','xyz'];
+  if (forbidden.some(seq => password.toLowerCase().includes(seq))) {
+    return generateMediumPassword();
+  }
+  return password;
+}
+/**
+ * Генерирует пароль заданной длины со спецсимволами.
+ * Минимум 2 заглавные, 2 строчные, 2 цифры, 1 спецсимвол.
+ */
 function generateHighPassword(length: number): string {
+  if (length < 8) length = 8;
   const upper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
   const lower = 'abcdefghijklmnopqrstuvwxyz';
   const digits = '0123456789';
@@ -153,8 +162,13 @@ function generateHighPassword(length: number): string {
   const all = upper + lower + digits + specials;
   const getRandom = (source: string, count: number) =>
     Array.from({ length: count }, () => source[Math.floor(Math.random() * source.length)]).join('');
-  let password = getRandom(upper, 2) + getRandom(lower, 2) + getRandom(digits, 2) + getRandom(specials, 1) + getRandom(all, length - 7);
+
+  // обязательные компоненты: 2 заглавные, 2 строчные, 2 цифры, 1 спецсимвол
+  let password = getRandom(upper, 2) + getRandom(lower, 2) + getRandom(digits, 2) + getRandom(specials, 1);
+  const remaining = length - 7;
+  if (remaining > 0) password += getRandom(all, remaining);
   password = password.split('').sort(() => Math.random() - 0.5).join('');
+
   const forbidden = ['123','234','345','456','567','678','789','890',
                      'abc','bcd','cde','def','efg','fgh','ghi','hij',
                      'ijk','jkl','klm','lmn','mno','nop','opq','pqr',

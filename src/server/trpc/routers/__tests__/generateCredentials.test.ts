@@ -80,11 +80,11 @@ describe('generateCredentials', () => {
       .where(eq(users.id, uniqueStu.userId!));
     expect(stuUser.role).toBe('student');
 
-    // low – пароли длиной 6
+    // low – пароли длиной 10
     const lowCredentials = result.credentials.filter(
       c => c.role === 'teacher' || c.role === 'student'
     );
-    lowCredentials.forEach(c => expect(c.password).toHaveLength(6));
+    lowCredentials.forEach(c => expect(c.password).toHaveLength(10));
   });
 
 
@@ -105,12 +105,12 @@ describe('generateCredentials', () => {
     expect(result.count).toBe(0);
   });
 
-  it('medium создаёт пароли длиной 10', async () => {
+  it('medium создаёт пароли длиной 12', async () => {
     const result = await caller.generations.generateCredentials({
       securityLevel: 'medium',
       generateFor: ['employees'],
     });
-    result.credentials.forEach(c => expect(c.password).toHaveLength(10));
+    result.credentials.forEach(c => expect(c.password).toHaveLength(12))
   });
 
   it('high с указанной длиной создаёт пароли нужной длины', async () => {

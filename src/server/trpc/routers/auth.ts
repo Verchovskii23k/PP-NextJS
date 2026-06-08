@@ -15,7 +15,7 @@ export const authRouter = router({
       name: z.string().min(1),
       patronymic: z.string().optional(),
       email: z.string().email(),
-      password: z.string().min(6),
+      password: z.string().min(8),
     }))
     .mutation(async ({ ctx, input }) => {
       const [existingAdmin] = await ctx.db
@@ -142,7 +142,7 @@ export const authRouter = router({
   changePassword: protectedProcedure
     .input(z.object({
       currentPassword: z.string().min(1),
-      newPassword: z.string().min(6),
+      newPassword: z.string().min(8),
     }))
     .mutation(async ({ ctx, input }) => {
       try {
@@ -189,7 +189,7 @@ export const authRouter = router({
   resetPassword: publicProcedure
     .input(z.object({
       token: z.string(),
-      newPassword: z.string().min(6),
+      newPassword: z.string().min(8),
       newEmail: z.string().email().optional(),
     }))
     .mutation(async ({ ctx, input }) => {

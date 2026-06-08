@@ -156,7 +156,7 @@ export default function AccountPage() {
               onChange={(e) => setNewPassword(e.target.value)}
               className="w-full rounded border border-border bg-background px-3 py-2 pr-10 text-foreground"
               required
-              minLength={6}
+              minLength={8}
             />
             <button
               type="button"

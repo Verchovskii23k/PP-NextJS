@@ -8,6 +8,12 @@
  * отключить все дочерние сущности с ручным управлением активностью.
  * При активации (`isActive = true`) каскад не применяется – флаг просто поднимается.
  *
+ * ## Защита от само-деактивации
+ * Для таблиц `employees` и `students` перед деактивацией проверяется, не пытается ли
+ * текущий администратор деактивировать свою собственную учётную запись. Если `user_id`
+ * записи совпадает с `ctx.user.id`, такая запись исключается из списка обрабатываемых
+ * и не изменяется. Это предотвращает случайную потерю доступа к панели администратора.
+ *
  * ## Мутация `updateMany`
  * @input { tableName: string, ids: number[], isActive: boolean }
  *   - `tableName` – ключ таблицы из `tablesMeta`.
@@ -15,7 +21,8 @@
  *   - `isActive` – целевое состояние: `true` для активации, `false` для деактивации.
  *
  * @returns Объект `{ updated: number }`, где `updated` – количество записей, чьё состояние
- *   действительно изменилось (т.е. записи, уже имевшие нужный флаг, не учитываются).
+ *   действительно изменилось (т.е. записи, уже имевшие нужный флаг, не учитываются,
+ *   а также записи, пропущенные из-за само-деактивации).
  *
  * ## Ошибки
  * @throws {TRPCError} с кодом `BAD_REQUEST`:
@@ -33,6 +40,9 @@
  *   количество изменённых записей. Такой подход гарантирует атомарность и точное число.
  * - Каскад затрагивает только сущности с ручным `toggle` (проверяется внутри
  *   {@link cascadeDeactivate} на основе `tablesMeta`).
+ * - Для таблиц `employees` и `students` перед деактивацией исключается сам администратор
+ *   (проверка `user_id` относительно `ctx.user.id`). Это не считается ошибкой, а просто
+ *   не влияет на счётчик `updated`.
  *
  * ## Пример использования (фронтенд)
  * ```ts
@@ -66,9 +76,8 @@ export const batchUpdateActiveRouter = router({
         isActive: z.boolean(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const { tableName, ids, isActive } = input;
-      // Проверяем, что таблица существует в метаданных и имеет toggle isActive
       const meta = tablesMeta[tableName];
       if (!meta) throw new TRPCError({ code: "BAD_REQUEST", message: "Таблица не найдена" });
       
@@ -84,8 +93,6 @@ export const batchUpdateActiveRouter = router({
 
       const dbTableName = meta.dbTableName || tableName;
 
-      // Получаем ключ родительской таблицы для cascadeDeactivate
-      // Ищем ключ в tablesMeta по dbTableName
       let parentKey: string | undefined;
       for (const [key, m] of Object.entries(tablesMeta)) {
         if (m.dbTableName === dbTableName) {
@@ -99,27 +106,44 @@ export const batchUpdateActiveRouter = router({
 
       const idsList = ids.join(", ");
 
-      // Если отключаем — каскадно деактивируем каждого
-    if (isActive) {
+      if (isActive) {
+        // Активация – без каскада
         const result = await db.execute<{ id: number }>(
-        sql`UPDATE ${sql.identifier(dbTableName)} SET is_active = true WHERE id IN (${sql.raw(idsList)}) AND is_active IS DISTINCT FROM true RETURNING id`
+          sql`UPDATE ${sql.identifier(dbTableName)} SET is_active = true WHERE id IN (${sql.raw(idsList)}) AND is_active IS DISTINCT FROM true RETURNING id`
         );
         const updatedCount = Array.isArray(result) ? result.length : 0;
         return { updated: updatedCount };
-    } else {
-        // Деактивация с каскадом
-        return await db.transaction(async (tx) => {
-            // Сначала обновляем тех, кто ещё активен, и запоминаем их id
-            const changedIdsResult = await tx.execute<{ id: number }>(
-                sql`UPDATE ${sql.identifier(dbTableName)} SET is_active = false WHERE id IN (${sql.raw(idsList)}) AND is_active IS DISTINCT FROM false RETURNING id`
-            );
-            const changedIds: number[] = Array.isArray(changedIdsResult) ? changedIdsResult.map(r => r.id) : [];
+      } else {
+        // Деактивация – сначала исключаем самого себя
+        let finalIds = ids;
+        if (tableName === "employees" || tableName === "students") {
+          // Получаем user_id для каждого id из списка
+          const rows = await db.execute<{ id: number; user_id: string | null }>(
+            sql`SELECT id, user_id FROM ${sql.identifier(dbTableName)} WHERE id IN (${sql.raw(idsList)})`
+          );
+          const currentUserId = ctx.user?.id;
+          if (currentUserId) {
+            finalIds = (Array.isArray(rows) ? rows : [])
+              .filter(row => row.user_id !== currentUserId)
+              .map(row => row.id);
+          }
+        }
 
-            // Для каждого изменённого id вызываем каскад
-            for (const id of changedIds) {
-                await cascadeDeactivate(tx, parentKey!, id);
-            }
-            return { updated: changedIds.length };
-        })}
+        if (finalIds.length === 0) {
+          return { updated: 0 };
+        }
+
+        const finalIdsList = finalIds.join(", ");
+        return await db.transaction(async (tx) => {
+          const changedIdsResult = await tx.execute<{ id: number }>(
+            sql`UPDATE ${sql.identifier(dbTableName)} SET is_active = false WHERE id IN (${sql.raw(finalIdsList)}) AND is_active IS DISTINCT FROM false RETURNING id`
+          );
+          const changedIds: number[] = Array.isArray(changedIdsResult) ? changedIdsResult.map(r => r.id) : [];
+          for (const id of changedIds) {
+            await cascadeDeactivate(tx, parentKey!, id);
+          }
+          return { updated: changedIds.length };
+        });
+      }
     })
-})
+});
