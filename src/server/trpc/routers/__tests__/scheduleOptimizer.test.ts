@@ -1,4 +1,3 @@
-// server/trpc/routers/__tests__/scheduleOptimizer.test.ts
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import { db } from '@/db';
 import { clearAllTestData } from '@/test/helpers';

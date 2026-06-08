@@ -579,7 +579,7 @@ export function DataTable({ tableName }: DataTableProps) {
         <table className="min-w-full divide-y divide-border">
           <thead
             className="sticky z-20 bg-muted"
-            style={{ top: "0px" }} // высота панели (подберите точное значение в инспекторе)
+            style={{ top: "0px" }}
           >
             {table.getHeaderGroups().map(headerGroup => (
               <tr key={headerGroup.id}>

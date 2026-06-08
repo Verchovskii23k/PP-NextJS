@@ -107,7 +107,7 @@ describe('CRUD "Типы нагрузки', () => {
   it('удаляет существующую запись', async () => {
     await caller.academicLoadTypes.delete({ id });
     const row = await caller.academicLoadTypes.get({ id });
-    expect(row).toBeNull(); // safeDelete делает запись неактивной
+    expect(row).toBeNull();
   });
 
   it('удаление несуществующей записи не вызывает ошибку', async () => {

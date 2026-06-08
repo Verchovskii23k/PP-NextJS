@@ -52,7 +52,7 @@ export const scheduleVersionsRouter = router({
    */
   switchToVersion: adminProcedure
     .input(z.object({
-      currentVersionId: z.number().nullable(),   // оставлен для совместимости с клиентом
+      currentVersionId: z.number().nullable(),
       targetVersionId: z.number().nullable(),
     }))
     .mutation(async ({ ctx, input }) => {

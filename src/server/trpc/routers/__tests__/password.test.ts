@@ -1,4 +1,3 @@
-// src/server/trpc/routers/__tests__/password.test.ts
 import { describe, it, expect } from 'vitest';
 import {
   transliterate,

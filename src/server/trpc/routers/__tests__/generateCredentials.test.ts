@@ -1,4 +1,3 @@
-// src/server/trpc/routers/__tests__/generateCredentials.test.ts
 import { describe, it, expect, beforeEach } from 'vitest';
 import { db } from '@/db';
 import { users, employees, students } from '@/db/schema';

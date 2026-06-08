@@ -62,7 +62,7 @@ test.describe('Password reset via Mailpit', () => {
 
     // Пытаемся войти – ожидаем ошибку
     await page.click('button:has-text("Войти")');
-    await page.waitForSelector('.text-red-500', { timeout: 5000 }); // красный текст ошибки
+    await page.waitForSelector('.text-red-500', { timeout: 5000 });
 
     // 2. Восстановление пароля
     await page.click('a:has-text("Забыли пароль?")');
@@ -85,7 +85,6 @@ test.describe('Password reset via Mailpit', () => {
     await page.waitForSelector('input[type="password"]', { timeout: 10000 });
 
     const newPassword = 'mailPass456';
-    // Локатор для поля ввода нового пароля (не зависит от type)
     const resetPasswordInput = page.locator('input[type="password"], input[type="text"]').first();
     await resetPasswordInput.fill(newPassword);
 

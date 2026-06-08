@@ -23,7 +23,7 @@ export default function AccountPage() {
     },
     onError: (e) => {
       setEmailError(e.message);
-      toast.error(e.message); // дублируем для заметности
+      toast.error(e.message);
     },
   });
 

@@ -1,4 +1,3 @@
-// src/server/trpc/routers/__tests__/safeDelete.test.ts
 import { describe, it, expect, beforeEach } from 'vitest';
 import { db } from '@/db';
 import { institutes, buildings, departments, classrooms } from '@/db/schema';
