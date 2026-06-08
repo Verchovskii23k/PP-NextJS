@@ -30,6 +30,9 @@
  * - `mergeGroupFailedNoSlot` – количество попыток, когда группу не удалось разместить
  *   даже после принудительного вытеснения.
  * - `positionBlockedCount` – количество занятий, зафиксированных флагом `positionFlag`
+ * - `bufferedCount` – исходное количество буферных занятий.
+ * - `bufferedPlaced` – количество успешно размещённых из буфера.
+ * - `bufferedFailed` – количество буферных занятий, которые не удалось разместить.
  *   (они исключены из перемещений, кроме случаев слияния).
  *
  * Если занятий меньше двух, возвращается `message: "Слишком мало занятий"` и все
@@ -137,10 +140,9 @@ export interface OptimizationContext {
 }
 export { canMoveToSlot };
 
-
 const slotKey = (weekId: number, d: number, p: number): SlotKey => `${weekId}-${d}-${p}`;
 
-// В начало файла, после импортов, добавим функцию загрузки параметров отжига
+
 async function loadAnnealingParams(): Promise<{ initialTemperature: number; coolingRate: number }> {
   const keys = ["opt_initial_temperature", "opt_cooling_rate"];
   const rows = await db
@@ -764,32 +766,258 @@ function forcePlaceGroup(
   return true;
 }
 
-export async function optimizeSchedule(versionId?: number | null) {
+/**
+ * Принудительное размещение одиночного буферного занятия в заданном слоте
+ * с вытеснением конфликтующих занятий.
+ * Возвращает true, если удалось разместить, иначе false.
+ */
+function forcePlaceBufferedEntry(
+  ctx: OptimizationContext,
+  entry: StrictScheduleEntry,
+  targetWeek: number,
+  targetDay: number,
+  targetPair: number,
+  maxAttempts = 20
+): boolean {
+  const key = slotKey(targetWeek, targetDay, targetPair);
+  const occ = ctx.occupancyBySlot.get(key);
+  if (!occ) {
+    // Слот пуст – просто размещаем
+    const oldWeek = entry.weekId;
+    const oldDay = entry.dayOfWeekId;
+    const oldPair = entry.pairNumberId;
+    entry.weekId = targetWeek;
+    entry.dayOfWeekId = targetDay;
+    entry.pairNumberId = targetPair;
+    updateOccupancy(ctx, entry, oldWeek, oldDay, oldPair, targetWeek, targetDay, targetPair);
+    return true;
+  }
+
+  // Находим конфликтующие записи в целевом слоте
+  const conflictingEntries = ctx.entries.filter(e =>
+    e.weekId === targetWeek &&
+    e.dayOfWeekId === targetDay &&
+    e.pairNumberId === targetPair &&
+    !canMoveToSlot(ctx, entry, targetWeek, targetDay, targetPair)
+  );
+
+  if (conflictingEntries.length === 0) {
+    // Нет конфликта – просто размещаем
+    const oldWeek = entry.weekId;
+    const oldDay = entry.dayOfWeekId;
+    const oldPair = entry.pairNumberId;
+    entry.weekId = targetWeek;
+    entry.dayOfWeekId = targetDay;
+    entry.pairNumberId = targetPair;
+    updateOccupancy(ctx, entry, oldWeek, oldDay, oldPair, targetWeek, targetDay, targetPair);
+    return true;
+  }
+
+  // Пытаемся переместить конфликтующие записи в другие слоты
+  const moves: { entry: StrictScheduleEntry; oldSlot: { week: number; day: number; pair: number }; newSlot: { week: number; day: number; pair: number } }[] = [];
+
+  for (const conflict of conflictingEntries) {
+    if (conflict.positionFlag) return false; // Нельзя трогать зафиксированное
+
+    let found = false;
+    for (let attempt = 0; attempt < maxAttempts && !found; attempt++) {
+      const randSlot = ctx.slots[Math.floor(Math.random() * ctx.slots.length)];
+      // Нельзя перемещать в тот же слот и в слот, который мы пытаемся освободить для буферного
+      if (randSlot.weekId === targetWeek && randSlot.dayId === targetDay && randSlot.pairId === targetPair) continue;
+      if (canMoveToSlot(ctx, conflict, randSlot.weekId, randSlot.dayId, randSlot.pairId)) {
+        moves.push({
+          entry: conflict,
+          oldSlot: { week: conflict.weekId, day: conflict.dayOfWeekId, pair: conflict.pairNumberId },
+          newSlot: { week: randSlot.weekId, day: randSlot.dayId, pair: randSlot.pairId }
+        });
+        found = true;
+      }
+    }
+    if (!found) return false;
+  }
+
+  // Применяем перемещения конфликтующих записей
+  for (const move of moves) {
+    updateOccupancy(ctx, move.entry, move.oldSlot.week, move.oldSlot.day, move.oldSlot.pair, move.newSlot.week, move.newSlot.day, move.newSlot.pair);
+    move.entry.weekId = move.newSlot.week;
+    move.entry.dayOfWeekId = move.newSlot.day;
+    move.entry.pairNumberId = move.newSlot.pair;
+  }
+
+  // Размещаем буферное занятие
+  const oldWeek = entry.weekId;
+  const oldDay = entry.dayOfWeekId;
+  const oldPair = entry.pairNumberId;
+  entry.weekId = targetWeek;
+  entry.dayOfWeekId = targetDay;
+  entry.pairNumberId = targetPair;
+  updateOccupancy(ctx, entry, oldWeek, oldDay, oldPair, targetWeek, targetDay, targetPair);
+
+  return true;
+}
+/**
+ * Размещает все буферные записи, по возможности, в свободные или освобождаемые слоты.
+ * Возвращает новый массив записей (включая размещённые) и статистику.
+ */
+async function placeBufferedEntries(
+  versionId: number | null | undefined,
+  existingEntries: StrictScheduleEntry[]
+): Promise<{ newEntries: StrictScheduleEntry[]; placed: number; failed: number }> {
   const versionCondition = versionId !== undefined
     ? (versionId === null ? isNull(sdTable.versionId) : eq(sdTable.versionId, versionId))
     : isNull(sdTable.versionId);
-  const allEntries = await db.select().from(sdTable)
-  .where(and(
-    eq(sdTable.isBuffered, false),
-    isNotNull(sdTable.weekId),
-    isNotNull(sdTable.dayOfWeekId),
-    isNotNull(sdTable.pairNumberId),
-    versionCondition
-  ));
-  if (allEntries.length < 2) return {
-    iterations: 0,
-    initialScore: 0,
-    finalScore: 0,
-    message: "Слишком мало занятий",
-    acceptedMoves: 0,
-    singleMoved: 0,
-    totalSingleEntries: 0,
-    mergeGroupMoved: 0,
-    totalMergeGroups: 0,
-    mergeGroupFailedNoClassroom: 0,
-    mergeGroupFailedNoSlot: 0,
-    positionBlockedCount: 0,
+  const buffered = await db
+    .select()
+    .from(sdTable)
+    .where(and(eq(sdTable.isBuffered, true), versionCondition));
+  if (buffered.length === 0) return { newEntries: existingEntries, placed: 0, failed: 0 };
+
+  // Строим контекст на основе существующих записей
+  let ctx = await buildContext(existingEntries);
+  let currentEntries = [...existingEntries];
+  let placedCount = 0;
+  let failedCount = 0;
+
+  // Готовим список слотов, отсортированный по занятости (сначала свободные)
+  const slotsByOccupancy = (ctx: OptimizationContext) => {
+    const counts = new Map<string, number>();
+    for (const e of ctx.entries) {
+      const key = slotKey(e.weekId, e.dayOfWeekId, e.pairNumberId);
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }
+    return [...ctx.slots].sort((a, b) => {
+      const aKey = slotKey(a.weekId, a.dayId, a.pairId);
+      const bKey = slotKey(b.weekId, b.dayId, b.pairId);
+      const aCount = counts.get(aKey) || 0;
+      const bCount = counts.get(bKey) || 0;
+      return aCount - bCount;
+    });
   };
+
+  for (const buf of buffered) {
+    // Преобразуем в StrictScheduleEntry (координаты пока нулевые)
+    const entry: StrictScheduleEntry = {
+      ...buf,
+      weekId: 0,
+      dayOfWeekId: 0,
+      pairNumberId: 0,
+    };
+    let placed = false;
+
+    // Пытаемся разместить в слотах, начиная с наименее занятых
+    const sortedSlots = slotsByOccupancy(ctx);
+    for (const slot of sortedSlots) {
+      if (canMoveToSlot(ctx, entry, slot.weekId, slot.dayId, slot.pairId)) {
+        // Свободный слот – просто перемещаем
+        const oldWeek = entry.weekId, oldDay = entry.dayOfWeekId, oldPair = entry.pairNumberId;
+        entry.weekId = slot.weekId;
+        entry.dayOfWeekId = slot.dayId;
+        entry.pairNumberId = slot.pairId;
+        updateOccupancy(ctx, entry, oldWeek, oldDay, oldPair, slot.weekId, slot.dayId, slot.pairId);
+        placed = true;
+        break;
+      } else {
+        // Пытаемся с вытеснением
+        if (forcePlaceBufferedEntry(ctx, entry, slot.weekId, slot.dayId, slot.pairId)) {
+          placed = true;
+          break;
+        }
+      }
+    }
+
+    if (placed) {
+      // Обновляем запись в БД
+      await db
+        .update(sdTable)
+        .set({
+          weekId: entry.weekId,
+          dayOfWeekId: entry.dayOfWeekId,
+          pairNumberId: entry.pairNumberId,
+          isBuffered: false,
+          positionFlag: false,
+          mergeNumber: 0,
+          classroomFlag: false,
+        })
+        .where(eq(sdTable.id, buf.id));
+      // Добавляем в локальный массив и перестраиваем контекст для учёта изменений
+      const newEntry = { ...buf, ...entry, isBuffered: false };
+      currentEntries.push(newEntry);
+      // Перестраиваем контекст целиком (проще, чем инкрементально)
+      ctx = await buildContext(currentEntries);
+      placedCount++;
+    } else {
+      failedCount++;
+    }
+  }
+
+  return { newEntries: currentEntries, placed: placedCount, failed: failedCount };
+}
+export async function optimizeSchedule(versionId?: number | null, includeBuffered?: boolean) {
+  const versionCondition = versionId !== undefined
+    ? (versionId === null ? isNull(sdTable.versionId) : eq(sdTable.versionId, versionId))
+    : isNull(sdTable.versionId);
+  
+  let allEntries = await db.select().from(sdTable)
+    .where(and(
+      eq(sdTable.isBuffered, false),
+      isNotNull(sdTable.weekId),
+      isNotNull(sdTable.dayOfWeekId),
+      isNotNull(sdTable.pairNumberId),
+      versionCondition
+    ));
+  
+  let bufferedCount = 0;
+  let bufferedPlaced = 0;
+  let bufferedFailed = 0;
+
+  if (includeBuffered) {
+    // Получаем все буферные записи для текущей версии
+    const bufferedRows = await db.select().from(sdTable)
+      .where(and(eq(sdTable.isBuffered, true), versionCondition));
+    bufferedCount = bufferedRows.length;
+
+    if (bufferedCount > 0) {
+      // Преобразуем текущие небуферные записи в StrictScheduleEntry
+      const safeEntries = allEntries.map(e => ({
+        ...e,
+        weekId: e.weekId!,
+        dayOfWeekId: e.dayOfWeekId!,
+        pairNumberId: e.pairNumberId!,
+      })) as StrictScheduleEntry[];
+      
+      const { newEntries, placed, failed } = await placeBufferedEntries(versionId, safeEntries);
+      bufferedPlaced = placed;
+      bufferedFailed = failed;
+      
+      // Обновляем allEntries для дальнейшей оптимизации
+      allEntries = newEntries.filter(e => !e.isBuffered).map(e => ({
+        ...e,
+        weekId: e.weekId!,
+        dayOfWeekId: e.dayOfWeekId!,
+        pairNumberId: e.pairNumberId!,
+      }));
+    }
+  }
+
+  if (allEntries.length < 2) {
+    return {
+      iterations: 0,
+      initialScore: 0,
+      finalScore: 0,
+      message: "Слишком мало занятий",
+      acceptedMoves: 0,
+      singleMoved: 0,
+      totalSingleEntries: 0,
+      mergeGroupMoved: 0,
+      totalMergeGroups: 0,
+      mergeGroupFailedNoClassroom: 0,
+      mergeGroupFailedNoSlot: 0,
+      positionBlockedCount: 0,
+      bufferedCount,
+      bufferedPlaced,
+      bufferedFailed,
+    };
+  }
 
   // Гарантируем, что после фильтрации IS NOT NULL координаты не null
   const safeEntries = allEntries.map(e => ({
@@ -797,7 +1025,7 @@ export async function optimizeSchedule(versionId?: number | null) {
     weekId: e.weekId!,
     dayOfWeekId: e.dayOfWeekId!,
     pairNumberId: e.pairNumberId!,
-  })) as (ScheduleEntry & { weekId: number; dayOfWeekId: number; pairNumberId: number })[];
+  })) as StrictScheduleEntry[];
   const ctx = await buildContext(safeEntries);
   // Сохраняем исходные слоты для каждого занятия
   const originalSlots = new Map<number, { week: number; day: number; pair: number }>();
@@ -1111,7 +1339,7 @@ export async function optimizeSchedule(versionId?: number | null) {
     }
   }
 
-    return {
+  return {
     iterations,
     initialScore,
     finalScore: currentScore,
@@ -1123,5 +1351,8 @@ export async function optimizeSchedule(versionId?: number | null) {
     mergeGroupFailedNoClassroom,
     mergeGroupFailedNoSlot,
     positionBlockedCount,
+    bufferedCount,
+    bufferedPlaced,
+    bufferedFailed,
   };
 }

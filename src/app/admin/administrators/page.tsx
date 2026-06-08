@@ -106,7 +106,7 @@ export default function AdministratorsPage() {
                       }}
                       disabled={toggleMutation.isPending || isCurrentUser}
                       title={isCurrentUser ? "Нельзя изменить свою роль" : ""}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full focus:outline-none transition-colors ${
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
                         emp.isAdmin ? "bg-primary" : "bg-gray-300 dark:bg-gray-600"
                       } ${isCurrentUser ? "cursor-not-allowed opacity-50" : ""}`}
                     >

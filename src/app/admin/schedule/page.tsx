@@ -37,10 +37,9 @@
  * - **Флаги занятий:** фиксация позиции (`positionFlag`), закрепление
  *   аудитории (`classroomFlag`), номер слияния (`mergeNumber`).
  *   Редактируются кликом по занятию.
- * - **Оптимизация расписания:** алгоритм имитации отжига. Перед запуском
- *   при наличии занятий в буфере предлагается диалог – «Продолжить без
- *   буфера» или «Продолжить с буфером» (буферные занятия автоматически
- *   размещаются по свободным слотам).
+ * - **Оптимизация расписания:** алгоритм имитации отжига. 
+ *     Если установлен чекбокс «Использовать буфер», оптимизатор сначала попытается 
+ *     разместить буферные занятия (с возможностью вытеснения), а затем улучшит расписание.
  * - **Настройки отжига:** изменение начальной температуры и скорости
  *   охлаждения.
  * - **Экспорт:** печать таблицы и выгрузка в CSV.
@@ -60,8 +59,8 @@
  *   перетаскивания вычисляются статусы слотов через `checkSlots`. При
  *   завершении выполняется `move`, `swap`, `moveToBuffer` или
  *   `moveFromBuffer` в зависимости от ситуации.
- * - **Оптимизация:** при нажатии кнопки сначала проверяется количество
- *   занятий в буфере (`getBufferedCount`). Если есть – диалог.
+ * - Оптимизация: при нажатии кнопки вызывается мутация optimizeSchedule с флагом includeBuffered, 
+ *    равным состоянию чекбокса `Использовать буфер`.
  * - **Версионирование:** состояние `selectedVersionId` берётся из
  *   глобального контекста `VersionContext`.
  *
@@ -287,7 +286,7 @@ export default function AdminSchedulePage() {
   const [tempInput, setTempInput] = useState(1000);
   const [rateInput, setRateInput] = useState(0.95);
   const [resetFlagsDialog, setResetFlagsDialog] = useState(false);
-  const [bufferDialog, setBufferDialog] = useState<{ show: boolean; count: number }>({ show: false, count: 0 });
+  const [useBuffer, setUseBuffer] = useState(false);
   const [resetFlagsSelection, setResetFlagsSelection] = useState({
     positionFlag: false,
     classroomFlag: false,
@@ -327,14 +326,8 @@ export default function AdminSchedulePage() {
     } catch (e) {}
   };
 
-  const handleOptimize = async () => {
-    const countRes = await utils.scheduleDisplay.getBufferedCount.fetch({ versionId: null });
-    const count = countRes.count;
-    if (count > 0) {
-      setBufferDialog({ show: true, count });
-    } else {
-      optimizeScheduleMut.mutate({ versionId: null });
-    }
+  const handleOptimize = () => {
+    optimizeScheduleMut.mutate({ versionId: null, includeBuffered: useBuffer });
   };
 
   useEffect(() => {
@@ -478,6 +471,9 @@ export default function AdminSchedulePage() {
         msg += ` Групп слияния: ${data.mergeGroupMoved} из ${data.totalMergeGroups} перемещено.`;
       }
       toast.success(msg);
+      if (data.bufferedCount > 0) {
+        toast.info(`Буфер: размещено ${data.bufferedPlaced} из ${data.bufferedCount}, не удалось: ${data.bufferedFailed}`);
+      }
 
       const warnings: string[] = [];
       if (data.mergeGroupFailedNoClassroom > 0) {
@@ -624,8 +620,19 @@ export default function AdminSchedulePage() {
 
     if (targetId === "buffer-zone") {
       if (!entry.isBuffered) {
-        await moveToBufferMut.mutateAsync({ id: entry.id, versionId: null });
-        refreshData();
+        const msg = entry.mergeNumber && entry.mergeNumber !== 0
+          ? "Занятие входит в группу слияния. При перемещении в буфер номер слияния будет сброшен только у этого занятия, остальные занятия группы сохранят слияние между собой. Все флаги данного занятия будут сброшены. Продолжить?"
+          : "Занятие будет перемещено в буфер. Все его флаги (позиция, аудитория, номер слияния) будут сброшены. Оно перестанет участвовать в расписании, пока вы не вернёте его вручную или не включите использование буфера в оптимизаторе. Продолжить?";
+        const ok = await confirm({
+          title: "Перемещение в буфер",
+          message: msg,
+          confirmLabel: "Переместить",
+          variant: "danger",
+        });
+        if (ok) {
+          await moveToBufferMut.mutateAsync({ id: entry.id, versionId: null });
+          refreshData();
+        }
       }
       return;
     }
@@ -1044,43 +1051,6 @@ const handleCSV = () => {
         onCancel={() => setInputDialog({ show: false, title: "", onConfirm: () => {} })}
       />
 
-      {/* Диалог использования буфера */}
-      {bufferDialog.show && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
-          <div className="max-w-md rounded border border-border bg-background p-6 shadow-lg">
-            <p className="mb-4 text-foreground">
-              В буфере {bufferDialog.count} занятий. Использовать их при оптимизации?
-            </p>
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setBufferDialog({ show: false, count: 0 })}
-                className="rounded border border-border px-4 py-2 text-foreground hover:bg-muted"
-              >
-                Отмена
-              </button>
-              <button
-                onClick={() => {
-                  setBufferDialog({ show: false, count: 0 });
-                  optimizeScheduleMut.mutate({ versionId: null });
-                }}
-                className="rounded bg-yellow-600 px-4 py-2 text-white hover:bg-yellow-700"
-              >
-                Продолжить без буфера
-              </button>
-              <button
-                onClick={() => {
-                  setBufferDialog({ show: false, count: 0 });
-                  optimizeScheduleMut.mutate({ versionId: null, includeBuffered: true });
-                }}
-                className="hover:bg-primary/90 rounded bg-primary px-4 py-2 text-white"
-              >
-                Продолжить с буфером
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Легенда */}
       <div className="mb-4 flex flex-wrap gap-4 rounded border border-border bg-muted p-3 text-sm">
         {activeWeeksData.map((week, idx) => (
@@ -1140,13 +1110,26 @@ const handleCSV = () => {
           </>
         )}
         {viewMode === "units" && (
-          <button
-            onClick={handleOptimize}
-            disabled={editMode || optimizeScheduleMut.isPending || !isActiveVersion}
-            className="rounded bg-purple-600 px-3 py-1 text-white hover:bg-purple-700 disabled:bg-gray-400"
-          >
-            {optimizeScheduleMut.isPending ? "Оптимизация..." : "Оптимизировать"}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleOptimize}
+              disabled={editMode || optimizeScheduleMut.isPending || !isActiveVersion}
+              className="rounded bg-purple-600 px-3 py-1 text-white hover:bg-purple-700 disabled:bg-gray-400"
+            >
+              {optimizeScheduleMut.isPending ? "Оптимизация..." : "Оптимизировать"}
+            </button>
+            {isActiveVersion && (
+              <label className="flex items-center gap-1 text-sm">
+                <input
+                  type="checkbox"
+                  checked={useBuffer}
+                  onChange={(e) => setUseBuffer(e.target.checked)}
+                  disabled={editMode || optimizeScheduleMut.isPending}
+                />
+                Использовать буфер
+              </label>
+            )}
+          </div>
         )}
         {editMode && isActiveVersion && (
           <button

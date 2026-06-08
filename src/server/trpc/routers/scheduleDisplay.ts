@@ -31,7 +31,7 @@
  * | `move`             | mutation | Перемещение занятия в свободный слот. |
  * | `swap`             | mutation | Обмен двух занятий местами. |
  * | `updateFlags`      | mutation | Изменение флагов занятия. |
- * | `optimizeSchedule` | mutation | Запуск оптимизации. При `includeBuffered` размещает буферные занятия по свободным слотам. |
+ * | `optimizeSchedule` | mutation | Запуск оптимизации. При `includeBuffered` размещает буферные занятия по свободным слотам, при необходимости вытесняя конфликтующие занятия |
  * | `resetFlags`       | mutation | Массовый сброс выбранных флагов. |
  *
  * ### Логика `checkSlots`
@@ -130,129 +130,6 @@ function lessonClassroomsVersionCondition(
     eq(lessonClassrooms.versionId, versionId)
   );
 }
-
-async function isSlotFreeForBuffered(
-  ctx: Context,
-  entry: typeof scheduleDisplay.$inferSelect,
-  weekId: number,
-  dayId: number,
-  pairId: number,
-  versionCond: ReturnType<typeof scheduleVersionCondition>
-): Promise<boolean> {
-  // Проверим, есть ли в этом слоте не-буферные записи
-  const slotEntries = await ctx.db
-    .select()
-    .from(scheduleDisplay)
-    .where(
-      and(
-        eq(scheduleDisplay.weekId, weekId),
-        eq(scheduleDisplay.dayOfWeekId, dayId),
-        eq(scheduleDisplay.pairNumberId, pairId),
-        eq(scheduleDisplay.isBuffered, false),
-        versionCond
-      )
-    );
-
-  if (slotEntries.length === 0) return true; // слот полностью свободен
-
-  // Получаем преподавателя и группы для размещаемого занятия
-  let entryLesson: { teacherId: number | null } | undefined;
-  if (entry.lessonId != null) {
-    [entryLesson] = await ctx.db
-      .select({ teacherId: lessons.teacherId })
-      .from(lessons)
-      .where(
-        and(
-          eq(lessons.id, entry.lessonId),
-          eq(lessons.isActive, true),
-          isNull(lessons.versionId)
-        )
-      )
-      .limit(1);
-  }
-  const entryTeacher = entryLesson?.teacherId;
-
-  const entryGroups = await ctx.db
-    .select({ studyGroupId: unitRoots.studyGroupId })
-    .from(unitRoots)
-    .where(
-      and(
-        eq(unitRoots.unitCode, entry.unitCode),
-        eq(unitRoots.isActive, true),
-        isNull(unitRoots.versionId)
-      )
-    );
-  const entryGroupSet = new Set(entryGroups.map((r) => r.studyGroupId));
-
-  // Проверяем конфликты с каждым занятием в слоте
-  for (const other of slotEntries) {
-    // Преподаватель
-    let otherLesson: { teacherId: number | null } | undefined;
-    if (other.lessonId != null) {
-      [otherLesson] = await ctx.db
-        .select({ teacherId: lessons.teacherId })
-        .from(lessons)
-        .where(
-          and(
-            eq(lessons.id, other.lessonId),
-            eq(lessons.isActive, true),
-            isNull(lessons.versionId)
-          )
-        )
-        .limit(1);
-    }
-    if (entryTeacher && otherLesson?.teacherId && entryTeacher === otherLesson.teacherId)
-      return false;
-
-    // Группы
-    const otherGroups = await ctx.db
-      .select({ studyGroupId: unitRoots.studyGroupId })
-      .from(unitRoots)
-      .where(
-        and(
-          eq(unitRoots.unitCode, other.unitCode),
-          eq(unitRoots.isActive, true),
-          isNull(unitRoots.versionId)
-        )
-      );
-    for (const g of otherGroups) {
-      if (entryGroupSet.has(g.studyGroupId)) {
-        // Проверяем тип юнита — две подгруппы могут сосуществовать
-        const [entryUnitType] = await ctx.db
-          .select({ name: unitTypes.name })
-          .from(units)
-          .innerJoin(unitTypes, eq(units.unitTypeId, unitTypes.id))
-          .where(
-            and(
-              eq(units.code, entry.unitCode),
-              eq(units.isActive, true),
-              isNull(units.versionId)
-            )
-          )
-          .limit(1);
-        const [otherUnitType] = await ctx.db
-          .select({ name: unitTypes.name })
-          .from(units)
-          .innerJoin(unitTypes, eq(units.unitTypeId, unitTypes.id))
-          .where(
-            and(
-              eq(units.code, other.unitCode),
-              eq(units.isActive, true),
-              isNull(units.versionId)
-            )
-          )
-          .limit(1);
-
-        if (entryUnitType?.name !== 'ПОДГРУППА' || otherUnitType?.name !== 'ПОДГРУППА') {
-          return false; // конфликт по группам, кроме случая двух подгрупп
-        }
-      }
-    }
-  }
-
-  return true;
-}
-
 export const scheduleDisplayRouter = router({
   getForWeekPair: adminProcedure
     .input(
@@ -582,6 +459,9 @@ if (input.versionId != null) {
           weekId: null,
           dayOfWeekId: null,
           pairNumberId: null,
+          positionFlag: false,
+          classroomFlag: false,
+          mergeNumber: 0,
         })
         .where(and(eq(scheduleDisplay.id, input.id), versionCond));
       return { success: true };
@@ -1139,84 +1019,8 @@ if (input.versionId != null) {
       versionId: z.number().nullable().optional(),
       includeBuffered: z.boolean().optional(),
     }))
-    .mutation(async ({ ctx, input }) => {
-      if (input.includeBuffered) {
-        const versionCond = scheduleVersionCondition(input.versionId);
-
-        // Получаем все буферные записи
-        const buffered = await ctx.db
-          .select()
-          .from(scheduleDisplay)
-          .where(and(eq(scheduleDisplay.isBuffered, true), versionCond));
-
-        if (buffered.length > 0) {
-          // Список всех возможных слотов (неделя × день × пара)
-const existingWeeks = await ctx.db
-  .selectDistinct({ id: scheduleDisplay.weekId })
-  .from(scheduleDisplay)
-  .where(and(eq(scheduleDisplay.isBuffered, false), versionCond));
-const weekIds = existingWeeks.map(w => w.id).filter(id => id != null) as number[];
-const allWeeks = weekIds.length > 0 ? weekIds.map(id => ({ id })) : [];
-          const allDays = await ctx.db
-            .select()
-            .from(daysOfWeek)
-            .orderBy(asc(daysOfWeek.id));
-          const allPairs = await ctx.db
-            .select()
-            .from(pairs)
-            .orderBy(asc(pairs.number));
-
-          const slots: { weekId: number; dayId: number; pairId: number }[] = [];
-          for (const w of allWeeks) {
-            for (const d of allDays) {
-              for (const p of allPairs) {
-                slots.push({ weekId: w.id, dayId: d.id, pairId: p.id });
-              }
-            }
-          }
-
-          // Для каждой буферной записи ищем свободный слот
-          for (const buf of buffered) {
-            let foundSlot: typeof slots[0] | null = null;
-
-            // Перебираем слоты в случайном порядке для равномерности
-            const shuffledSlots = [...slots].sort(() => Math.random() - 0.5);
-            for (const slot of shuffledSlots) {
-              const free = await isSlotFreeForBuffered(
-                ctx,
-                buf,
-                slot.weekId,
-                slot.dayId,
-                slot.pairId,
-                versionCond
-              );
-              if (free) {
-                foundSlot = slot;
-                break;
-              }
-            }
-
-            if (foundSlot) {
-              // Перемещаем из буфера в найденный слот
-              await ctx.db
-                .update(scheduleDisplay)
-                .set({
-                  weekId: foundSlot.weekId,
-                  dayOfWeekId: foundSlot.dayId,
-                  pairNumberId: foundSlot.pairId,
-                  isBuffered: false,
-                  positionFlag: false,
-                  mergeNumber: 0,
-                  classroomFlag: false,
-                })
-                .where(and(eq(scheduleDisplay.id, buf.id), versionCond));
-            }
-            // Если слот не найден, запись остаётся в буфере
-          }
-        }
-      }
-
-      return await optimizeSchedule(input.versionId);
+    .mutation(async ({ input }) => {
+      return await optimizeSchedule(input.versionId, input.includeBuffered);
     }),
     resetFlags: adminProcedure
     .input(
