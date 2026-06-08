@@ -1,24 +1,27 @@
-import { defineConfig } from '@playwright/test';
+import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './e2e',
   timeout: 60000,
   retries: 1,
+  workers: 1,
   use: {
     baseURL: 'http://localhost:3000',
-    headless: false,
-    launchOptions: {
-      slowMo: 500,
-    },
+    headless: !!process.env.CI,
+    launchOptions: process.env.CI ? {} : { slowMo: 500 },
     screenshot: 'only-on-failure',
     trace: 'on-first-retry',
   },
-  // Для импорта фикстур из src
   projects: [
     {
       name: 'chromium',
-      use: { ...require('@playwright/test').devices['Desktop Chrome'] },
+      use: { ...devices['Desktop Chrome'] },
     },
   ],
-
+  webServer: {
+    command: 'npm run dev:test',
+    url: 'http://localhost:3000',
+    reuseExistingServer: !process.env.CI,
+    timeout: 120000,
+  },
 });

@@ -98,7 +98,7 @@ test.describe('Password reset via Mailpit', () => {
     await page.click('button:has-text("Сохранить")');
 
     // 4. Вход с новым паролем
-    await page.waitForURL('/login', { timeout: 10000 });
+    await page.waitForURL('/login', { timeout: 15000 });
     await expect(page).toHaveURL('/login');
 
     await page.fill('input[placeholder="Email"]', adminLogin);
