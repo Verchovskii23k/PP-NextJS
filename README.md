@@ -18,7 +18,7 @@ ___
 - **API:** tRPC v11
 - **База данных:** PostgreSQL
 - **ORM:** Drizzle ORM + drizzle-kit
-- **Аутентификация:** логин + пароль
+- **Аутентификация:** Better-Auth
 - **Восстановление пароля:** по email (через Mailpit в dev‑режиме)
 - **Управление состоянием:** TanStack React Query
 - **UI‑кит:** Tailwind CSS, next‑themes (тёмная/светлая тема), Lucide React
@@ -177,7 +177,7 @@ SMTP_FROM="Расписание университета <ваша_почта@ma
 Запустите ```Mailpit``` в отдельном терминале командой:
 ```bash
 # В корне проекта выполните
-.\ваша_папка\mailpit\mailpit.exe
+./ваша_папка/mailpit/mailpit.exe
 ```
 
 Почтовый сервис ```MailPit``` будет доступен на [http://localhost:8025](http://localhost:8025).
@@ -1009,24 +1009,24 @@ ___
 |--------|-----------|--------|----------|
 | `schedule` | `getSchedule` | `public` | Получить расписание с фильтрами (публичное API) |
 | | `filters` | `public` | Получить доступные фильтры для расписания |
-| `scheduleDisplay` | `getForWeekPair` | `protected` | Расписание «По юнитам» (для drag‑and‑drop) |
-| | `getByGroup` | `protected` | Расписание для одной группы |
-| | `getByStudyGroups` | `protected` | Расписание «По группам» |
-| | `getBuffer` | `protected` | Занятия, находящиеся в буфере |
-| | `getBufferedCount` | `protected` | Количество занятий в буфере |
-| | `moveToBuffer` | `protected` | Переместить занятие в буфер |
-| | `moveFromBuffer` | `protected` | Вернуть занятие из буфера |
-| | `checkSlots` | `protected` | Проверить слоты для drag‑and‑drop |
-| | `move` | `protected` | Переместить занятие в свободный слот |
-| | `swap` | `protected` | Обменять два занятия местами |
-| | `updateFlags` | `protected` | Изменить флаги занятия (merge, position, classroom) |
+| `scheduleDisplay` | `getForWeekPair` | `admin` | Расписание «По юнитам» (для drag‑and‑drop) |
+| | `getByGroup` | `admin` | Расписание для одной группы |
+| | `getByStudyGroups` | `admin` | Расписание «По группам» |
+| | `getBuffer` | `admin` | Занятия, находящиеся в буфере |
+| | `getBufferedCount` | `admin` | Количество занятий в буфере |
+| | `moveToBuffer` | `admin` | Переместить занятие в буфер |
+| | `moveFromBuffer` | `admin` | Вернуть занятие из буфера |
+| | `checkSlots` | `admin` | Проверить слоты для drag‑and‑drop |
+| | `move` | `admin` | Переместить занятие в свободный слот |
+| | `swap` | `admin` | Обменять два занятия местами |
+| | `updateFlags` | `admin` | Изменить флаги занятия (merge, position, classroom) |
 | | `optimizeSchedule` | `admin` | Запустить оптимизацию (имитация отжига). При включённом чекбоксе «Использовать буфер» буферные занятия автоматически размещаются в расписании (с возможностью вытеснения конфликтующих) |
 | | `resetFlags` | `admin` | Массовый сброс флагов для всех занятий |
-| `scheduleVersions` | `list` | `protected` | Список сохранённых версий расписания |
-| | `switchToVersion` | `protected` | Переключиться на другую версию |
-| | `saveActive` | `protected` | Сохранить текущее расписание как новую версию |
-| | `delete` | `protected` | Удалить версию |
-| | `update` | `protected` | Переименовать версию |
+| `scheduleVersions` | `list` | `admin` | Список сохранённых версий расписания |
+| | `switchToVersion` | `admin` | Переключиться на другую версию |
+| | `saveActive` | `admin` | Сохранить текущее расписание как новую версию |
+| | `delete` | `admin` | Удалить версию |
+| | `update` | `admin` | Переименовать версию |
 
 
 ___

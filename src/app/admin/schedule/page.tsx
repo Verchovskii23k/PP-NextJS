@@ -468,7 +468,7 @@ export default function AdminSchedulePage() {
 
       msg += ` Перемещено занятий: ${data.singleMoved} из ${data.totalSingleEntries}.`;
       if (data.totalMergeGroups > 0) {
-        msg += ` Групп слияния: ${data.mergeGroupMoved} из ${data.totalMergeGroups} перемещено.`;
+        msg += ` Групп слияния собрано: ${data.mergeGroupsFinalPlaced} из ${data.totalMergeGroups}.`;
       }
       toast.success(msg);
       if (data.bufferedCount > 0) {
@@ -479,7 +479,7 @@ export default function AdminSchedulePage() {
       if (data.mergeGroupFailedNoClassroom > 0) {
         warnings.push(`Не удалось подобрать аудиторию для групп слияния (${data.mergeGroupFailedNoClassroom} попыток).`);
       }
-      if (data.mergeGroupFailedNoSlot > 0) {
+      if (data.mergeGroupFailedNoSlot > 0 && data.totalMergeGroups === 0) {
         warnings.push(`Не удалось разместить группу слияния (${data.mergeGroupFailedNoSlot} раз).`);
       }
       if (data.positionBlockedCount > 0 && data.totalSingleEntries > 0) {

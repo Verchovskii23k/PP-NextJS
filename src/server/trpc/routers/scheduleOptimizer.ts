@@ -7,8 +7,10 @@
  * - **Дневной дисбаланс** – неравномерная нагрузка преподавателей/групп по дням.
  * - **Однообразие типов занятий** – когда в день у группы >3 однотипных занятий.
  * - **Единственное занятие в день** – приход только ради одной пары.
- * - **Нерациональное использование юнитов** – несколько групп/подгрупп в одном слоте,
- *   если это не поток.
+ * - **Нерациональное использование юнитов** – штрафуется ситуация, когда в слоте
+ * находится только одна группа или только одна подгруппа (или слот пуст).
+ * Алгоритм стремится к одновременному размещению нескольких не конфликтующих
+ * юнитов в одном слоте, повышая плотность расписания.
  *
  * Также обрабатываются **группы слияния** (mergeNumber ≠ 0) – перемещаются как единое
  * целое с автоматическим подбором аудитории нужной вместимости. При невозможности
@@ -18,18 +20,20 @@
  * - `iterations` – число выполненных итераций (обычно 20000).
  * - `initialScore` / `finalScore` – штраф до и после оптимизации.
  * - `acceptedMoves` – количество принятых мутаций (обменов или перемещений).
- * - `singleMoved` – количество **уникальных занятий**, изменивших слот по сравнению с
- *   исходным состоянием (не сумма событий).
+ * - `singleMoved` – количество **уникальных одиночных занятий**, изменивших слот по
+ *   сравнению с исходным состоянием (не сумма событий, без учёта групп слияния).
  * - `totalSingleEntries` – общее количество одиночных записей (без групп слияния) в
- *   расписании.
- * - `mergeGroupMoved` – сколько групп слияния успешно перемещены (получили новый слот
- *   и аудиторию).
+ *   расписании на начало оптимизации.
+ * - `mergeGroupMoved` – сколько раз группы слияния успешно перемещены (получили новый
+ *   слот и аудиторию). Одна группа может перемещаться многократно.
+ * - `mergeGroupsFinalPlaced` – количество групп слияния, которые в финальном состоянии
+ *   находятся в одном слоте (собраны).
  * - `totalMergeGroups` – общее число групп слияния.
  * - `mergeGroupFailedNoClassroom` – количество откатов групп слияния из-за отсутствия
  *   подходящей аудитории.
  * - `mergeGroupFailedNoSlot` – количество попыток, когда группу не удалось разместить
  *   даже после принудительного вытеснения.
- * - `positionBlockedCount` – количество занятий, зафиксированных флагом `positionFlag`
+ * - `positionBlockedCount` – количество занятий, зафиксированных флагом `positionFlag`.
  * - `bufferedCount` – исходное количество буферных занятий.
  * - `bufferedPlaced` – количество успешно размещённых из буфера.
  * - `bufferedFailed` – количество буферных занятий, которые не удалось разместить.
@@ -43,7 +47,7 @@
  *   штрафов (`opt_weight_*`) загружаются из таблицы `settings`. При отсутствии
  *   создаются значения по умолчанию (температура = 1000, скорость охлаждения = 0.95,
  *   веса в диапазоне 1–2).
- * - На каждой итерации с вероятностью ~50% выбирается случайная группа слияния,
+ * - На каждой итерации с вероятностью 70% выбирается случайная группа слияния,
  *   иначе – одиночное занятие. Для одиночных: 70% — обмен двух записей, 30% —
  *   перемещение одной записи в случайный слот.
  * - Принятие нового состояния: если штраф уменьшился, либо с вероятностью
@@ -63,6 +67,7 @@
  *   группы слияния.
  *
  * @param versionId - фильтр версии расписания (всегда `null` при вызове из UI; архивные версии не оптимизируются).
+ * @param includeBuffered - если true, перед оптимизацией будет предпринята попытка разместить буферные занятия.
  *
  * @returns Объект с детальной статистикой (см. выше). Пригоден для отображения
  *   администратору в виде информативных тостов.
@@ -76,7 +81,6 @@
  * - Для изменения параметров отжига администратор может воспользоваться интерфейсом
  *   на странице расписания (кнопка ⚙️).
  */
-
 import { db } from "@/db";
 import {
   scheduleDisplay as sdTable,
@@ -108,6 +112,7 @@ export interface Occupancy {
   groupIds: Set<number>;
   unitCodes: Set<string>;
   classroomIds: Set<number>;
+  mergeCounts: Map<number, number>;
 }
 
 interface MergeGroup {
@@ -350,10 +355,13 @@ async function buildContext(entries: StrictScheduleEntry[]): Promise<Optimizatio
   for (const e of finalEntries) {
     const key = slotKey(e.weekId, e.dayOfWeekId, e.pairNumberId);
     if (!occupancyBySlot.has(key)) {
-      occupancyBySlot.set(key, { teacherIds: new Set(), groupIds: new Set(), unitCodes: new Set() , classroomIds: new Set()});
+      occupancyBySlot.set(key, { teacherIds: new Set(), groupIds: new Set(), unitCodes: new Set() , classroomIds: new Set(), mergeCounts: new Map()});
     }
     const occ = occupancyBySlot.get(key)!;
     const teacherId = lessonTeacher.get(e.lessonId!);
+    if (e.mergeNumber && e.mergeNumber !== 0) {
+      occ.mergeCounts.set(e.mergeNumber, (occ.mergeCounts.get(e.mergeNumber) || 0) + 1);
+    }
     if (teacherId) {
       occ.teacherIds.add(teacherId);
       if (!teacherSchedule.has(teacherId)) teacherSchedule.set(teacherId, []);
@@ -402,6 +410,28 @@ function canMoveToSlot(
   const key = slotKey(weekId, dayId, pairId);
   const occ = ctx.occupancyBySlot.get(key);
   if (!occ) return true;
+  // Если занятие входит в группу слияния (mergeNumber !== 0), проверяем только преподавателя и аудиторию
+  if ((entry.mergeNumber ?? 0) !== 0) {
+    const sameMergeNum = entry.mergeNumber!;
+    const slotEntries = ctx.entries.filter(e => e.weekId === weekId && e.dayOfWeekId === dayId && e.pairNumberId === pairId);
+    for (const other of slotEntries) {
+      if ((other.mergeNumber ?? 0) === sameMergeNum) continue; // своя группа
+      // Проверка конфликта с other
+      const otherTeacher = ctx.lessonTeacher.get(other.lessonId!);
+      if (otherTeacher && ctx.lessonTeacher.get(entry.lessonId!) === otherTeacher) return false;
+      if (other.classroomId && entry.classroomId === other.classroomId) return false;
+      // Проверка общих групп
+      const entryGroups = ctx.unitGroups.get(entry.unitCode);
+      const otherGroups = ctx.unitGroups.get(other.unitCode);
+      if (entryGroups && otherGroups) {
+        for (const g of entryGroups) {
+          if (otherGroups.has(g)) return false;
+        }
+      }
+      if (entry.unitCode === other.unitCode) return false;
+    }
+    return true;
+  }
 
   // Преподаватель
   const teacherId = ctx.lessonTeacher.get(entry.lessonId!);
@@ -409,6 +439,9 @@ function canMoveToSlot(
 
   // Аудитория
   if (entry.classroomId != null && occ.classroomIds.has(entry.classroomId)) return false;
+
+  // Юнит
+  if ((entry.mergeNumber ?? 0) === 0 && occ.unitCodes.has(entry.unitCode)) return false;
 
   // Проверка общих групп — точно как в checkSlots для чужих юнитов
   const entryType = ctx.unitTypeByUnitCode.get(entry.unitCode) ?? 'ГРУППА';
@@ -551,10 +584,16 @@ function updateOccupancy(ctx: OptimizationContext, entry: StrictScheduleEntry, o
     if (entry.classroomId != null) {
       oldOcc.classroomIds.delete(entry.classroomId);
     }
+      const mn = entry.mergeNumber;
+    if (mn && mn !== 0) {
+      const cnt = oldOcc.mergeCounts.get(mn) || 0;
+      if (cnt <= 1) oldOcc.mergeCounts.delete(mn);
+      else oldOcc.mergeCounts.set(mn, cnt - 1);
+    }
   }
 
   if (!ctx.occupancyBySlot.has(newKey)) {
-    ctx.occupancyBySlot.set(newKey, { teacherIds: new Set(), groupIds: new Set(), unitCodes: new Set() , classroomIds: new Set()});
+    ctx.occupancyBySlot.set(newKey, { teacherIds: new Set(), groupIds: new Set(), unitCodes: new Set() , classroomIds: new Set(), mergeCounts: new Map()});
   }
   const newOcc = ctx.occupancyBySlot.get(newKey)!;
   const teacherId = ctx.lessonTeacher.get(entry.lessonId!);
@@ -564,6 +603,10 @@ function updateOccupancy(ctx: OptimizationContext, entry: StrictScheduleEntry, o
   newOcc.unitCodes.add(entry.unitCode);
   if (entry.classroomId != null) {
     newOcc.classroomIds.add(entry.classroomId);
+  }
+  const mn = entry.mergeNumber;
+  if (mn && mn !== 0) {
+    newOcc.mergeCounts.set(mn, (newOcc.mergeCounts.get(mn) || 0) + 1);
   }
 }
 
@@ -702,8 +745,27 @@ function evaluateState(ctx: OptimizationContext): number {
         if (gs) gs.forEach(g => groupIds.add(g));
       }
     }
-    if (groupIds.size > 1) score += (groupIds.size - 1) * weights.unitMisuse;
-    if (subgroupCodes.size > 1) score += (subgroupCodes.size - 1) * weights.unitMisuse;
+    // Если в слоте есть занятия, но они принадлежат только одной группе — штраф
+    if (groupIds.size === 1) score += weights.unitMisuse;
+    // Аналогично для подгрупп
+    if (subgroupCodes.size === 1) score += weights.unitMisuse;
+    // Опционально: штраф за полностью пустой слот (если хотите заполнять всё)
+    if (groupIds.size === 0 && subgroupCodes.size === 0) score += weights.unitMisuse;
+  }
+  // Штраф за разбросанность группы слияния
+  const mergeGroupSlots = new Map<number, Set<string>>();
+  for (const e of ctx.entries) {
+    const mn = e.mergeNumber;
+    if (mn && mn !== 0) {
+      const slotKey = `${e.weekId}-${e.dayOfWeekId}-${e.pairNumberId}`;
+      if (!mergeGroupSlots.has(mn)) mergeGroupSlots.set(mn, new Set());
+      mergeGroupSlots.get(mn)!.add(slotKey);
+    }
+  }
+  for (const [_, slots] of mergeGroupSlots) {
+    if (slots.size > 1) {
+      score += 100 * (slots.size - 1);
+    }
   }
 
   return score;
@@ -1056,13 +1118,73 @@ export async function optimizeSchedule(versionId?: number | null, includeBuffere
   const totalSingleEntries = ctx.entries.filter(e => (e.mergeNumber ?? 0) === 0).length;
   const positionBlockedCount = ctx.entries.filter(e => e.positionFlag).length;
   const totalMergeGroups = mergeGroups.length;
-
+  const singleEntries = ctx.entries.filter(e => (e.mergeNumber ?? 0) === 0);
+  const singleCount = singleEntries.length;
   while (iterations < MAX_ITER) {
-    if (mergeGroups.length > 0 && Math.random() < 0.5) {
+    if (mergeGroups.length > 0 && Math.random() < 0.7) {
       // === Блок для групп слияния ===
       const group = mergeGroups[Math.floor(Math.random() * mergeGroups.length)];
       let placed = false;
-
+      // Целенаправленная попытка собрать разбросанную группу в один слот (схлопнуть)
+      const firstEntry = group.entries[0];
+      const isScattered = group.entries.some(e =>
+        e.weekId !== firstEntry.weekId ||
+        e.dayOfWeekId !== firstEntry.dayOfWeekId ||
+        e.pairNumberId !== firstEntry.pairNumberId
+      );
+      if (isScattered && Math.random() < 0.7) {
+        const targetSlot = {
+          weekId: firstEntry.weekId,
+          dayId: firstEntry.dayOfWeekId,
+          pairId: firstEntry.pairNumberId
+        };
+        if (canMoveGroupToSlot(ctx, group, targetSlot.weekId, targetSlot.dayId, targetSlot.pairId)) {
+          const oldSlots = group.entries.map(e => ({ week: e.weekId, day: e.dayOfWeekId, pair: e.pairNumberId }));
+          moveGroupToSlot(ctx, group, targetSlot.weekId, targetSlot.dayId, targetSlot.pairId);
+          const newScore = evaluateState(ctx);
+          const delta = newScore - currentScore;
+          if (delta < 0 || Math.random() < Math.exp(-delta / temperature)) {
+            const classroomId = await findSuitableClassroomForGroup(group);
+            if (classroomId !== null) {
+              for (const entry of group.entries) {
+                entry.classroomId = classroomId;
+                if (entry.lessonId) await syncLessonClassroom(entry.lessonId, classroomId);
+              }
+              ctx.mergeClassroomIds.set(group.mergeNum, classroomId);
+              currentScore = newScore;
+              accepted++;
+              mergeGroupMoved++;
+              if (currentScore <= bestScore) {
+                bestScore = currentScore;
+                bestState = ctx.entries.map(e => ({ ...e }));
+              }
+              placed = true;
+              continue; // не выполняем обычные случайные попытки в этой итерации
+            } else {
+              // откат
+              for (let i = 0; i < group.entries.length; i++) {
+                const entry = group.entries[i];
+                const old = oldSlots[i];
+                entry.weekId = old.week;
+                entry.dayOfWeekId = old.day;
+                entry.pairNumberId = old.pair;
+                updateOccupancy(ctx, entry, targetSlot.weekId, targetSlot.dayId, targetSlot.pairId, old.week, old.day, old.pair);
+              }
+              mergeGroupFailedNoClassroom++;
+            }
+          } else {
+            // откат по температуре
+            for (let i = 0; i < group.entries.length; i++) {
+              const entry = group.entries[i];
+              const old = oldSlots[i];
+              entry.weekId = old.week;
+              entry.dayOfWeekId = old.day;
+              entry.pairNumberId = old.pair;
+              updateOccupancy(ctx, entry, targetSlot.weekId, targetSlot.dayId, targetSlot.pairId, old.week, old.day, old.pair);
+            }
+          }
+        }
+      }
       for (let attempt = 0; attempt < MAX_GROUP_ATTEMPTS && !placed; attempt++) {
         const targetSlot = ctx.slots[Math.floor(Math.random() * ctx.slots.length)];
         if (canMoveGroupToSlot(ctx, group, targetSlot.weekId, targetSlot.dayId, targetSlot.pairId)) {
@@ -1083,7 +1205,7 @@ export async function optimizeSchedule(versionId?: number | null, includeBuffere
               currentScore = newScore;
               accepted++;
               mergeGroupMoved++; // <-- успешное перемещение группы
-              if (currentScore < bestScore) {
+              if (currentScore <= bestScore) {
                 bestScore = currentScore;
                 bestState = ctx.entries.map(e => ({ ...e }));
               }
@@ -1140,7 +1262,7 @@ export async function optimizeSchedule(versionId?: number | null, includeBuffere
               currentScore = newScore;
               accepted++;
               mergeGroupMoved++;
-              if (currentScore < bestScore) {
+              if (currentScore <= bestScore) {
                 bestScore = currentScore;
                 bestState = ctx.entries.map(e => ({ ...e }));
               }
@@ -1178,12 +1300,12 @@ export async function optimizeSchedule(versionId?: number | null, includeBuffere
       const r = Math.random();
       if (r < 0.7) {
         // Обмен двух занятий
-        if (ctx.entries.length < 2) { iterations++; continue; }
-        const i = Math.floor(Math.random() * ctx.entries.length);
-        let j = Math.floor(Math.random() * (ctx.entries.length - 1));
+        if (singleCount < 2) { iterations++; continue; }
+        const i = Math.floor(Math.random() * singleCount);
+        let j = Math.floor(Math.random() * (singleCount - 1));
         if (j >= i) j++;
-        const a = ctx.entries[i];
-        const b = ctx.entries[j];
+        const a = singleEntries[i];
+        const b = singleEntries[j];
         if (a.positionFlag || b.positionFlag || a.unitCode !== b.unitCode) { iterations++; continue; }
         if (!canMoveToSlot(ctx, a, b.weekId, b.dayOfWeekId, b.pairNumberId) ||
             !canMoveToSlot(ctx, b, a.weekId, a.dayOfWeekId, a.pairNumberId)) {
@@ -1203,7 +1325,7 @@ export async function optimizeSchedule(versionId?: number | null, includeBuffere
         if (delta < 0 || Math.random() < Math.exp(-delta / temperature)) {
           currentScore = newScore;
           accepted++;
-          if (currentScore < bestScore) {
+          if (currentScore <= bestScore) {
             bestScore = currentScore;
             bestState = ctx.entries.map(e => ({ ...e }));
           }
@@ -1217,8 +1339,9 @@ export async function optimizeSchedule(versionId?: number | null, includeBuffere
       } else {
         // Перемещение одного занятия
         if (ctx.slots.length === 0) { iterations++; continue; }
-        const entryIdx = Math.floor(Math.random() * ctx.entries.length);
-        const entry = ctx.entries[entryIdx];
+        if (singleCount === 0) { iterations++; continue; }
+        const entryIdx = Math.floor(Math.random() * singleCount);
+        const entry = singleEntries[entryIdx];
         if (entry.positionFlag) { iterations++; continue; }
         const slotIdx = Math.floor(Math.random() * ctx.slots.length);
         const targetSlot = ctx.slots[slotIdx];
@@ -1238,7 +1361,7 @@ export async function optimizeSchedule(versionId?: number | null, includeBuffere
         if (delta < 0 || Math.random() < Math.exp(-delta / temperature)) {
           currentScore = newScore;
           accepted++;
-          if (currentScore < bestScore) {
+          if (currentScore <= bestScore) {
             bestScore = currentScore;
             bestState = ctx.entries.map(e => ({ ...e }));
           }
@@ -1248,7 +1371,6 @@ export async function optimizeSchedule(versionId?: number | null, includeBuffere
         }
       }
     }
-
     // Охлаждение температуры
     temperature *= coolingRate;
     if (temperature < 0.01) temperature = 0.01;
@@ -1257,14 +1379,52 @@ export async function optimizeSchedule(versionId?: number | null, includeBuffere
   // Подсчёт уникальных занятий, у которых изменился слот
   if (accepted > 0) {
     singleMoved = ctx.entries.filter(e => {
+      if ((e.mergeNumber ?? 0) !== 0) return false;
       const orig = originalSlots.get(e.id);
       if (!orig) return false;
       return e.weekId !== orig.week || e.dayOfWeekId !== orig.day || e.pairNumberId !== orig.pair;
     }).length;
   }
-  if (bestScore < currentScore) {
+  if (bestScore <= currentScore) {
     ctx.entries = bestState;
     currentScore = bestScore;
+  }
+  // Пересчитаем группы слияния по финальному состоянию
+  const finalMergeMap = new Map<number, StrictScheduleEntry[]>();
+  for (const e of ctx.entries) {
+    const mn = e.mergeNumber ?? 0;
+    if (mn !== 0) {
+      if (!finalMergeMap.has(mn)) finalMergeMap.set(mn, []);
+      finalMergeMap.get(mn)!.push(e);
+    }
+  }
+  // Принудительное финальное схлопывание разбросанных групп слияния
+  for (const group of mergeGroups) {
+    const first = group.entries[0];
+    const isScattered = group.entries.some(e =>
+      e.weekId !== first.weekId ||
+      e.dayOfWeekId !== first.dayOfWeekId ||
+      e.pairNumberId !== first.pairNumberId
+    );
+    if (isScattered && canMoveGroupToSlot(ctx, group, first.weekId, first.dayOfWeekId, first.pairNumberId)) {
+      moveGroupToSlot(ctx, group, first.weekId, first.dayOfWeekId, first.pairNumberId);
+      const classroomId = await findSuitableClassroomForGroup(group);
+      if (classroomId !== null) {
+        for (const entry of group.entries) {
+          entry.classroomId = classroomId;
+          if (entry.lessonId) await syncLessonClassroom(entry.lessonId, classroomId);
+        }
+        ctx.mergeClassroomIds.set(group.mergeNum, classroomId);
+      }
+    }
+  }
+  // Пересчитаем штраф после принудительного схлопывания (необязательно, но для статистики)
+  currentScore = evaluateState(ctx);
+  let mergeGroupsFinalPlaced = 0;
+  for (const entries of finalMergeMap.values()) {
+    const firstSlot = `${entries[0].weekId}-${entries[0].dayOfWeekId}-${entries[0].pairNumberId}`;
+    const allSame = entries.every(e => `${e.weekId}-${e.dayOfWeekId}-${e.pairNumberId}` === firstSlot);
+    if (allSame) mergeGroupsFinalPlaced++;
   }
   // Сохранение результата (без изменений)
   if (accepted > 0) {
@@ -1347,6 +1507,7 @@ export async function optimizeSchedule(versionId?: number | null, includeBuffere
     singleMoved,
     totalSingleEntries,
     mergeGroupMoved,
+    mergeGroupsFinalPlaced,
     totalMergeGroups,
     mergeGroupFailedNoClassroom,
     mergeGroupFailedNoSlot,

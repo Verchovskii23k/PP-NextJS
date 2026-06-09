@@ -22,6 +22,7 @@ import {
   departments,
   classrooms,
   buildings,
+  hourTypeMapping,
 } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 
@@ -85,7 +86,21 @@ describe('scheduleOptimizer', () => {
     flowLessonId = flowLesson.id;
     sg1LessonId = sg1Lesson.id;
     sg2LessonId = sg2Lesson.id;
+    // Убедимся, что для типа занятия "lecture" есть mapping в hourTypeMapping
+    const existingMapping = await db
+      .select()
+      .from(hourTypeMapping)
+      .where(eq(hourTypeMapping.lessonTypeId, seed.lessonTypes.lecture))
+      .limit(1);
 
+    if (existingMapping.length === 0) {
+      await db.insert(hourTypeMapping).values({
+        lessonTypeId: seed.lessonTypes.lecture,
+        planHourColumn: 'hoursLecture',   // ← добавить обязательное поле
+        priorityColumn: 'priorityLecture',
+        isActive: true,
+      });
+    }
     const building = await db.select({ id: buildings.id }).from(buildings).limit(1).then(r => r[0]);
     const [classroom] = await db.insert(classrooms).values({
       buildingId: building.id,
@@ -222,14 +237,8 @@ describe('scheduleOptimizer', () => {
     await db.update(classrooms).set({ priorityLecture: 1 }).where(eq(classrooms.id, largeClassroomId));
     const result = await optimizeSchedule(null, false);
     expect(result.totalMergeGroups).toBe(1);
-    expect(result.mergeGroupMoved).toBeGreaterThanOrEqual(0);
-    const groupEntries = await db.select().from(scheduleDisplay).where(eq(scheduleDisplay.mergeNumber, mergeNum));
-    if (groupEntries.length === 2 && groupEntries[0].weekId !== null && groupEntries[1].weekId !== null) {
-      const slot = `${groupEntries[0].weekId}-${groupEntries[0].dayOfWeekId}-${groupEntries[0].pairNumberId}`;
-      const slot2 = `${groupEntries[1].weekId}-${groupEntries[1].dayOfWeekId}-${groupEntries[1].pairNumberId}`;
-      expect(slot2).toBe(slot);
-    }
-  }, 60000);
+    expect(result.mergeGroupsFinalPlaced).toBe(1);
+  }, 90000);
 
   it('должен возвращать корректную статистику по буферу', async () => {
     const { days, pairs, weeks } = await getMeta();

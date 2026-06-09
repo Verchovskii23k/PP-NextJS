@@ -48,7 +48,7 @@ describe('canMoveToSlot (правила размещения юнитов)', () 
   it('занятый преподаватель – нельзя', () => {
     const ctx = mockCtx();
     ctx.lessonTeacher.set(1, 10);
-    const occ: Occupancy = { teacherIds: new Set([10]), groupIds: new Set(), unitCodes: new Set(), classroomIds: new Set() };
+    const occ: Occupancy = { teacherIds: new Set([10]), groupIds: new Set(), unitCodes: new Set(), classroomIds: new Set(), mergeCounts: new Map()};
     ctx.occupancyBySlot.set('1-1-1', occ);
     const entry = buildMockEntry({ lessonId: 1, unitCode: 'U1' });
     expect(canMoveToSlot(ctx, entry, 1, 1, 1)).toBe(false);
@@ -56,7 +56,7 @@ describe('canMoveToSlot (правила размещения юнитов)', () 
 
   it('занятая аудитория – нельзя', () => {
     const ctx = mockCtx();
-    const occ: Occupancy = { teacherIds: new Set(), groupIds: new Set(), unitCodes: new Set(), classroomIds: new Set([5]) };
+    const occ: Occupancy = { teacherIds: new Set(), groupIds: new Set(), unitCodes: new Set(), classroomIds: new Set([5]), mergeCounts: new Map()};
     ctx.occupancyBySlot.set('1-1-1', occ);
     const entry = buildMockEntry({ lessonId: 1, unitCode: 'U1', classroomId: 5 });
     expect(canMoveToSlot(ctx, entry, 1, 1, 1)).toBe(false);
@@ -68,7 +68,7 @@ describe('canMoveToSlot (правила размещения юнитов)', () 
     ctx.unitGroups.set('SG2', new Set([100]));
     ctx.unitTypeByUnitCode.set('SG1', 'ПОДГРУППА');
     ctx.unitTypeByUnitCode.set('SG2', 'ПОДГРУППА');
-    const occ: Occupancy = { teacherIds: new Set(), groupIds: new Set([100]), unitCodes: new Set(['SG2']), classroomIds: new Set() };
+    const occ: Occupancy = { teacherIds: new Set(), groupIds: new Set([100]), unitCodes: new Set(['SG2']), classroomIds: new Set(), mergeCounts: new Map() };
     ctx.occupancyBySlot.set('1-1-1', occ);
     const entry = buildMockEntry({ lessonId: 1, unitCode: 'SG1' });
     expect(canMoveToSlot(ctx, entry, 1, 1, 1)).toBe(true);
@@ -80,7 +80,7 @@ describe('canMoveToSlot (правила размещения юнитов)', () 
     ctx.unitGroups.set('GRP', new Set([100]));
     ctx.unitTypeByUnitCode.set('SG1', 'ПОДГРУППА');
     ctx.unitTypeByUnitCode.set('GRP', 'ГРУППА');
-    const occ: Occupancy = { teacherIds: new Set(), groupIds: new Set([100]), unitCodes: new Set(['GRP']), classroomIds: new Set() };
+    const occ: Occupancy = { teacherIds: new Set(), groupIds: new Set([100]), unitCodes: new Set(['GRP']), classroomIds: new Set(), mergeCounts: new Map() };
     ctx.occupancyBySlot.set('1-1-1', occ);
     const entry = buildMockEntry({ lessonId: 1, unitCode: 'SG1' });
     expect(canMoveToSlot(ctx, entry, 1, 1, 1)).toBe(false);
@@ -92,7 +92,7 @@ describe('canMoveToSlot (правила размещения юнитов)', () 
     ctx.unitGroups.set('SG1', new Set([100]));
     ctx.unitTypeByUnitCode.set('FLOW', 'ПОТОК');
     ctx.unitTypeByUnitCode.set('SG1', 'ПОДГРУППА');
-    const occ: Occupancy = { teacherIds: new Set(), groupIds: new Set([100]), unitCodes: new Set(['SG1']), classroomIds: new Set() };
+    const occ: Occupancy = { teacherIds: new Set(), groupIds: new Set([100]), unitCodes: new Set(['SG1']), classroomIds: new Set(), mergeCounts: new Map() };
     ctx.occupancyBySlot.set('1-1-1', occ);
     const entry = buildMockEntry({ lessonId: 1, unitCode: 'FLOW' });
     expect(canMoveToSlot(ctx, entry, 1, 1, 1)).toBe(false);
@@ -104,7 +104,7 @@ describe('canMoveToSlot (правила размещения юнитов)', () 
     ctx.unitGroups.set('GRP', new Set([100]));
     ctx.unitTypeByUnitCode.set('FLOW', 'ПОТОК');
     ctx.unitTypeByUnitCode.set('GRP', 'ГРУППА');
-    const occ: Occupancy = { teacherIds: new Set(), groupIds: new Set([100]), unitCodes: new Set(['GRP']), classroomIds: new Set() };
+    const occ: Occupancy = { teacherIds: new Set(), groupIds: new Set([100]), unitCodes: new Set(['GRP']), classroomIds: new Set(), mergeCounts: new Map() };
     ctx.occupancyBySlot.set('1-1-1', occ);
     const entry = buildMockEntry({ lessonId: 1, unitCode: 'FLOW' });
     expect(canMoveToSlot(ctx, entry, 1, 1, 1)).toBe(false);
@@ -116,7 +116,7 @@ describe('canMoveToSlot (правила размещения юнитов)', () 
     ctx.unitGroups.set('FLOW2', new Set([2]));
     ctx.unitTypeByUnitCode.set('FLOW1', 'ПОТОК');
     ctx.unitTypeByUnitCode.set('FLOW2', 'ПОТОК');
-    const occ: Occupancy = { teacherIds: new Set(), groupIds: new Set(), unitCodes: new Set(['FLOW2']), classroomIds: new Set() };
+    const occ: Occupancy = { teacherIds: new Set(), groupIds: new Set(), unitCodes: new Set(['FLOW2']), classroomIds: new Set(), mergeCounts: new Map() };
     ctx.occupancyBySlot.set('1-1-1', occ);
     const entry = buildMockEntry({ lessonId: 1, unitCode: 'FLOW1' });
     expect(canMoveToSlot(ctx, entry, 1, 1, 1)).toBe(true);
@@ -139,7 +139,7 @@ describe('canMoveToSlot (правила размещения юнитов)', () 
     ctx.unitGroups.set('FLOW2', new Set([100]));
     ctx.unitTypeByUnitCode.set('FLOW1', 'ПОТОК');
     ctx.unitTypeByUnitCode.set('FLOW2', 'ПОТОК');
-    const occ: Occupancy = { teacherIds: new Set(), groupIds: new Set([100]), unitCodes: new Set(['FLOW2']), classroomIds: new Set() };
+    const occ: Occupancy = { teacherIds: new Set(), groupIds: new Set([100]), unitCodes: new Set(['FLOW2']), classroomIds: new Set(), mergeCounts: new Map() };
     ctx.occupancyBySlot.set('1-1-1', occ);
     const entry = buildMockEntry({ lessonId: 1, unitCode: 'FLOW1' });
     expect(canMoveToSlot(ctx, entry, 1, 1, 1)).toBe(false);
@@ -151,7 +151,7 @@ describe('canMoveToSlot (правила размещения юнитов)', () 
     ctx.unitGroups.set('GRP2', new Set([2]));
     ctx.unitTypeByUnitCode.set('GRP1', 'ГРУППА');
     ctx.unitTypeByUnitCode.set('GRP2', 'ГРУППА');
-    const occ: Occupancy = { teacherIds: new Set(), groupIds: new Set(), unitCodes: new Set(['GRP2']), classroomIds: new Set() };
+    const occ: Occupancy = { teacherIds: new Set(), groupIds: new Set(), unitCodes: new Set(['GRP2']), classroomIds: new Set(), mergeCounts: new Map() };
     ctx.occupancyBySlot.set('1-1-1', occ);
     const entry = buildMockEntry({ lessonId: 1, unitCode: 'GRP1' });
     expect(canMoveToSlot(ctx, entry, 1, 1, 1)).toBe(true);
@@ -163,7 +163,7 @@ describe('canMoveToSlot (правила размещения юнитов)', () 
     ctx.unitGroups.set('SG2', new Set([2]));
     ctx.unitTypeByUnitCode.set('SG1', 'ПОДГРУППА');
     ctx.unitTypeByUnitCode.set('SG2', 'ПОДГРУППА');
-    const occ: Occupancy = { teacherIds: new Set(), groupIds: new Set(), unitCodes: new Set(['SG2']), classroomIds: new Set() };
+    const occ: Occupancy = { teacherIds: new Set(), groupIds: new Set(), unitCodes: new Set(['SG2']), classroomIds: new Set(), mergeCounts: new Map() };
     ctx.occupancyBySlot.set('1-1-1', occ);
     const entry = buildMockEntry({ lessonId: 1, unitCode: 'SG1' });
     expect(canMoveToSlot(ctx, entry, 1, 1, 1)).toBe(true);
