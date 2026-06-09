@@ -35,7 +35,7 @@ export default function ManualPage() {
         {/* Параметры оптимизации */}
         <details className="rounded-lg border border-border bg-background p-4 shadow-sm">
           <summary className="cursor-pointer text-lg font-semibold">
-            Параметры оптимизации – Настройка штрафов
+            Локальный поиск – Настройка апарметров локального поиска
           </summary>
           <div className="mt-2 text-sm text-muted-foreground">
             <p>
@@ -83,7 +83,7 @@ export default function ManualPage() {
         {/* Расписание */}
         <details className="rounded-lg border border-border bg-background p-4 shadow-sm">
           <summary className="cursor-pointer text-lg font-semibold">
-            Расписание – Просмотр, редактирование и экспорт
+            Расписание – Просмотр, оптимизация и экспорт расписания
           </summary>
           <div className="mt-2 space-y-2 text-sm text-muted-foreground">
             <p>
@@ -105,7 +105,7 @@ export default function ManualPage() {
         {/* Администраторы */}
         <details className="rounded-lg border border-border bg-background p-4 shadow-sm">
           <summary className="cursor-pointer text-lg font-semibold">
-            Администраторы – Управление правами
+            Администраторы – Управление администраторами
           </summary>
           <div className="mt-2 text-sm text-muted-foreground">
             <p>
@@ -135,11 +135,11 @@ export default function ManualPage() {
         {/* Пользователи */}
         <details className="rounded-lg border border-border bg-background p-4 shadow-sm">
           <summary className="cursor-pointer text-lg font-semibold">
-            Пользователи – Сброс логина и пароля
+            Пользователи – Сброс логинов и паролей
           </summary>
           <div className="mt-2 text-sm text-muted-foreground">
             <p>
-              На странице <strong>Пользователи</strong> (Пользователи) отображается список сотрудников и студентов. Если пользователь забыл логин (email) или потерял доступ к почте, администратор может полностью сбросить его учётные данные.
+              На странице <strong>Пользователи</strong> отображается список сотрудников и студентов. Если пользователь забыл логин (email) или потерял доступ к почте, администратор может полностью сбросить его учётные данные.
             </p>
             <ul className="list-disc pl-5">
               <li>Нажмите кнопку <strong>«Сбросить логин и пароль»</strong> рядом с нужным пользователем.</li>
@@ -156,7 +156,7 @@ export default function ManualPage() {
         {/* Импорт/экспорт */}
         <details className="rounded-lg border border-border bg-background p-4 shadow-sm">
           <summary className="cursor-pointer text-lg font-semibold">
-            Импорт/экспорт данных БД – Глобальный бэкап
+            Импорт/экспорт данных БД – Глобальный импорт/экспорт данных в формате JSON
           </summary>
           <div className="mt-2 space-y-2 text-sm text-muted-foreground">
             <p>
@@ -172,7 +172,7 @@ export default function ManualPage() {
         {/* Настройки аккаунта */}
         <details className="rounded-lg border border-border bg-background p-4 shadow-sm">
           <summary className="cursor-pointer text-lg font-semibold">
-            Настройки аккаунта – Личные данные и безопасность
+            Настройки аккаунта – Личные данные и безопасность аккаунта
           </summary>
           <div className="mt-2 text-sm text-muted-foreground">
             <p>
